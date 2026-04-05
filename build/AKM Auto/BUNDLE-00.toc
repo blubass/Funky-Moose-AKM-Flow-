@@ -1,0 +1,3 @@
+([('AKM Auto',
+   '/Users/uwearthurfelchle/Desktop/AKM_Assistant_FULL/dist/AKM Auto',
+   'EXECUTABLE')],)

@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AKM Debug",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/akm_assistant.py",
+      "console": "integratedTerminal"
+    }
+  ]
+}
