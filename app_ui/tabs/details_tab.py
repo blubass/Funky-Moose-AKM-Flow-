@@ -1,3 +1,4 @@
+import tkinter as tk
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm,
     AkmEntry, AkmText, AkmCheckbutton,

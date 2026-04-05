@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+dist/
+build/
+*.spec
+
+# macOS
+.DS_Store
+
+# AKM Data
+akm_assistant/
+data.json
+data_backup.json
+lang.txt
+settings.json
+
+# Binaries
+chromedriver*

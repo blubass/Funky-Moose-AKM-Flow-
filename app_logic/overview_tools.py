@@ -120,8 +120,11 @@ def format_overview_list_label(item, status_label):
     if item.get("year"):
         details.append(item["year"])
 
+    # Green indicator for success states
+    success_indicator = "● " if item.get("status") in ["ready", "submitted", "confirmed"] else ""
+    
     suffix = f" | {' | '.join(details)}" if details else ""
-    return f"{item['title']}{suffix}   •   {status_label}"
+    return f"{success_indicator}{item['title']}{suffix}   •   {status_label}"
 
 
 def _sort_value(item, sort_key, sort_desc):

@@ -1,3 +1,4 @@
+import tkinter as tk
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
@@ -29,30 +30,19 @@ class ReleaseTab(AkmPanel):
         left_form = AkmForm(left_card, padx=CARD_PAD_X, pady=CARD_PAD_Y)
         left_form.pack(fill="both", expand=True)
         left_form.add_header("Release-Basis")
-        AkmSubLabel(left_form, text="Metadaten, Cover und Exportpfad fuer das eigentliche Auslieferungspaket.", bg=PANEL_2, wraplength=320, justify="left").grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, SPACE_SM))
-        left_form._current_row += 1
-
+        
         fields = [
             ("title", "Release-Titel"), ("artist", "Artist"), ("type", "Typ"),
-            ("release_date", "Release-Datum"), ("genre", "Genre"), ("subgenre", "Subgenre"),
+            ("release_date", "Datum (JJJJ-MM-TT)"), ("genre", "Genre"),
             ("label", "Label"), ("copyright_line", "Copyright"),
-            ("cover_path", "Cover-Pfad"), ("export_dir", "Export-Ordner"),
+            ("export_dir", "Export-Ordner"),
         ]
-        defaults = {"artist": akm_core.get_release_default_artist(), "type": "Album"}
+        defaults = {"artist": akm_core.get_release_default_artist(), "type": "Single"}
 
         for key, label in fields:
             var = tk.StringVar(value=defaults.get(key, ""))
             self.app.release_vars[key] = var
-            
-            if key == "cover_path":
-                def _create_cover_field(parent):
-                    wrap = tk.Frame(parent, bg=PANEL_2)
-                    AkmEntry(wrap, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.choose_release_cover, primary=True).pack(side="left", padx=(SPACE_XS, 0))
-                    self.app.btn(wrap, "Finder", self.app.open_release_cover_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
-                    return wrap
-                left_form.add_row(label, _create_cover_field)
-            elif key == "export_dir":
+            if key == "export_dir":
                 def _create_export_field(parent):
                     wrap = tk.Frame(parent, bg=PANEL_2)
                     AkmEntry(wrap, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True)
@@ -62,10 +52,9 @@ class ReleaseTab(AkmPanel):
             else:
                 left_form.add_entry(label, var, font=FONT_SM)
 
-        # RIGHT CARD: TRACK LIST
-        AkmLabel(right_card, text="Inhalt (Tracks)", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
-        AkmSubLabel(right_card, text="Waehle Werke in der Übersicht oder ziehe Audio-Dateien direkt hierher.", bg=PANEL_2, wraplength=320, justify="left").pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
-
+        # RIGHT CARD: TRACK LIST & ASSEMBLY
+        AkmLabel(right_card, text="Release-Zusammenstellung", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_MD))
+        
         list_frame = AkmPanel(right_card, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_SM))
 

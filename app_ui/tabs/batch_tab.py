@@ -1,11 +1,13 @@
 import tkinter as tk
+import subprocess
 from tkinter import ttk
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, 
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, 
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_XL, FONT_LG, FONT_XXL
 )
+
 
 class BatchTab(AkmPanel):
     def __init__(self, parent, app):
@@ -21,13 +23,20 @@ class BatchTab(AkmPanel):
         focus_card = AkmCard(self)
         focus_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        AkmLabel(focus_card, text="Aktuelles Werk", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
+        AkmLabel(focus_card, text="Aktuelles Werk", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 0))
 
-        self.app.flow_title = AkmLabel(focus_card, text="—", fg=ACCENT, bg=PANEL_2, font=FONT_XXL)
+        self.app.flow_title = AkmHeader(focus_card, text="Lade Werk...", fg=ACCENT, bg=PANEL_2)
         self.app.flow_title.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
+        
+        meta_row = tk.Frame(focus_card, bg=PANEL_2)
+        meta_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_MD))
+        self.app.flow_meta = AkmSubLabel(meta_row, text="", bg=PANEL_2)
+        self.app.flow_meta.pack(side="left")
 
-        self.app.flow_meta = AkmLabel(focus_card, text="", fg=SUBTLE, bg=PANEL_2, font=FONT_MD, wraplength=620, justify="left")
-        self.app.flow_meta.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_MD))
+        # Success Indicator for ready tracks
+        self.flow_indicator = AkmSuccessIndicator(meta_row, bg=PANEL_2)
+        self.flow_indicator.pack(side="left", padx=SPACE_XS)
+        self.flow_indicator.pack_forget() # Initially hidden
 
         btn_row = AkmPanel(focus_card, bg=PANEL_2)
         btn_row.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))

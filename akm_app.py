@@ -30,16 +30,15 @@ from app_ui.tabs.assistant_tab import AssistantTab
 from app_ui.tabs.batch_tab import BatchTab
 from app_ui.tabs.overview_tab import OverviewTab
 from app_ui.tabs.details_tab import DetailsTab
+from app_ui.tabs.cover_tab import CoverTab
 from app_ui.tabs.release_tab import ReleaseTab
 from app_ui.tabs.loudness_tab import LoudnessTab
 
 # Design Tokens & Themed Widgets
 from app_ui.ui_patterns import (
-    BG, PANEL, PANEL_2, ACCENT, TEXT, FIELD_FG, 
-    SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG,
-    CARD_PAD_X, CARD_PAD_Y,
-    FONT_SM, FONT_BOLD, FONT_MD, FONT_LG, FONT_XL, FONT_XXXL, FONT_ITALIC,
-    AkmToast, PulseLabel
+    SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL,
+    FONT_SM, FONT_MD, FONT_BOLD, FONT_MD_BOLD, FONT_LG, FONT_XXXL,
+    PulseLabel, AkmPanel, AkmLabel, AkmSubLabel
 )
 
 class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
@@ -54,23 +53,26 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self._init_ui_vars()
         
         # Setup & Boot
-        ui_patterns.setup_ttk_styles()
+        ui_patterns.apply_ttk_styles()
         self.build_ui()
         
         # Final Bindings & Initial Data Load
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.tabs.bind("<<NotebookTabChanged>>", self.on_tab_changed)
         
+        dnd_status = "Aktiv" if TkinterDnD is not None else "Deaktiviert (Paket fehlt)"
+        self.append_log(f"Drag & Drop System: {dnd_status}")
+        
         self.refresh_list()
         self.reload_flow_data(preferred_index=0)
 
     # --- INITIALIZATION ---
     def _set_window_config(self):
-        """Standard window setup (Title, Geometry, Theme Color)."""
+        """Standard window initialization and styling."""
         self.title("Funky Moose Release Forge")
-        self.geometry("920x680")
+        self.geometry("1000x820")
         self.minsize(860, 620)
-        self.configure(bg=BG)
+        self.configure(bg=ui_patterns.BG)
 
     def _init_state_and_services(self):
         """Instantiate core singleton services."""
@@ -102,47 +104,32 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
     # --- UI BUILDING ---
     def build_ui(self):
-        """Assembles the main application layout including header, navigation, and tabs."""
-        root_container = tk.Frame(self, bg=BG)
-        root_container.pack(fill="both", expand=True, padx=SPACE_LG, pady=SPACE_LG)
+        """Assembles the main application layout including header and tabs."""
+        self.content_root = tk.Frame(self, bg=ui_patterns.BG)
+        self.content_root.pack(fill="both", expand=True)
         
-        self._build_header(root_container)
-        self._build_quick_nav(root_container)
-        self._build_tab_system(root_container)
+        self._build_header(self.content_root)
+        self._build_tab_system(self.content_root)
 
     def _build_header(self, parent):
         """Builds the top branding header with title and activity indicator."""
-        header_frame = tk.Frame(parent, bg=BG)
-        header_frame.pack(fill="x", pady=(0, SPACE_SM))
+        header_frame = tk.Frame(parent, bg=ui_patterns.BG)
+        header_frame.pack(fill="x", padx=SPACE_LG, pady=(SPACE_LG, SPACE_LG))
         
         tk.Label(header_frame, text="Funky Moose Release Forge", 
-                 fg=ACCENT, bg=BG, font=FONT_XXXL).pack(side="left")
+                 fg=ui_patterns.ACCENT, bg=ui_patterns.BG, font=FONT_XXXL).pack(side="left")
+        
+        # Theme Toggle (Manual Control)
+        theme_btn = tk.Button(header_frame, text="🌓", bg=ui_patterns.BG, fg=ui_patterns.TEXT, borderwidth=0, 
+                             highlightthickness=0, activebackground=ui_patterns.PANEL_2, cursor="hand2",
+                             command=self.toggle_theme)
+        theme_btn.pack(side="right", padx=SPACE_LG, pady=SPACE_XS)
         
         # Modern Pulsing Activity Monitor
-        self.task_indicator = PulseLabel(header_frame, text="TASK ACTIVE", fg=ACCENT, 
+        self.task_indicator = PulseLabel(header_frame, text="TASK ACTIVE", fg=ui_patterns.ACCENT, 
                                          font=FONT_BOLD, padx=10, pady=4)
         self.task_indicator.pack(side="right", pady=SPACE_XS)
         self.task_indicator.stop()
-
-    def _build_quick_nav(self, parent):
-        """Builds the high-fidelity selection bar for rapid tab switching."""
-        nav_wrap = tk.Frame(parent, bg=PANEL)
-        nav_wrap.pack(fill="x", pady=(0, SPACE_MD))
-        
-        tk.Label(nav_wrap, text="QUICK NAVIGATION", fg="#9fedd1", bg=PANEL, 
-                 font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y-2, SPACE_XS))
-        
-        nav_row = tk.Frame(nav_wrap, bg=PANEL)
-        nav_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        
-        sections = [
-            ("Dashboard", "dashboard"), ("AKM Assistant", "assistant"), 
-            ("Overview", "overview"), ("Details", "details"), ("Release", "release")
-        ]
-        for label, tab_id in sections:
-            self.btn(nav_row, label, lambda t=tab_id: self.select_tab_by_id(t)).pack(side="left", padx=(0, SPACE_XS))
-        
-        self.btn(nav_row, "Loudness Optimizer", self.open_loudness_tab, primary=True).pack(side="left", padx=SPACE_XS)
 
     def _build_tab_system(self, parent):
         """Initializes and adds all functional modules to the central Notebook."""
@@ -151,13 +138,14 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
         # Tab Register (for easier access)
         self.tab_map = {
-            "dashboard": tk.Frame(self.tabs, bg=BG),
-            "assistant": tk.Frame(self.tabs, bg=BG),
-            "batch":     tk.Frame(self.tabs, bg=BG),
-            "overview":  tk.Frame(self.tabs, bg=BG),
-            "details":   tk.Frame(self.tabs, bg=BG),
-            "release":   tk.Frame(self.tabs, bg=BG),
-            "loudness":  tk.Frame(self.tabs, bg=BG)
+            "dashboard": tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "assistant": tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "batch":     tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "overview":  tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "details":   tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "cover":     tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "release":   tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
+            "loudness":  tk.Frame(self.tabs, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG)
         }
 
         # Add to Notebook
@@ -170,6 +158,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         BatchTab(self.tab_map["batch"], self)
         OverviewTab(self.tab_map["overview"], self)
         DetailsTab(self.tab_map["details"], self)
+        CoverTab(self.tab_map["cover"], self)
         ReleaseTab(self.tab_map["release"], self)
         LoudnessTab(self.tab_map["loudness"], self)
 
@@ -207,7 +196,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             s_map = akm_core.get_status_map(akm_core.get_lang())
             for it in self.state.filtered_records:
                 self.listbox.insert(tk.END, overview_tools.format_overview_list_label(it, s_map.get(it['status'], it['status'])))
-                self.listbox.itemconfig(tk.END, bg=ui_patterns.get_row_color(it.get("status", "in_progress"), 0.16), fg=FIELD_FG)
+                self.listbox.itemconfig(tk.END, bg=ui_patterns.get_row_color(it.get("status", "in_progress"), 0.16), fg=ui_patterns.FIELD_FG)
         
         if hasattr(self, 'overview_summary_label') and self.overview_summary_label:
             self.overview_summary_label.config(text=f"{len(self.state.filtered_records)} Werke gefunden")
@@ -345,6 +334,21 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         if hasattr(self, 'detail_status_chip') and self.detail_status_chip: ui_patterns.style_chip_label(self.detail_status_chip, s, self.status_text(s))
 
     # --- WRAPPERS FOR TAB ACTIONS ---
+    def toggle_theme(self):
+        """Manually switches between light and dark industrial themes."""
+        new_is_dark = not ui_patterns.IS_DARK
+        ui_patterns.update_global_constants(new_is_dark)
+        
+        # 1. Update the overall root UI colors
+        self.configure(bg=ui_patterns.BG)
+        self.content_root.configure(bg=ui_patterns.BG)
+        
+        # 2. Update all widgets recursively
+        ui_patterns.refresh_ui_hierarchy(self)
+        
+        # 3. Force rebuild of global styles
+        ui_patterns.apply_ttk_styles()
+
     def add(self):
         (t := self.entry.get().strip()) and self.tasks.run(lambda: akm_core.add_entry(t), lambda r: self._on_g_done(r, f"'{t}' angelegt"), f"Lege '{t}' an...")
     def set_status(self, s):
@@ -382,6 +386,13 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             self.refresh_release_view(); self.release_track_listbox.selection_set(i+1)
     def release_remove_track(self): (s := self.release_track_listbox.curselection()) and self.state.release_tracks.pop(s[0]) or self.refresh_release_view()
 
+    def set_detail_status(self, s): self._set_detail_status_chip(s)
+    def loudness_import_selected_work(self):
+        if (it := self._get_selected_overview_item()) and it.get("audio_path"):
+            self.state.loudness_files = [it["audio_path"]]; self._pop_l_tree(); self.select_tab_by_id("loudness")
+    def loudness_import_filtered_works(self):
+        self.state.loudness_files = [it["audio_path"] for it in self.state.filtered_records if it.get("audio_path")]
+        self._pop_l_tree(); self.select_tab_by_id("loudness")
     def loudness_export_files(self):
         out = self.loudness_output_dir_var.get(); pk = float(self.loudness_peak_var.get() or -1)
         if out: self.tasks.run(lambda: [loudness_workflows.export_result_item(it, out, pk, True, loudness_tools) for it in self.state.loudness_results], lambda r: self.append_log("Export fertig"), "Exportiere...")

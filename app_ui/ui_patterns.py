@@ -3,26 +3,62 @@ from tkinter import ttk
 import os
 import subprocess
 import pyperclip
+import tkinter.font as tkfont
+from tkinter import colorchooser
 
 # --- UI CONSTANTS ---
-BG = "#181818"
-PANEL = "#232323"
-PANEL_2 = "#2b2b2b"
-ACCENT = "#ff9a3c"
-ACCENT_SOFT = "#3a2a1c"
-TEXT = "#f3f3f3"
-SUBTLE = "#b5b5b5"
-FIELD_BG = "#f7f7f7"
-FIELD_FG = "#111111"
-LOG_BG = "#101010"
-LOG_FG = "#7CFFB2"
-BORDER = "#3a3a3a"
+# --- THEME DETECTION ---
+def get_macos_appearance():
+    """Detects if macOS is in Dark Mode or Light Mode."""
+    try:
+        cmd = ["defaults", "read", "-g", "AppleInterfaceStyle"]
+        res = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+        return "Dark" if "Dark" in res else "Light"
+    except:
+        return "Light"
 
-# --- FLAVOR COLORS (for tags/rows) ---
-FLAVOR_WARN = "#ffcb97"
-FLAVOR_INFO = "#84cfff"
-FLAVOR_SUCCESS = "#71da9b"
-FLAVOR_ERROR = "#ff9b7f"
+IS_DARK = get_macos_appearance() == "Dark"
+
+# --- ADAPTIVE COLOR PALETTES ---
+def get_palette(is_dark=True):
+    """Returns the set of colors for the given theme."""
+    if is_dark:
+        return {
+            "BG": "#181818", "PANEL": "#232323", "PANEL_2": "#2b2b2b",
+            "TEXT": "#f3f3f3", "SUBTLE": "#b5b5b5", "FIELD_BG": "#f7f7f7", "FIELD_FG": "#111111",
+            "LOG_BG": "#101010", "LOG_FG": "#7CFFB2", "BORDER": "#3a3a3a",
+            "ACCENT_SOFT": "#3a2a1c", "SUCCESS": "#71da9b"
+        }
+    else: # LIGHT MODE ("Industrial Paper" Look)
+        return {
+            "BG": "#f2ede7", "PANEL": "#ffffff", "PANEL_2": "#e6e1da",
+            "TEXT": "#1a1a1a", "SUBTLE": "#666666", "FIELD_BG": "#ffffff", "FIELD_FG": "#000000",
+            "LOG_BG": "#ffffff", "LOG_FG": "#1a1a1a", "BORDER": "#d9d4cf",
+            "ACCENT_SOFT": "#f5e6d8", "SUCCESS": "#28a745"
+        }
+
+IS_DARK = get_macos_appearance() == "Dark"
+_pal = get_palette(IS_DARK)
+
+BG = _pal["BG"]; PANEL = _pal["PANEL"]; PANEL_2 = _pal["PANEL_2"]
+TEXT = _pal["TEXT"]; SUBTLE = _pal["SUBTLE"]; FIELD_BG = _pal["FIELD_BG"]; FIELD_FG = _pal["FIELD_FG"]
+LOG_BG = _pal["LOG_BG"]; LOG_FG = _pal["LOG_FG"]; BORDER = _pal["BORDER"]
+ACCENT = "#ff9a3c"
+ACCENT_SOFT = _pal["ACCENT_SOFT"]
+FLAVOR_WARN = "#ffcb97"; FLAVOR_INFO = "#84cfff"; FLAVOR_SUCCESS = _pal["SUCCESS"]; FLAVOR_ERROR = "#ff9b7f"
+
+def update_global_constants(is_dark):
+    """Helper to update global style constants at runtime."""
+    global BG, PANEL, PANEL_2, TEXT, SUBTLE, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG, BORDER, ACCENT_SOFT, FLAVOR_SUCCESS, IS_DARK
+    IS_DARK = is_dark
+    p = get_palette(is_dark)
+    BG = p["BG"]; PANEL = p["PANEL"]; PANEL_2 = p["PANEL_2"]
+    TEXT = p["TEXT"]; SUBTLE = p["SUBTLE"]; FIELD_BG = p["FIELD_BG"]; FIELD_FG = p["FIELD_FG"]
+    LOG_BG = p["LOG_BG"]; LOG_FG = p["LOG_FG"]; BORDER = p["BORDER"]
+    ACCENT_SOFT = p["ACCENT_SOFT"]; FLAVOR_SUCCESS = p["SUCCESS"]
+    
+    # Debug info
+    print(f"Theme updated: {'Dark' if is_dark else 'Light'} - BG: {BG}, PANEL: {PANEL}")
 
 SPACE_XS = 6
 SPACE_SM = 10
@@ -103,29 +139,37 @@ def blend_color(base_color, target_color, ratio):
     return rgb_to_hex(mixed)
 
 # --- STYLE CONFIGURATION ---
-def setup_ttk_styles():
+def apply_ttk_styles():
+    """Applies the current theme constants (BG, PANEL, etc.) to the ttk engine."""
     style = ttk.Style()
     style.theme_use("default")
     
-    style.configure("TNotebook", background=BG, borderwidth=0)
+    # Global root style refresh
+    style.configure(".", background=BG, foreground=TEXT, font=FONT_MD)
+    
+    style.configure("TNotebook", background=BG, borderwidth=0, padding=0)
+    style.map("TNotebook", background=[("active", BG), ("!active", BG)]) # Force background
+    
     style.configure(
         "TNotebook.Tab",
         background=PANEL,
         foreground=TEXT,
-        padding=(14, 8),
-        font=FONT_BOLD,
+        padding=(16, 10),
+        font=FONT_MD_BOLD,
+        borderwidth=0
     )
     style.map(
         "TNotebook.Tab",
-        background=[("selected", ACCENT)],
-        foreground=[("selected", "black")],
+        background=[("selected", ACCENT), ("active", PANEL_2)],
+        foreground=[("selected", "#000000" if not IS_DARK else "#1a1a1a"), ("active", TEXT)],
     )
     
     style.configure(
         "TProgressbar",
         thickness=8,
-        troughcolor="#333333",
+        troughcolor="#333333" if IS_DARK else "#d1d1d1",
         background=ACCENT,
+        borderwidth=0
     )
     
     style.configure(
@@ -153,6 +197,22 @@ def setup_ttk_styles():
         "Treeview.Heading",
         background=[("active", ACCENT)],
         foreground=[("active", "black")],
+    )
+    
+    style.configure(
+        "TCombobox",
+        fieldbackground=FIELD_BG,
+        background=PANEL_2,
+        foreground=FIELD_FG,
+        arrowcolor=ACCENT,
+        arrowsize=18,
+        borderwidth=0,
+        relief="flat"
+    )
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", FIELD_BG)],
+        foreground=[("readonly", FIELD_FG)],
     )
 
     style.configure(
@@ -232,38 +292,49 @@ def setup_ttk_styles():
 
 # --- UI COMPONENT HELPERS ---
 def create_btn(parent, text, cmd, primary=False, quiet=False):
+    """
+    A Label-based custom button for perfect aesthetic control on all platforms.
+    Avoids the platform-specific styling limitations of standard tk.Button.
+    """
     if primary:
-        bg_color, fg_color = ACCENT, "black"
-        hover_color = blend_color(bg_color, "#ffffff", 0.15)
+        bg_color, fg_color = ACCENT, "#111111"
+        hov_bg = blend_color(bg_color, "#ffffff", 0.15)
+        hov_fg = "#000000"
     elif quiet:
         bg_color, fg_color = PANEL_2, TEXT
-        hover_color = blend_color(bg_color, BORDER, 0.4)
+        hov_bg = blend_color(bg_color, BORDER, 0.5)
+        hov_fg = TEXT
     else:
-        bg_color, fg_color = "#ece7e1", "#151515"
-        hover_color = blend_color(bg_color, "#ffffff", 0.25)
-    
-    button = tk.Button(
+        bg_color, fg_color = "#3a3a3a", TEXT
+        hov_bg = blend_color(bg_color, "#ffffff", 0.15)
+        hov_fg = TEXT
+
+    btn = tk.Label(
         parent,
-        text=text,
-        command=cmd,
+        text=text.upper() if not quiet else text,
         bg=bg_color,
         fg=fg_color,
-        font=FONT_BOLD if not quiet else FONT_SM,
+        font=FONT_BOLD if not (primary or quiet) else (FONT_MD_BOLD if primary else FONT_SM),
+        padx=20, # Uniform horizontal padding
+        pady=10, # Uniform vertical padding (same height)
+        cursor="hand2",
         relief="flat",
         bd=0,
-        padx=14,
-        pady=8,
-        cursor="hand2",
-        activebackground=hover_color,
-        activeforeground=fg_color,
-        highlightthickness=0,
+        width=18 if not quiet else 0 # Apply base width to standard buttons
     )
+
+    def _on_enter(e): btn.config(bg=hov_bg, fg=hov_fg)
+    def _on_leave(e): btn.config(bg=bg_color, fg=fg_color)
+    def _on_click(e): 
+        btn.config(bg=blend_color(bg_color, "#000000", 0.2))
+        parent.after(100, lambda: cmd())
+        parent.after(150, lambda: btn.config(bg=bg_color))
+
+    btn.bind("<Enter>", _on_enter)
+    btn.bind("<Leave>", _on_leave)
+    btn.bind("<Button-1>", _on_click)
     
-    # Hover effect
-    button.bind("<Enter>", lambda e: button.config(bg=hover_color))
-    button.bind("<Leave>", lambda e: button.config(bg=bg_color))
-    
-    return button
+    return btn
 
 def style_chip_label(widget, status, text, active=False):
     palette = STATUS_PALETTES.get(status, STATUS_PALETTES["all"])
@@ -401,6 +472,33 @@ def add_hover(widget, enter_color, leave_color):
     widget.bind("<Enter>", lambda e: widget.config(bg=enter_color))
     widget.bind("<Leave>", lambda e: widget.config(bg=leave_color))
 
+class AkmBadge(tk.Label):
+    """A small glowing status indicator badge."""
+    def __init__(self, parent, text, **kwargs):
+        kwargs.setdefault("bg", "#111111")
+        kwargs.setdefault("fg", "#333333")
+        kwargs.setdefault("font", ("Helvetica", 9, "bold"))
+        kwargs.setdefault("padx", 8)
+        kwargs.setdefault("pady", 2)
+        kwargs.setdefault("relief", "flat")
+        super().__init__(parent, text=text.upper(), **kwargs)
+        self.active_color = ACCENT
+        self.inactive_color = "#333333"
+
+    def set_active(self, active=True):
+        self.config(fg=self.active_color if active else self.inactive_color)
+        if active: self.config(highlightbackground=ACCENT, highlightthickness=1)
+        else: self.config(highlightthickness=0)
+
+class AkmSuccessIndicator(tk.Label):
+    """A small glowing green dot (indicator) for successful states."""
+    def __init__(self, parent, **kwargs):
+        kwargs.setdefault("bg", "transparent" if "bg" not in kwargs else kwargs["bg"])
+        kwargs.setdefault("fg", FLAVOR_SUCCESS)
+        kwargs.setdefault("text", "●") # Circle bullet
+        kwargs.setdefault("font", ("Helvetica", 14, "bold"))
+        super().__init__(parent, **kwargs)
+
 # --- SPECIALIZED THEMED WIDGETS ---
 
 # --- SPECIALIZED THEMED WIDGETS ---
@@ -509,3 +607,85 @@ class AkmForm(tk.Frame):
             font=FONT_LG,
         ).grid(row=self._current_row, column=0, columnspan=2, sticky="w", pady=(SPACE_MD, SPACE_SM))
         self._current_row += 1
+
+    def add_combobox(self, label_text, variable, values, **kwargs):
+        """Adds a labeled ttk.Combobox."""
+        AkmLabel(
+            self, text=label_text + ":", bg=self["bg"]
+        ).grid(row=self._current_row, column=0, sticky="w", padx=(0, SPACE_SM), pady=SPACE_XS)
+        
+        cb = ttk.Combobox(self, textvariable=variable, values=values, **kwargs)
+        cb.grid(row=self._current_row, column=1, sticky="ew", pady=SPACE_XS)
+        self._current_row += 1
+        return cb
+
+    def add_color_field(self, label_text, variable):
+        """Adds a field with a color picker button."""
+        AkmLabel(
+            self, text=label_text + ":", bg=self["bg"]
+        ).grid(row=self._current_row, column=0, sticky="w", padx=(0, SPACE_SM), pady=SPACE_XS)
+        
+        container = tk.Frame(self, bg=self["bg"])
+        container.grid(row=self._current_row, column=1, sticky="ew", pady=SPACE_XS)
+        
+        entry = AkmEntry(container, textvariable=variable, font=FONT_SM)
+        entry.pack(side="left", fill="x", expand=True)
+
+        def _pick():
+            c = colorchooser.askcolor(title=f"Wähle {label_text}")
+            if c[1]: variable.set(c[1])
+        
+        btn = create_btn(container, "Spectrum", _pick, quiet=True)
+        btn.pack(side="left", padx=(SPACE_XS, 0))
+        
+        self._current_row += 1
+        return entry
+
+def refresh_ui_hierarchy(root):
+    """
+    Absolutely re-colors every widget in the hierarchy based on the current global constants.
+    """
+    name = str(root).lower()
+    
+    try:
+        # 1. Determine Role-based colors
+        if "akmcard" in name or "akmform" in name:
+            bg_target, fg_target = PANEL_2, TEXT
+        elif "akmheader" in name:
+            bg_target, fg_target = (root.master.cget("bg") if root.master else BG), ACCENT
+        elif "akmlabel" in name and "akmsublabel" not in name:
+            bg_target, fg_target = (root.master.cget("bg") if root.master else BG), TEXT
+        elif "akmsublabel" in name:
+            bg_target, fg_target = (root.master.cget("bg") if root.master else BG), SUBTLE
+        elif "log" in name:
+            bg_target, fg_target = LOG_BG, LOG_FG
+        elif "akmpanel" in name or "tab" in name:
+            bg_target, fg_target = BG, TEXT
+        else:
+            # Absolute fallback to current module state
+            bg_target = BG
+            fg_target = TEXT
+
+        # 2. Apply to standard Tkinter widgets
+        if isinstance(root, (tk.Frame, tk.Label, tk.Canvas, tk.Button)):
+            root.configure(bg=bg_target)
+            if isinstance(root, (tk.Label, tk.Button)):
+                # Preserve accent and success colors
+                curr_fg = root.cget("fg").lower()
+                if curr_fg not in (ACCENT.lower(), FLAVOR_SUCCESS.lower(), FLAVOR_ERROR.lower()):
+                    root.configure(fg=fg_target)
+        
+        # 3. Entries & Text boxes
+        if isinstance(root, (tk.Entry, tk.Text)):
+            root.configure(bg=FIELD_BG, fg=FIELD_FG, insertbackground=FIELD_FG, highlightbackground=BORDER)
+
+        # 4. Listbox specials
+        if isinstance(root, tk.Listbox):
+            root.configure(bg=FIELD_BG, fg=FIELD_FG, selectbackground=ACCENT)
+
+    except Exception:
+        pass
+        
+    for child in root.winfo_children():
+        refresh_ui_hierarchy(child)
+

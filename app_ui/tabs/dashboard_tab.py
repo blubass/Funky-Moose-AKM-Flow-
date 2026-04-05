@@ -1,7 +1,8 @@
 import tkinter as tk
+from app_ui import ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, 
-    ACCENT, PANEL, PANEL_2, SUBTLE, SPACE_MD, SPACE_SM, SPACE_XS, 
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator,
+    SPACE_MD, SPACE_SM, SPACE_XS, 
     CARD_PAD_X, CARD_PAD_Y, FONT_BOLD, FONT_SM, FONT_XXL
 )
 
@@ -60,16 +61,23 @@ class DashboardTab(AkmPanel):
             ("with_notes", "Mit Notizen"),
         ]
 
-        for index, (key, label) in enumerate(stats):
-            card = AkmCard(stats_grid, padx=CARD_PAD_X - 4, pady=CARD_PAD_Y - 6)
-            row, col = index // 4, index % 4
-            card.grid(row=row, column=col, padx=SPACE_XS, pady=SPACE_XS, sticky="nsew")
-            stats_grid.grid_columnconfigure(col, weight=1)
-
-            AkmSubLabel(card, text=label, bg=PANEL_2).pack(anchor="w", padx=SPACE_SM, pady=(SPACE_SM, 0))
-            v_l = AkmLabel(card, text="0", fg=ACCENT, bg=PANEL_2, font=FONT_XXL)
-            v_l.pack(anchor="w", padx=SPACE_SM, pady=(2, SPACE_SM))
-            self.app.dashboard_labels[key] = v_l
+        for i, (key, label) in enumerate(stats):
+            card = AkmCard(stats_grid)
+            card.grid(row=i // 4, column=i % 4, sticky="nsew", padx=5, pady=5)
+            stats_grid.columnconfigure(i % 4, weight=1)
+            
+            # Label
+            header = tk.Frame(card, bg=ui_patterns.PANEL_2)
+            header.pack(fill="x", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 0))
+            AkmSubLabel(header, text=label, bg=ui_patterns.PANEL_2).pack(side="left")
+            
+            if key in ["submitted", "confirmed"]:
+                AkmSuccessIndicator(header, bg=ui_patterns.PANEL_2).pack(side="right")
+            
+            # Value
+            val = tk.Label(card, text="0", fg=ui_patterns.ACCENT, bg=ui_patterns.PANEL_2, font=FONT_XXL)
+            val.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+            self.app.dashboard_labels[key] = val
 
         # Actions
         actions = AkmPanel(self)
