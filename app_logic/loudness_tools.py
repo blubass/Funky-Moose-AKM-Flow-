@@ -382,7 +382,7 @@ def generate_waveform_image(path: str, out_path: str, width: int = 800, height: 
         "ffmpeg",
         "-y",
         "-i", abs_in,
-        "-filter_complex", f"showwavespic=s={width}x{height}:colors={safe_color}:mode=line",
+        "-filter_complex", f"showwavespic=s={width}x{height}:colors={safe_color}",
         "-frames:v", "1",
         abs_out
     ]
