@@ -172,7 +172,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.append_log("-" * 30)
         
         # Dashboard Label (Version Tag)
-        tk.Label(brand_container, text="OBSIDIAN MASTER v1.0.0", bg=inlay_bg, fg=ACCENT, font=FONT_ITALIC).pack(side="top", anchor="w")
+        tk.Label(brand_container, text="OBSIDIAN MASTER v1.0.0", bg=inlay_bg, fg=ui_patterns.ACCENT, font=FONT_ITALIC).pack(side="top", anchor="w")
         
         # Dual-Color Title (Full Branding)
         tk.Label(brand_container, text="FUNKY MOOSE", bg=inlay_bg, fg=ui_patterns.ACCENT, font=FONT_XXXL).pack(side="left")
