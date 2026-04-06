@@ -268,10 +268,12 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def on_tab_changed(self, event):
         """Central event handler for tab transitions (e.g., to trigger data refreshes)."""
         selected = self.tabs.select()
-        if selected == str(self.tab_map["dashboard"]): self.refresh_dashboard()
-        elif selected == str(self.tab_map["overview"]): self.refresh_list()
-        elif selected == str(self.tab_map["batch"]): self.update_flow()
-
+        if selected == str(self.tab_map["dashboard"]):
+            self.refresh_dashboard()
+        elif selected == str(self.tab_map["overview"]):
+            self.refresh_list()
+        elif selected == str(self.tab_map["batch"]):
+            self.update_flow()
     def refresh_all_tabs(self):
         """Standardized orchestrator to update all modular components after a state change."""
         self.overview_ctrl.refresh_list()
@@ -280,12 +282,23 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.release_ctrl.refresh_view()
 
     # --- SHARED DELEGATES (Called by Tabs) ---
-    def refresh_list(self): self.overview_ctrl.refresh_list()
-    def refresh_dashboard(self): self.overview_ctrl.refresh_dashboard()
-    def reload_flow_data(self, preferred_index=None): self.batch_ctrl.reload_flow_data(preferred_index)
-    def update_flow(self): self.batch_ctrl.update_flow()
-    def save_project(self): self.project_ctrl.save_project()
-    def load_project_dialog(self): self.project_ctrl.load_project_dialog()
+    def refresh_list(self): 
+        self.overview_ctrl.refresh_list()
+        
+    def refresh_dashboard(self): 
+        self.overview_ctrl.refresh_dashboard()
+        
+    def reload_flow_data(self, preferred_index=None): 
+        self.batch_ctrl.reload_flow_data(preferred_index)
+        
+    def update_flow(self): 
+        self.batch_ctrl.update_flow()
+        
+    def save_project(self): 
+        self.project_ctrl.save_project()
+        
+    def load_project_dialog(self): 
+        self.project_ctrl.load_project_dialog()
     def import_excel(self): 
         self.project_ctrl.import_excel()
         
@@ -314,51 +327,133 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def update_task_indicator(self, busy):
         """Starts or stops the activity pulse on the Task Indicator label."""
         if hasattr(self, 'task_indicator'):
-            if busy: self.task_indicator.start()
-            else: self.task_indicator.stop()
+            if busy: 
+                self.task_indicator.start()
+            else: 
+                self.task_indicator.stop()
 
     def status_text(self, status): 
         """Translated status text helper."""
         return ui_patterns.get_status_chip_text(status, akm_core.get_lang())
 
-    def load_selected_into_details(self): self.overview_ctrl.load_selected_into_details()
-    def set_status(self, s): self.overview_ctrl.set_status(s)
-    def on_listbox_activate(self, e): self.overview_ctrl.on_listbox_activate(e)
-    def jump_to_last_open(self): self.overview_ctrl.jump_to_last_open()
-    def _set_overview_status_filter(self, s): self.overview_ctrl.set_status_filter(s)
-    def _open_overview_with_filter(self, s): self.overview_ctrl.open_with_filter(s)
+    def load_selected_into_details(self): 
+        self.overview_ctrl.load_selected_into_details()
+        
+    def set_status(self, s): 
+        self.overview_ctrl.set_status(s)
+        
+    def on_listbox_activate(self, e): 
+        self.overview_ctrl.on_listbox_activate(e)
+        
+    def jump_to_last_open(self): 
+        self.overview_ctrl.jump_to_last_open()
+        
+    def _set_overview_status_filter(self, s): 
+        self.overview_ctrl.set_status_filter(s)
+    def _open_overview_with_filter(self, s): 
+        self.overview_ctrl.open_with_filter(s)
 
-    def save_details(self): self.details_ctrl.save_details()
-    def clear_details_form(self): self.details_ctrl.clear_details_form()
-    def set_detail_status(self, s): self.details_ctrl._set_detail_status_chip(s)
-    def choose_audio_path_for_details(self): self.details_ctrl.choose_audio_path()
-    def open_audio_path_in_finder(self): self.details_ctrl.open_audio_path_in_finder()
+    def save_details(self): 
+        self.details_ctrl.save_details()
+        
+    def toggle_release(self): 
+        self.details_ctrl.toggle_release()
 
-    def flow_copy(self): self.batch_ctrl.flow_copy()
-    def flow_submit(self): self.batch_ctrl.flow_submit()
-    def flow_next(self): self.batch_ctrl.flow_next()
-    def open_track_in_batch(self, it): self.batch_ctrl.open_track_in_batch(it)
+    def clear_details_form(self): 
+        self.details_ctrl.clear_details_form()
 
-    def loudness_choose_files(self): self.loudness_ctrl.choose_files()
-    def loudness_handle_drop(self, event): self.loudness_ctrl.handle_drop(event)
-    def loudness_delete_files(self): self.loudness_ctrl.delete_files()
-    def loudness_analyze_files(self): self.loudness_ctrl.analyze_files()
-    def loudness_export_files(self): self.loudness_ctrl.export_files()
-    def loudness_choose_output_dir(self): self.loudness_ctrl.choose_output_dir()
-    def loudness_import_selected_work(self): self.loudness_ctrl.import_selected_work()
-    def loudness_import_filtered_works(self): self.loudness_ctrl.import_filtered_works()
-    def on_loudness_tree_activate(self, event): self.loudness_ctrl.on_tree_activate(event)
+    def set_detail_status(self, s): 
+        self.details_ctrl._set_detail_status_chip(s)
 
-    def release_handle_drop(self, event): self.release_ctrl.handle_drop(event)
-    def refresh_release_view(self): self.release_ctrl.refresh_view()
-    def choose_release_cover(self): self.release_ctrl.choose_cover()
-    def choose_release_export_dir(self): self.release_ctrl.choose_export_dir()
-    def open_release_cover_in_finder(self): self.release_ctrl.open_cover_in_finder()
-    def open_release_cover_dialog(self): self.release_ctrl.open_cover_dialog()
-    def build_distro_export(self): self.release_ctrl.build_export()
-    def release_move_track_up(self): self.release_ctrl.move_track_up()
-    def release_move_track_down(self): self.release_ctrl.move_track_down()
-    def release_remove_track(self): self.release_ctrl.remove_track()
+    def choose_audio_path_for_details(self): 
+        self.details_ctrl.choose_audio_path()
+
+    def open_audio_path_in_finder(self): 
+        self.details_ctrl.open_audio_path_in_finder()
+
+    def process_all_loudness(self): 
+        self.loudness_ctrl.process_all()
+    
+    def process_batch(self): 
+        self.batch_ctrl.process_selected_flow()
+    
+    def open_release_cover_dialog(self): 
+        self.release_ctrl.open_cover_dialog()
+
+    def flow_copy(self): 
+        self.batch_ctrl.flow_copy()
+
+    def flow_submit(self): 
+        self.batch_ctrl.flow_submit()
+
+    def flow_next(self): 
+        self.batch_ctrl.flow_next()
+
+    def open_track_in_batch(self, it): 
+        self.batch_ctrl.open_track_in_batch(it)
+
+    def loudness_choose_files(self): 
+        self.loudness_ctrl.choose_files()
+        
+    def loudness_handle_drop(self, event): 
+        self.loudness_ctrl.handle_drop(event)
+        
+    def loudness_choose_outdir(self): 
+        self.loudness_ctrl.choose_outdir()
+        
+    def process_selected_loudness(self, item_index): 
+        self.loudness_ctrl.process_selected(item_index)
+
+    def loudness_delete_files(self): 
+        self.loudness_ctrl.delete_files()
+        
+    def loudness_analyze_files(self): 
+        self.loudness_ctrl.analyze_files()
+        
+    def loudness_export_files(self): 
+        self.loudness_ctrl.export_files()
+        
+    def loudness_choose_output_dir(self): 
+        self.loudness_ctrl.choose_output_dir()
+        
+    def loudness_import_selected_work(self): 
+        self.loudness_ctrl.import_selected_work()
+        
+    def loudness_import_filtered_works(self): 
+        self.loudness_ctrl.import_filtered_works()
+        
+    def on_loudness_tree_activate(self, event): 
+        self.loudness_ctrl.on_tree_activate(event)
+
+    def release_handle_drop(self, event): 
+        self.release_ctrl.handle_drop(event)
+        
+    def refresh_release_view(self): 
+        self.release_ctrl.refresh_view()
+        
+    def choose_release_cover(self): 
+        self.release_ctrl.choose_cover()
+        
+    def choose_release_export_dir(self): 
+        self.release_ctrl.choose_export_dir()
+        
+    def open_release_cover_in_finder(self): 
+        self.release_ctrl.open_cover_in_finder()
+        
+    def open_release_cover_dialog(self): 
+        self.release_ctrl.open_cover_dialog()
+        
+    def build_distro_export(self): 
+        self.release_ctrl.build_export()
+        
+    def release_move_track_up(self): 
+        self.release_ctrl.move_track_up()
+        
+    def release_move_track_down(self): 
+        self.release_ctrl.move_track_down()
+        
+    def release_remove_track(self): 
+        self.release_ctrl.remove_track()
 
     # --- AUDIO HELPERS ---
     def open_audio_player_for_selected(self):
