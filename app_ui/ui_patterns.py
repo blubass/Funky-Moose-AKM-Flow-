@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox, filedialog
 import os
 import subprocess
 import pyperclip
@@ -7,58 +7,49 @@ import tkinter.font as tkfont
 from tkinter import colorchooser
 
 # --- UI CONSTANTS ---
-# --- THEME DETECTION ---
-def get_macos_appearance():
-    """Detects if macOS is in Dark Mode or Light Mode."""
-    try:
-        cmd = ["defaults", "read", "-g", "AppleInterfaceStyle"]
-        res = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
-        return "Dark" if "Dark" in res else "Light"
-    except:
-        return "Light"
+# --- THEME (PERMANENT OBSIDIAN 2026) ---
+IS_DARK = True 
 
-IS_DARK = get_macos_appearance() == "Dark"
+BG = "#040405"          # Absolute Pitch Black
+PANEL = "#1A1A1D"       # Deep Iron Gray (Cards)
+PANEL_2 = "#222225"     # Sub-Panels
+BORDER = "#2D2D33"      # Machine Seams
+TEXT = "#CBD5E1"        # Slated Steel (Muted)
+SUBTLE = "#64748B"      # Darkened Industrial Slate
 
-# --- ADAPTIVE COLOR PALETTES ---
-def get_palette(is_dark=True):
-    """Returns the set of colors for the given theme."""
-    if is_dark:
-        return {
-            "BG": "#181818", "PANEL": "#232323", "PANEL_2": "#2b2b2b",
-            "TEXT": "#f3f3f3", "SUBTLE": "#b5b5b5", "FIELD_BG": "#f7f7f7", "FIELD_FG": "#111111",
-            "LOG_BG": "#101010", "LOG_FG": "#7CFFB2", "BORDER": "#3a3a3a",
-            "ACCENT_SOFT": "#3a2a1c", "SUCCESS": "#71da9b"
-        }
-    else: # LIGHT MODE ("Industrial Paper" Look)
-        return {
-            "BG": "#f2ede7", "PANEL": "#ffffff", "PANEL_2": "#e6e1da",
-            "TEXT": "#1a1a1a", "SUBTLE": "#666666", "FIELD_BG": "#ffffff", "FIELD_FG": "#000000",
-            "LOG_BG": "#ffffff", "LOG_FG": "#1a1a1a", "BORDER": "#d9d4cf",
-            "ACCENT_SOFT": "#f5e6d8", "SUCCESS": "#28a745"
-        }
+ACCENT = "#FF8C00"      # Hyper-Orange
+FLAVOR_INFO = "#22D3EE" # Cyan-Glow
+FLAVOR_WARN = "#FBBF24"
+FLAVOR_SUCCESS = "#10B981"
+FLAVOR_ERROR = "#F43F5E"
 
-IS_DARK = get_macos_appearance() == "Dark"
-_pal = get_palette(IS_DARK)
+FIELD_BG = "#0D0D0F"
+FIELD_FG = "#CBD5E1"
+LOG_BG = "#020202"
+LOG_FG = "#22D3EE"
 
-BG = _pal["BG"]; PANEL = _pal["PANEL"]; PANEL_2 = _pal["PANEL_2"]
-TEXT = _pal["TEXT"]; SUBTLE = _pal["SUBTLE"]; FIELD_BG = _pal["FIELD_BG"]; FIELD_FG = _pal["FIELD_FG"]
-LOG_BG = _pal["LOG_BG"]; LOG_FG = _pal["LOG_FG"]; BORDER = _pal["BORDER"]
-ACCENT = "#ff9a3c"
-ACCENT_SOFT = _pal["ACCENT_SOFT"]
-FLAVOR_WARN = "#ffcb97"; FLAVOR_INFO = "#84cfff"; FLAVOR_SUCCESS = _pal["SUCCESS"]; FLAVOR_ERROR = "#ff9b7f"
+# Fallbacks for runtime
+ACCENT_SOFT = "#2A1B0A"
 
 def update_global_constants(is_dark):
-    """Helper to update global style constants at runtime."""
-    global BG, PANEL, PANEL_2, TEXT, SUBTLE, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG, BORDER, ACCENT_SOFT, FLAVOR_SUCCESS, IS_DARK
-    IS_DARK = is_dark
-    p = get_palette(is_dark)
-    BG = p["BG"]; PANEL = p["PANEL"]; PANEL_2 = p["PANEL_2"]
-    TEXT = p["TEXT"]; SUBTLE = p["SUBTLE"]; FIELD_BG = p["FIELD_BG"]; FIELD_FG = p["FIELD_FG"]
-    LOG_BG = p["LOG_BG"]; LOG_FG = p["LOG_FG"]; BORDER = p["BORDER"]
-    ACCENT_SOFT = p["ACCENT_SOFT"]; FLAVOR_SUCCESS = p["SUCCESS"]
+    """Runtime update (Stub for permanent theme)."""
+    pass
     
+    # Update Status Palettes for real-time reactivity
+    global STATUS_PALETTES
+    if is_dark:
+        STATUS_PALETTES["in_progress"] = {"bg": "#1E1B16", "fg": "#FBBF24", "accent": "#FBBF24"}
+        STATUS_PALETTES["ready"] = {"bg": "#171B22", "fg": "#38BDF8", "accent": "#38BDF8"}
+        STATUS_PALETTES["submitted"] = {"bg": "#141C19", "fg": "#10B981", "accent": "#10B981"}
+        STATUS_PALETTES["confirmed"] = {"bg": "#151B14", "fg": "#A3E635", "accent": "#A3E635"}
+    else:
+        STATUS_PALETTES["in_progress"] = {"bg": "#FEF3C7", "fg": "#92400E", "accent": "#92400E"}
+        STATUS_PALETTES["ready"] = {"bg": "#E0F2FE", "fg": "#075985", "accent": "#075985"}
+        STATUS_PALETTES["submitted"] = {"bg": "#D1FAE5", "fg": "#065F46", "accent": "#065F46"}
+        STATUS_PALETTES["confirmed"] = {"bg": "#ECFCCB", "fg": "#3F6212", "accent": "#3F6212"}
+
     # Debug info
-    print(f"Theme updated: {'Dark' if is_dark else 'Light'} - BG: {BG}, PANEL: {PANEL}")
+    print(f"Theme 2026 updated: {'Dark' if is_dark else 'Light'} - BG: {BG}")
 
 SPACE_XS = 6
 SPACE_SM = 10
@@ -69,17 +60,25 @@ CARD_GAP = 10
 CARD_PAD_X = 14
 CARD_PAD_Y = 12
 
-# --- FONTS ---
-FONT_SM = ("Helvetica", 10)
-FONT_BOLD = ("Helvetica", 10, "bold")
-FONT_MD = ("Helvetica", 11)
-FONT_MD_BOLD = ("Helvetica", 11, "bold")
-FONT_LG = ("Helvetica", 13, "bold")
-FONT_XL = ("Helvetica", 14)
-FONT_XXL = ("Helvetica", 20, "bold")
-FONT_XXXL = ("Helvetica", 22, "bold")
-FONT_ITALIC = ("Helvetica", 10, "italic")
-FONT_LOG = ("Courier", 10)
+# --- 2026 TYPOGRAPHY ---
+def get_font(size, bold=False, italic=False):
+    """Factory for modern variables fonts."""
+    family = "Montserrat" if "mac" in str(os.uname()).lower() else "Inter"
+    style = []
+    if bold: style.append("bold")
+    if italic: style.append("italic")
+    return (family, size, " ".join(style))
+
+FONT_SM = get_font(10)
+FONT_BOLD = get_font(10, bold=True)
+FONT_MD = get_font(11)
+FONT_MD_BOLD = get_font(11, bold=True)
+FONT_LG = get_font(14, bold=True)
+FONT_XL = get_font(18)
+FONT_XXL = get_font(22, bold=True)
+FONT_XXXL = get_font(28, bold=True)
+FONT_ITALIC = get_font(10, italic=True)
+FONT_LOG = ("JetBrains Mono", 10) if "mac" in str(os.uname()).lower() else ("Courier New", 10)
 
 # --- STATUS PALETTES & TEXTS ---
 STATUS_PALETTES = {
@@ -291,50 +290,52 @@ def apply_ttk_styles():
     )
 
 # --- UI COMPONENT HELPERS ---
-def create_btn(parent, text, cmd, primary=False, quiet=False):
+def create_btn(parent, text, cmd, primary=False, quiet=False, width=None, accent_color=None):
     """
-    A Label-based custom button for perfect aesthetic control on all platforms.
-    Avoids the platform-specific styling limitations of standard tk.Button.
+    2026 Rounded Hardware Button (Dynamic Version).
     """
-    if primary:
-        bg_color, fg_color = ACCENT, "#111111"
-        hov_bg = blend_color(bg_color, "#ffffff", 0.15)
-        hov_fg = "#000000"
-    elif quiet:
-        bg_color, fg_color = PANEL_2, TEXT
-        hov_bg = blend_color(bg_color, BORDER, 0.5)
-        hov_fg = TEXT
-    else:
-        bg_color, fg_color = "#3a3a3a", TEXT
-        hov_bg = blend_color(bg_color, "#ffffff", 0.15)
-        hov_fg = TEXT
-
-    btn = tk.Label(
-        parent,
-        text=text.upper() if not quiet else text,
-        bg=bg_color,
-        fg=fg_color,
-        font=FONT_BOLD if not (primary or quiet) else (FONT_MD_BOLD if primary else FONT_SM),
-        padx=20, # Uniform horizontal padding
-        pady=10, # Uniform vertical padding (same height)
-        cursor="hand2",
-        relief="flat",
-        bd=0,
-        width=18 if not quiet else 0 # Apply base width to standard buttons
-    )
-
-    def _on_enter(e): btn.config(bg=hov_bg, fg=hov_fg)
-    def _on_leave(e): btn.config(bg=bg_color, fg=fg_color)
-    def _on_click(e): 
-        btn.config(bg=blend_color(bg_color, "#000000", 0.2))
-        parent.after(100, lambda: cmd())
-        parent.after(150, lambda: btn.config(bg=bg_color))
-
-    btn.bind("<Enter>", _on_enter)
-    btn.bind("<Leave>", _on_leave)
-    btn.bind("<Button-1>", _on_click)
+    base_bg = accent_color if accent_color else ACCENT
+    base_fg = "#000000"
+    radius = 16 if not quiet else 10
     
-    return btn
+    if quiet:
+        base_bg = PANEL_2
+        base_fg = SUBTLE
+
+    # Dynamic Size Calculation based on text length
+    fixed_width = width if width else (200 if not quiet else 160)
+    btn_font = FONT_BOLD if not (primary or accent_color) else FONT_MD_BOLD
+    if len(text) > 18: 
+        btn_font = FONT_SM # Auto-shrink 
+        if not width: fixed_width = 220 # Auto-expand
+
+    cv = tk.Canvas(parent, bg=parent["bg"], highlightthickness=0, borderwidth=0, 
+                   width=fixed_width, height=44 if not quiet else 32)
+    
+    def _draw(state="normal"):
+        cv.delete("all")
+        w, h = cv.winfo_width(), cv.winfo_height()
+        if w < 10: w = fixed_width
+        if h < 10: h = 44 if not quiet else 32
+        
+        # Shadow/Highlight Bevel (Pill)
+        sh_col = blend_color(base_bg, "#000000", 0.6) if state == "normal" else blend_color(base_bg, "#FFFFFF", 0.4)
+        hi_col = blend_color(base_bg, "#FFFFFF", 0.5) if state == "normal" else blend_color(base_bg, "#000000", 0.5)
+        bg_col = base_bg if state == "normal" else blend_color(base_bg, "#000000", 0.2)
+        
+        draw_rounded_rect(cv, 0, 0, w, h, radius, fill=sh_col)
+        draw_rounded_rect(cv, 0, 0, w-2, h-2, radius, fill=hi_col)
+        draw_rounded_rect(cv, 1, 1, w-2, h-4, radius, fill=bg_col)
+        
+        cv.create_text(w/2, h/2, text=text.upper(), fill=base_fg, font=btn_font)
+
+    cv.bind("<Enter>", lambda e: _draw("hover"))
+    cv.bind("<Leave>", lambda e: _draw("normal"))
+    cv.bind("<Button-1>", lambda e: (cmd(), _draw("pressed")))
+    cv.bind("<ButtonRelease-1>", lambda e: _draw("normal"))
+    cv.bind("<Configure>", lambda e: _draw())
+    
+    return cv
 
 def style_chip_label(widget, status, text, active=False):
     palette = STATUS_PALETTES.get(status, STATUS_PALETTES["all"])
@@ -387,18 +388,93 @@ def get_row_color(status, is_source=False, ratio=0.16):
     return blend_color(FIELD_BG, accent, ratio)
 
 # --- THEMED WIDGETS ---
+# --- ROUNDED UI ENGINE (2026) ---
+def draw_rounded_rect(canvas, x1, y1, x2, y2, radius, **kwargs):
+    """Draws a high-fidelity rounded rectangle path on a Canvas."""
+    points = [
+        x1+radius, y1, x1+radius, y1, x2-radius, y1, x2-radius, y1, x2, y1,
+        x2, y1+radius, x2, y1+radius, x2, y2-radius, x2, y2-radius, x2, y2,
+        x2-radius, y2, x2-radius, y2, x1+radius, y2, x1+radius, y2, x1, y2,
+        x1, y2-radius, x1, y2-radius, x1, y1+radius, x1, y1+radius, x1, y1
+    ]
+    return canvas.create_polygon(points, **kwargs, smooth=True)
+
+class AkmRoundedFrame(tk.Canvas):
+    """A futuristic rounded container with persistent geometry awareness."""
+    def __init__(self, parent, bg_color=PANEL, radius=36, border_color="#2D2D33", **kwargs):
+        super().__init__(parent, bg=BG, highlightthickness=0, borderwidth=0, **kwargs)
+        self.radius = radius
+        self.bg_color = bg_color
+        self.border_color = border_color
+        self.bind("<Configure>", self._redraw)
+        
+    def _redraw(self, event=None):
+        self.delete("all")
+        w, h = self.winfo_width(), self.winfo_height()
+        if w < self.radius*2 or h < self.radius*2: return
+        # Bevel highlight & Shadow
+        draw_rounded_rect(self, 2, 2, w-2, h-2, self.radius, fill=self.border_color)
+        draw_rounded_rect(self, 1, 1, w-1, h-2, self.radius, fill=self.bg_color)
+
 class AkmPanel(tk.Frame):
+    """Base layout frame."""
     def __init__(self, parent, **kwargs):
-        kwargs.setdefault("bg", PANEL)
+        kwargs.setdefault("bg", BG)
         super().__init__(parent, **kwargs)
 
-class AkmCard(tk.Frame):
+class AkmCard(AkmRoundedFrame):
+    """Hardware Card with organic rounded corners."""
     def __init__(self, parent, **kwargs):
-        kwargs.setdefault("bg", PANEL_2)
-        kwargs.setdefault("bd", 1)
-        kwargs.setdefault("relief", "solid")
-        kwargs.setdefault("highlightthickness", 0)
         super().__init__(parent, **kwargs)
+        self.inner = tk.Frame(self, bg=self.bg_color)
+        self.inner.place(relx=0.5, rely=0.5, relwidth=0.9, relheight=0.88, anchor="center")
+
+class AkmScrollablePanel(tk.Frame):
+    """
+    A scrollable container that maintains the industrial design aesthetic.
+    Uses a Canvas and Scrollbar to enable scrolling for its interior frame.
+    """
+    def __init__(self, parent, **kwargs):
+        bg_target = kwargs.pop("bg", BG)
+        super().__init__(parent, bg=bg_target, **kwargs)
+        
+        self.canvas = tk.Canvas(self, bg=bg_target, highlightthickness=0, bd=0)
+        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, 
+                                     bg=bg_target, troughcolor="#111111" if IS_DARK else "#d1d1d1",
+                                     width=10, relief="flat")
+        self.scrollable_frame = tk.Frame(self.canvas, bg=bg_target)
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        # Mousewheel support
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind_all("<Button-4>", self._on_mousewheel) # Linux support
+        self.canvas.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _on_canvas_configure(self, event):
+        # Update the width of the scrollable frame to match the canvas
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+
+    def _on_mousewheel(self, event):
+        if not self.winfo_exists(): return
+        # Handle different mousewheel event formats
+        if event.num == 4: # Linux
+            self.canvas.yview_scroll(-1, "units")
+        elif event.num == 5: # Linux
+            self.canvas.yview_scroll(1, "units")
+        else: # macOS / Windows
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
 class AkmLabel(tk.Label):
     def __init__(self, parent, **kwargs):
@@ -688,4 +764,202 @@ def refresh_ui_hierarchy(root):
         
     for child in root.winfo_children():
         refresh_ui_hierarchy(child)
+# --- PROJECT SAVE/LOAD DIALOGS ---
+class AkmSaveDialog(tk.Toplevel):
+    def __init__(self, parent, title, directory, extension=".akm"):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry("450x550")
+        self.transient(parent)
+        self.grab_set()
+        
+        self.directory = directory
+        self.extension = extension
+        self.result = None
+        
+        # Ensure directory exists
+        os.makedirs(self.directory, exist_ok=True)
+        
+        self.configure(bg=BG)
+        self._build_ui()
+        self._refresh_list()
+        
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (self.winfo_width() // 2)
+        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (self.winfo_height() // 2)
+        self.geometry(f"+{x}+{y}")
 
+    def _build_ui(self):
+        # Header
+        hdr = tk.Frame(self, bg=BG)
+        hdr.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
+        tk.Label(hdr, text="PROJEKT SPEICHERN", bg=BG, fg=ACCENT, font=FONT_XL).pack(side="left")
+        
+        # Main Card
+        container = AkmCard(self)
+        container.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
+        
+        AkmLabel(container, text="VORHANDENE PROJEKTE", font=FONT_MD_BOLD, fg=ACCENT).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
+        
+        # Listbox for existing projects
+        list_frame = AkmPanel(container)
+        list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X)
+        
+        self.listbox = tk.Listbox(
+            list_frame, bg=FIELD_BG, fg=FIELD_FG, font=FONT_MD,
+            selectbackground=ACCENT, selectforeground="black",
+            borderwidth=0, highlightthickness=1, highlightbackground=BORDER
+        )
+        self.listbox.pack(side="left", fill="both", expand=True)
+        
+        sb = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
+        sb.pack(side="right", fill="y")
+        self.listbox.config(yscrollcommand=sb.set)
+        
+        self.listbox.bind("<<ListboxSelect>>", self._on_select)
+        
+        # Entry for new name
+        entry_frame = AkmPanel(container)
+        entry_frame.pack(fill="x", padx=CARD_PAD_X, pady=SPACE_MD)
+        
+        AkmLabel(entry_frame, text="PROJEKTNAME:").pack(side="left")
+        self.name_var = tk.StringVar()
+        self.entry = AkmEntry(entry_frame, textvariable=self.name_var)
+        self.entry.pack(side="left", fill="x", expand=True, padx=(SPACE_SM, 0))
+        self.entry.bind("<Return>", lambda e: self._save())
+        
+        # Buttons
+        btn_row = tk.Frame(self, bg=BG)
+        btn_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
+        
+        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True).pack(side="left")
+        create_btn(btn_row, "SPEICHERN", self._save, primary=True).pack(side="right")
+        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True).pack(side="right", padx=SPACE_SM)
+
+    def _browse(self):
+        path = filedialog.asksaveasfilename(
+            initialdir=self.directory,
+            title="Projekt Speichern unter",
+            filetypes=[("AKM Projekt", f"*{self.extension}"), ("Alle Dateien", "*.*")],
+            defaultextension=self.extension
+        )
+        if path:
+            self.result = path
+            self.destroy()
+
+    def _refresh_list(self):
+        self.listbox.delete(0, tk.END)
+        if not os.path.exists(self.directory): return
+        
+        files = [f for f in os.listdir(self.directory) if f.endswith(self.extension)]
+        for f in sorted(files):
+            name = f[:-len(self.extension)]
+            self.listbox.insert(tk.END, name)
+
+    def _on_select(self, event):
+        idx = self.listbox.curselection()
+        if idx:
+            self.name_var.set(self.listbox.get(idx[0]))
+
+    def _save(self):
+        name = self.name_var.get().strip()
+        if not name:
+            messagebox.showwarning("Eingabe", "Bitte gib einen Namen ein.")
+            return
+        
+        self.result = os.path.join(self.directory, name + self.extension)
+        if os.path.exists(self.result):
+            if not messagebox.askyesno("Überschreiben", f"'{name}' existiert bereits. Überschreiben?"):
+                return
+        
+        self.wait_window_success = True
+        self.destroy()
+
+class AkmLoadDialog(tk.Toplevel):
+    def __init__(self, parent, title, directory, extension=".akm"):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry("450x550")
+        self.transient(parent)
+        self.grab_set()
+        
+        self.directory = directory
+        self.extension = extension
+        self.result = None
+        
+        self.configure(bg=BG)
+        self._build_ui()
+        self._refresh_list()
+        
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (self.winfo_width() // 2)
+        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (self.winfo_height() // 2)
+        self.geometry(f"+{x}+{y}")
+
+    def _build_ui(self):
+        # Header
+        hdr = tk.Frame(self, bg=BG)
+        hdr.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
+        tk.Label(hdr, text="PROJEKT LADEN", bg=BG, fg=ACCENT, font=FONT_XL).pack(side="left")
+        
+        # Main Card
+        container = AkmCard(self)
+        container.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
+        
+        AkmLabel(container, text="GESPEICHERTE PROJEKTE", font=FONT_MD_BOLD, fg=ACCENT).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
+        
+        # Listbox
+        list_frame = AkmPanel(container)
+        list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        
+        self.listbox = tk.Listbox(
+            list_frame, bg=FIELD_BG, fg=FIELD_FG, font=FONT_MD,
+            selectbackground=ACCENT, selectforeground="black",
+            borderwidth=0, highlightthickness=1, highlightbackground=BORDER
+        )
+        self.listbox.pack(side="left", fill="both", expand=True)
+        
+        sb = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
+        sb.pack(side="right", fill="y")
+        self.listbox.config(yscrollcommand=sb.set)
+        
+        self.listbox.bind("<Double-Button-1>", lambda e: self._load())
+        
+        # Buttons
+        btn_row = tk.Frame(self, bg=BG)
+        btn_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
+        
+        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True).pack(side="left")
+        create_btn(btn_row, "LADEN", self._load, primary=True).pack(side="right")
+        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True).pack(side="right", padx=SPACE_SM)
+
+    def _browse(self):
+        path = filedialog.askopenfilename(
+            initialdir=self.directory,
+            title="Projekt Laden",
+            filetypes=[("AKM Projekt", f"*{self.extension}"), ("Alle Dateien", "*.*")]
+        )
+        if path:
+            self.result = path
+            self.destroy()
+
+    def _refresh_list(self):
+        self.listbox.delete(0, tk.END)
+        if not os.path.exists(self.directory): return
+        
+        files = [f for f in os.listdir(self.directory) if f.endswith(self.extension)]
+        for f in sorted(files):
+            name = f[:-len(self.extension)]
+            self.listbox.insert(tk.END, name)
+
+    def _load(self):
+        idx = self.listbox.curselection()
+        if not idx:
+            messagebox.showwarning("Auswahl", "Bitte wähle ein Projekt aus.")
+            return
+        
+        name = self.listbox.get(idx[0])
+        self.result = os.path.join(self.directory, name + self.extension)
+        self.destroy()

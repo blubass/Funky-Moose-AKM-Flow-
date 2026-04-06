@@ -4,7 +4,42 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from typing import Dict, List, Optional
+
+
+def _ensure_ffmpeg_in_path():
+    """Versucht ffmpeg an üblichen Stellen zu finden und zum PATH hinzuzufügen."""
+    common_paths = [
+        # 1. Prio: Bundled FFmpeg inside .app (PyInstaller MEIPASS)
+        getattr(sys, "_MEIPASS", ""),
+        os.path.dirname(sys.executable),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+        "/opt/local/bin",
+        "/sw/bin",
+        os.path.expanduser("~/bin"),
+        os.path.expanduser("~/.local/bin"),
+        os.path.join(os.getcwd(), "ffmpeg")
+    ]
+    current_path = os.environ.get("PATH", "")
+    new_paths = []
+    
+    for p in common_paths:
+        if os.path.exists(p) and p not in current_path:
+            new_paths.append(p)
+            
+    if new_paths:
+        os.environ["PATH"] = ":".join(new_paths) + ":" + current_path
+        print(f"DEBUG: PATH updated to include ffmpeg search locations: {new_paths}")
+
+
+# Sofort beim Import versuchen PATH zu fixen
+_ensure_ffmpeg_in_path()
 
 
 def have_ffmpeg() -> bool:
@@ -12,13 +47,25 @@ def have_ffmpeg() -> bool:
 
 
 def run_command(cmd: List[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd,
+    executable = shutil.which(cmd[0])
+    if executable:
+        cmd[0] = executable
+    
+    # We use shell=False for safety, but ensure all args are strings
+    safe_cmd = [str(arg) for arg in cmd]
+    
+    result = subprocess.run(
+        safe_cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         check=False,
     )
+    if result.returncode != 0:
+        print(f"DEBUG: Command failed with code {result.returncode}")
+        if result.stderr:
+            print(f"DEBUG STDEERR: {result.stderr[:200]}")
+    return result
 
 
 def probe_duration(path: str) -> Optional[float]:
@@ -313,3 +360,45 @@ def analyze_many(paths: List[str], target_lufs: float = -14.0, true_peak_ceiling
         results.append(item)
 
     return results
+
+
+def generate_waveform_image(path: str, out_path: str, width: int = 800, height: int = 120, hex_color: str = "#ff9a3c") -> bool:
+    """
+    Generiert eine Wellenform-Grafik via ffmpeg showwavespic.
+    Nutzt timeout=10 um Aufhaenger zu vermeiden.
+    """
+    if not have_ffmpeg():
+        return False
+    
+    # Simple color name for better compatibility
+    color_val = "orange"
+    
+    # Force absolute paths
+    abs_in = os.path.abspath(path)
+    abs_out = os.path.abspath(out_path)
+    
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", abs_in,
+        "-filter_complex", f"showwavespic=s={width}x{height}:colors={color_val}",
+        "-frames:v", "1",
+        abs_out
+    ]
+    
+    try:
+        # Run with timeout to prevent hanging UI
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10
+        )
+        return result.returncode == 0 and os.path.exists(abs_out)
+    except subprocess.TimeoutExpired:
+        print("DEBUG: Waveform generation timed out after 10s")
+        return False
+    except Exception as e:
+        print(f"DEBUG: Waveform generation error: {e}")
+        return False

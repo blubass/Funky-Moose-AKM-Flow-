@@ -83,19 +83,23 @@ class DashboardTab(AkmPanel):
         actions = AkmPanel(self)
         actions.pack(anchor="w", padx=SPACE_MD, pady=SPACE_SM)
         
-        self.app.btn(actions, "Aktualisieren", self.app.refresh_dashboard, quiet=True).pack(
+        self.app.btn(actions, "Aktualisieren", self.app.refresh_dashboard, primary=True).pack(
             side="left", padx=(0, SPACE_XS)
         )
         self.app.btn(
             actions,
             "Letztes offenes Werk",
             self.app.jump_to_last_open,
+            primary=True,
         ).pack(
             side="left", padx=SPACE_XS
         )
-        self.app.btn(
-            actions,
-            "Lautheit öffnen",
-            self.app.open_loudness_tab,
-            primary=True,
-        ).pack(side="left", padx=SPACE_XS)
+        self.app.btn(actions, "Loudness", self.app.open_loudness_tab, primary=True).pack(
+            side="left", padx=SPACE_XS
+        )
+        self.app.btn(actions, "Speichern", self.app.save_project, primary=True).pack(
+            side="left", padx=SPACE_XS
+        )
+        self.app.btn(actions, "Laden", self.app.load_project_dialog, primary=True).pack(
+            side="left", padx=SPACE_XS
+        )

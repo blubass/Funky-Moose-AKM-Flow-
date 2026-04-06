@@ -4,6 +4,7 @@ import os
 from PIL import Image, ImageTk
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmText, AkmBadge,
+    AkmScrollablePanel, AkmToast,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_MD_BOLD, FONT_XL, FONT_LG, FONT_XXL
@@ -74,9 +75,12 @@ class CoverTab(AkmPanel):
         content.pack(fill="both", expand=True, padx=SPACE_MD, pady=0)
 
         left_side = AkmPanel(content)
-        right_side = AkmPanel(content)
+        # Use scrollable panel for the right side
+        scroll_container = AkmScrollablePanel(content, bg=PANEL) 
+        right_side = scroll_container.scrollable_frame
+        
         left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-        right_side.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
         # LEFT: PREVIEW & VARIATION LIST
         preview_card = AkmCard(left_side)
@@ -227,7 +231,77 @@ class CoverTab(AkmPanel):
         btn_bar = AkmPanel(self)
         btn_bar.pack(fill="x", padx=SPACE_MD, pady=SPACE_SM)
         self.app.btn(btn_bar, "Zuweisen zu Release", lambda: self.app.select_tab_by_id("release"), primary=True).pack(side="left")
+        self.app.btn(btn_bar, "Projekt speichern", self.save_project_locally, quiet=True).pack(side="left", padx=SPACE_SM)
         self.app.btn(btn_bar, "Zertifikat erstellen", lambda: None, quiet=True).pack(side="left", padx=SPACE_SM)
+
+    def get_state(self):
+        """Returns the current state of all cover configuration variables."""
+        return {
+            "artwork_path": self.artwork_path_var.get(),
+            "artist": self.artist_var.get(),
+            "title": self.title_var.get(),
+            "subtitle": self.subtitle_var.get(),
+            "artist_font": self.artist_font_var.get(),
+            "artist_color": self.artist_color_var.get(),
+            "artist_size": self.artist_size_var.get(),
+            "artist_x": self.artist_x_var.get(),
+            "artist_y": self.artist_y_var.get(),
+            "title_font": self.title_font_var.get(),
+            "title_color": self.title_color_var.get(),
+            "title_size": self.title_size_var.get(),
+            "title_x": self.title_x_var.get(),
+            "title_y": self.title_y_var.get(),
+            "subtitle_font": self.subtitle_font_var.get(),
+            "subtitle_color": self.subtitle_color_var.get(),
+            "subtitle_size": self.subtitle_size_var.get(),
+            "subtitle_x": self.subtitle_x_var.get(),
+            "subtitle_y": self.subtitle_y_var.get(),
+            "layout": self.layout_var.get(),
+            "zoom": self.zoom_var.get(),
+            "ui_preview_zoom": self.ui_preview_zoom_var.get(),
+        }
+
+    def set_state(self, state):
+        """Restores the UI state from a dictionary."""
+        if not state: return
+        
+        lookup = {
+            "artwork_path": self.artwork_path_var,
+            "artist": self.artist_var,
+            "title": self.title_var,
+            "subtitle": self.subtitle_var,
+            "artist_font": self.artist_font_var,
+            "artist_color": self.artist_color_var,
+            "artist_size": self.artist_size_var,
+            "artist_x": self.artist_x_var,
+            "artist_y": self.artist_y_var,
+            "title_font": self.title_font_var,
+            "title_color": self.title_color_var,
+            "title_size": self.title_size_var,
+            "title_x": self.title_x_var,
+            "title_y": self.title_y_var,
+            "subtitle_font": self.subtitle_font_var,
+            "subtitle_color": self.subtitle_color_var,
+            "subtitle_size": self.subtitle_size_var,
+            "subtitle_x": self.subtitle_x_var,
+            "subtitle_y": self.subtitle_y_var,
+            "layout": self.layout_var,
+            "zoom": self.zoom_var,
+            "ui_preview_zoom": self.ui_preview_zoom_var,
+        }
+        
+        for key, value in state.items():
+            if key in lookup:
+                lookup[key].set(value)
+        
+        self.after(200, self.refresh_preview)
+
+    def save_project_locally(self):
+        """Convenience wrapper to trigger the application-wide project save."""
+        if hasattr(self.app, "save_project"):
+            self.app.save_project()
+        else:
+            AkmToast(self, "Master-Speicherung nicht verfügbar")
 
     def _show_placeholders(self):
         """Restores the industrial placeholder view."""
@@ -394,3 +468,4 @@ class CoverTab(AkmPanel):
             child.destroy()
         
         self.preview_inner.configure(image=self._photo)
+

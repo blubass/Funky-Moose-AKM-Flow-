@@ -2,3 +2,4 @@ openpyxl
 Pillow
 pyperclip
 tkinterdnd2
+pygame

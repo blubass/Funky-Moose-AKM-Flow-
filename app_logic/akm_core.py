@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
 DATA_DIR = os.path.expanduser("~/akm_assistant")
+PROJECTS_DIR = os.path.join(DATA_DIR, "projects")
 DATA_FILE = os.path.join(DATA_DIR, "data.json")
 BACKUP_FILE = os.path.join(DATA_DIR, "data_backup.json")
 LANG_FILE = os.path.join(DATA_DIR, "lang.txt")
@@ -671,3 +672,33 @@ def get_dashboard_stats():
         "with_production": with_production,
         "with_notes": with_notes,
     }
+
+def save_project(path, data, cover_state=None, settings=None):
+    """
+    Saves the entire project state to a single JSON bundle.
+    """
+    bundle = {
+        "version": "1.0",
+        "timestamp": datetime.now().isoformat(),
+        "data": data,
+        "cover": cover_state or {},
+        "settings": settings or {}
+    }
+    
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(bundle, handle, indent=2, ensure_ascii=False)
+    return True
+
+def load_project(path):
+    """
+    Loads a project bundle from a JSON file.
+    """
+    if not os.path.exists(path):
+        return None
+        
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            bundle = json.load(handle)
+        return bundle
+    except Exception:
+        return None

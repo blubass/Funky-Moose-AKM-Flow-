@@ -42,11 +42,11 @@ class BatchTab(AkmPanel):
         btn_row.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         self.app.copy_button = self.app.btn(btn_row, "Titel kopieren", self.app.flow_copy, primary=True)
-        self.app.btn(btn_row, "Als gemeldet", self.app.flow_submit).pack(side="left", padx=SPACE_SM)
-        self.app.btn(btn_row, "Weiter", self.app.flow_next, quiet=True).pack(side="left", padx=SPACE_SM)
-        self.app.btn(btn_row, "Neu laden", self.app.reload_flow_data, quiet=True).pack(side="left", padx=SPACE_SM)
-
         self.app.copy_button.pack(side="left", padx=(0, SPACE_XS))
+
+        self.app.btn(btn_row, "Als gemeldet", self.app.flow_submit, primary=True).pack(side="left", padx=SPACE_SM)
+        self.app.btn(btn_row, "Weiter", self.app.flow_next, primary=True).pack(side="left", padx=SPACE_SM)
+        self.app.btn(btn_row, "Neu laden", self.app.reload_flow_data, primary=True).pack(side="left", padx=SPACE_SM)
 
         progress_card = AkmCard(self)
         progress_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
