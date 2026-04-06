@@ -31,12 +31,18 @@ class CoverTab(AkmPanel):
         # Font Configuration (One per layer)
         self.artist_font_var = tk.StringVar(value="Helvetica Neue")
         self.artist_color_var = tk.StringVar(value="#FFFFFF")
+        self.artist_bold_var = tk.BooleanVar(value=False)
+        self.artist_case_var = tk.StringVar(value="uppercase")
         
         self.title_font_var = tk.StringVar(value="Helvetica Neue")
         self.title_color_var = tk.StringVar(value="#FFFFFF")
+        self.title_bold_var = tk.BooleanVar(value=True)
+        self.title_case_var = tk.StringVar(value="uppercase")
         
         self.subtitle_font_var = tk.StringVar(value="Inter Mono")
         self.subtitle_color_var = tk.StringVar(value="#D2D2D2")
+        self.subtitle_bold_var = tk.BooleanVar(value=False)
+        self.subtitle_case_var = tk.StringVar(value="normal")
         
         # Font Sizes & Positions
         self.artist_size_var = tk.StringVar(value="60")
@@ -110,7 +116,7 @@ class CoverTab(AkmPanel):
         form.pack(fill="both", expand=True)
         
         # TYPOGRAPHY & POSITIONS (COMPACT VERSION)
-        def _add_pos_form(header, font_var, color_var, size_var, x_var, y_var):
+        def _add_pos_form(header, font_var, color_var, size_var, bold_var, case_var, x_var, y_var):
             form.add_header(header, color=ACCENT if header == "Titel (Title)" else SUBTLE)
             
             # Row 1: Font & Size & Color
@@ -138,6 +144,13 @@ class CoverTab(AkmPanel):
             def _update_cp(*a): color_preview.config(bg=color_var.get())
             color_var.trace_add("write", _update_cp)
             
+            # --- BOLD & CAPS ---
+            tk.Label(row_main, text="Bold:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(10, 0))
+            tk.Checkbutton(row_main, variable=bold_var, bg=PANEL_2, activebackground=PANEL_2, selectcolor="#111111", bd=0).pack(side="left")
+            
+            tk.Label(row_main, text="ABC:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(5, 0))
+            ttk.Combobox(row_main, textvariable=case_var, values=["normal", "uppercase"], width=6).pack(side="left", padx=2)
+            
             form._current_row += 1
             
             # Row 2: X & Y Sliders (Compact side-by-side)
@@ -163,9 +176,9 @@ class CoverTab(AkmPanel):
 
             form._current_row += 1
 
-        _add_pos_form("Interpret (Artist)", self.artist_font_var, self.artist_color_var, self.artist_size_var, self.artist_x_var, self.artist_y_var)
-        _add_pos_form("Titel (Title)", self.title_font_var, self.title_color_var, self.title_size_var, self.title_x_var, self.title_y_var)
-        _add_pos_form("Untertitel (Subtitle)", self.subtitle_font_var, self.subtitle_color_var, self.subtitle_size_var, self.subtitle_x_var, self.subtitle_y_var)
+        _add_pos_form("Interpret (Artist)", self.artist_font_var, self.artist_color_var, self.artist_size_var, self.artist_bold_var, self.artist_case_var, self.artist_x_var, self.artist_y_var)
+        _add_pos_form("Titel (Title)", self.title_font_var, self.title_color_var, self.title_size_var, self.title_bold_var, self.title_case_var, self.title_x_var, self.title_y_var)
+        _add_pos_form("Untertitel (Subtitle)", self.subtitle_font_var, self.subtitle_color_var, self.subtitle_size_var, self.subtitle_bold_var, self.subtitle_case_var, self.subtitle_x_var, self.subtitle_y_var)
 
         # COVER CONTENT (Compact Entries)
         header_content = AkmLabel(form, text="EINGABE-TEXTE", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD)
@@ -275,6 +288,12 @@ class CoverTab(AkmPanel):
             "layout": self.layout_var.get(),
             "zoom": self.zoom_var.get(),
             "ui_preview_zoom": self.ui_preview_zoom_var.get(),
+            "artist_case": self.artist_case_var.get(),
+            "artist_bold": self.artist_bold_var.get(),
+            "title_case": self.title_case_var.get(),
+            "title_bold": self.title_bold_var.get(),
+            "subtitle_case": self.subtitle_case_var.get(),
+            "subtitle_bold": self.subtitle_bold_var.get(),
             "bg_color": self.bg_color_var.get(),
             "accent_color": self.accent_color_var.get(),
         }
@@ -306,6 +325,12 @@ class CoverTab(AkmPanel):
             "layout": self.layout_var,
             "zoom": self.zoom_var,
             "ui_preview_zoom": self.ui_preview_zoom_var,
+            "artist_case": self.artist_case_var,
+            "artist_bold": self.artist_bold_var,
+            "title_case": self.title_case_var,
+            "title_bold": self.title_bold_var,
+            "subtitle_case": self.subtitle_case_var,
+            "subtitle_bold": self.subtitle_bold_var,
             "bg_color": self.bg_color_var,
             "accent_color": self.accent_color_var,
         }
@@ -403,6 +428,8 @@ class CoverTab(AkmPanel):
             self.title_var, self.artist_var, self.subtitle_var,
             self.artist_font_var, self.title_font_var, self.subtitle_font_var,
             self.artist_color_var, self.title_color_var, self.subtitle_color_var,
+            self.artist_bold_var, self.title_bold_var, self.subtitle_bold_var,
+            self.artist_case_var, self.title_case_var, self.subtitle_case_var,
             self.artist_size_var, self.title_size_var, self.subtitle_size_var,
             self.artist_x_var, self.artist_y_var, 
             self.title_x_var, self.title_y_var,
@@ -429,29 +456,34 @@ class CoverTab(AkmPanel):
                 zoom_val = self.zoom_var.get()
                 draft = cover_tools.resize_cover_canvas(img, 1800, 1800, zoom=zoom_val)
                 
+                def _fmt(txt, case):
+                    return txt.upper() if case == "uppercase" else txt
+
                 # Setup stacked configs
                 font_configs = [
                     {
-                        "text": self.artist_var.get().upper(), 
+                        "text": _fmt(self.artist_var.get(), self.artist_case_var.get()), 
                         "size": int(self.artist_size_var.get() or 60), 
                         "font": self.artist_font_var.get(), 
+                        "bold": self.artist_bold_var.get(),
                         "color": self.artist_color_var.get(),
                         "x": int(self.artist_x_var.get() or 900),
                         "y": int(self.artist_y_var.get() or 1400)
                     },
                     {
-                        "text": self.title_var.get().upper(), 
+                        "text": _fmt(self.title_var.get(), self.title_case_var.get()), 
                         "size": int(self.title_size_var.get() or 140), 
                         "font": self.title_font_var.get(), 
-                        "bold": True, 
+                        "bold": self.title_bold_var.get(), 
                         "color": self.title_color_var.get(),
                         "x": int(self.title_x_var.get() or 900),
                         "y": int(self.title_y_var.get() or 1500)
                     },
                     {
-                        "text": self.subtitle_var.get(), 
+                        "text": _fmt(self.subtitle_var.get(), self.subtitle_case_var.get()), 
                         "size": int(self.subtitle_size_var.get() or 40), 
                         "font": self.subtitle_font_var.get(), 
+                        "bold": self.subtitle_bold_var.get(),
                         "color": self.subtitle_color_var.get(),
                         "x": int(self.subtitle_x_var.get() or 900),
                         "y": int(self.subtitle_y_var.get() or 1600)
@@ -546,27 +578,33 @@ class CoverTab(AkmPanel):
                 # But here we use a fixed 3000px target for 'Premium' output
                 full = cover_tools.resize_cover_canvas(img, 3000, 3000, zoom=zoom_val)
                 
+                def _fmt(txt, case):
+                    return txt.upper() if case == "uppercase" else txt
+
                 font_configs = [
                     {
-                        "text": self.artist_var.get().upper(), 
+                        "text": _fmt(self.artist_var.get(), self.artist_case_var.get()), 
                         "size": int(int(self.artist_size_var.get() or 60) * (3000 / 1800)), 
                         "font": self.artist_font_var.get(), 
+                        "bold": self.artist_bold_var.get(),
                         "color": self.artist_color_var.get(),
                         "x": int(int(self.artist_x_var.get() or 900) * (3000 / 1800)),
                         "y": int(int(self.artist_y_var.get() or 1400) * (3000 / 1800))
                     },
                     {
-                        "text": self.title_var.get().upper(), 
+                        "text": _fmt(self.title_var.get(), self.title_case_var.get()), 
                         "size": int(int(self.title_size_var.get() or 140) * (3000 / 1800)), 
                         "font": self.title_font_var.get(), 
+                        "bold": self.title_bold_var.get(),
                         "color": self.title_color_var.get(),
                         "x": int(int(self.title_x_var.get() or 900) * (3000 / 1800)),
                         "y": int(int(self.title_y_var.get() or 1500) * (3000 / 1800))
                     },
                     {
-                        "text": self.subtitle_var.get(), 
+                        "text": _fmt(self.subtitle_var.get(), self.subtitle_case_var.get()), 
                         "size": int(int(self.subtitle_size_var.get() or 40) * (3000 / 1800)), 
                         "font": self.subtitle_font_var.get(), 
+                        "bold": self.subtitle_bold_var.get(),
                         "color": self.subtitle_color_var.get(),
                         "x": int(int(self.subtitle_x_var.get() or 900) * (3000 / 1800)),
                         "y": int(int(self.subtitle_y_var.get() or 1600) * (3000 / 1800))
