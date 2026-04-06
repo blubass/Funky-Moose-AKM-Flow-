@@ -59,6 +59,10 @@ class CoverTab(AkmPanel):
         self.zoom_var = tk.DoubleVar(value=1.0)
         self.ui_preview_zoom_var = tk.IntVar(value=400) # Default UI height
         
+        # General Colors
+        self.bg_color_var = tk.StringVar(value="#181818")
+        self.accent_color_var = tk.StringVar(value="#ff9a3c")
+        
         self.pack(fill="both", expand=True)
         self.build_ui()
         self._setup_dnd()
@@ -128,6 +132,12 @@ class CoverTab(AkmPanel):
             btn.pack(side="left", padx=5)
             btn.bind("<Button-1>", lambda e: _pick())
             
+            # Add a small preview of the color
+            color_preview = tk.Frame(row_main, width=12, height=12, bg=color_var.get(), highlightthickness=1, highlightbackground=SUBTLE)
+            color_preview.pack(side="left", padx=2)
+            def _update_cp(*a): color_preview.config(bg=color_var.get())
+            color_var.trace_add("write", _update_cp)
+            
             form._current_row += 1
             
             # Row 2: X & Y Sliders (Compact side-by-side)
@@ -187,8 +197,8 @@ class CoverTab(AkmPanel):
         ttk.Combobox(row_final, textvariable=self.layout_var, values=["manual", "bottom", "center"], width=8).pack(side="left", padx=2)
 
         form._current_row += 1
-        form.add_color_field("Hauptfarbe", tk.StringVar(value="#181818"))
-        form.add_color_field("Akzentfarbe", tk.StringVar(value="#ff9a3c"))
+        form.add_color_field("Hauptfarbe", self.bg_color_var)
+        form.add_color_field("Akzentfarbe", self.accent_color_var)
         form.add_entry("Moose Logo-Variante", tk.StringVar(value="Forge Standard (Orange)"))
 
         # QUALITY CHECK & MONITOR
@@ -235,7 +245,7 @@ class CoverTab(AkmPanel):
         # BUTTON BAR
         btn_bar = AkmPanel(self)
         btn_bar.pack(fill="x", padx=SPACE_MD, pady=SPACE_SM)
-        self.app.btn(btn_bar, "Zuweisen zu Release", lambda: self.app.select_tab_by_id("release"), primary=True).pack(side="left")
+        self.app.btn(btn_bar, "Zuweisen zu Release", self._assign_to_release, primary=True).pack(side="left")
         self.app.btn(btn_bar, "Cover exportieren", self.export_cover, primary=True).pack(side="left", padx=SPACE_SM)
         self.app.btn(btn_bar, "Projekt speichern", self.save_project_locally, quiet=True).pack(side="left", padx=SPACE_SM)
         self.app.btn(btn_bar, "Zertifikat erstellen", lambda: None, quiet=True).pack(side="left", padx=SPACE_SM)
@@ -265,6 +275,8 @@ class CoverTab(AkmPanel):
             "layout": self.layout_var.get(),
             "zoom": self.zoom_var.get(),
             "ui_preview_zoom": self.ui_preview_zoom_var.get(),
+            "bg_color": self.bg_color_var.get(),
+            "accent_color": self.accent_color_var.get(),
         }
 
     def set_state(self, state):
@@ -294,6 +306,8 @@ class CoverTab(AkmPanel):
             "layout": self.layout_var,
             "zoom": self.zoom_var,
             "ui_preview_zoom": self.ui_preview_zoom_var,
+            "bg_color": self.bg_color_var,
+            "accent_color": self.accent_color_var,
         }
         
         for key, value in state.items():
@@ -393,7 +407,8 @@ class CoverTab(AkmPanel):
             self.artist_x_var, self.artist_y_var, 
             self.title_x_var, self.title_y_var,
             self.subtitle_x_var, self.subtitle_y_var,
-            self.zoom_var, self.ui_preview_zoom_var, self.layout_var, self.style_var
+            self.zoom_var, self.ui_preview_zoom_var, self.layout_var, self.style_var,
+            self.bg_color_var, self.accent_color_var
         ]
         for var in vars_to_trace:
             var.trace_add("write", lambda *a: self.refresh_preview())
@@ -411,7 +426,6 @@ class CoverTab(AkmPanel):
             # Load original
             with Image.open(path) as img:
                 # Working on a reasonably sized high-quality draft (1800px)
-                # Apply zoom factor at the resizing stage
                 zoom_val = self.zoom_var.get()
                 draft = cover_tools.resize_cover_canvas(img, 1800, 1800, zoom=zoom_val)
                 
@@ -449,8 +463,23 @@ class CoverTab(AkmPanel):
                 draw = ImageDraw.Draw(image, "RGBA")
                 width, height = image.size
                 
-                # Centralized Rendering
-                cover_tools.render_manual_layout(draw, width, height, font_configs, zoom=zoom_val)
+                # Options for layouts
+                options = {
+                    "bg_color": self.bg_color_var.get(),
+                    "accent_color": self.accent_color_var.get(),
+                    "style": self.style_var.get(),
+                }
+                
+                # Centralized Rendering or Layout Presets
+                layout = self.layout_var.get()
+                if layout == "manual":
+                    cover_tools.render_manual_layout(draw, width, height, font_configs, zoom=zoom_val)
+                elif layout == "bottom":
+                    image = cover_tools._build_release_cover_variant_bottom(draft, self.title_var.get().upper(), self.artist_var.get().upper(), None, options, subtitle=self.subtitle_var.get())
+                elif layout == "center":
+                    image = cover_tools._build_release_cover_variant_center_band(draft, self.title_var.get().upper(), self.artist_var.get().upper(), None, options, subtitle=self.subtitle_var.get())
+                else:
+                    cover_tools.render_manual_layout(draw, width, height, font_configs, zoom=zoom_val)
 
                 return image.convert("RGB")
 
@@ -474,6 +503,20 @@ class CoverTab(AkmPanel):
             child.destroy()
         
         self.preview_inner.configure(image=self._photo)
+
+    def _assign_to_release(self):
+        """Transfers the current artwork path to the Release tab's metadata."""
+        path = self.artwork_path_var.get()
+        if not path or not os.path.exists(path):
+            AkmToast(self, "KEIN ARTWORK ZUM ZUWEISEN", color="#FF3B30")
+            return
+            
+        if hasattr(self.app, "release_vars") and "cover_path" in self.app.release_vars:
+            self.app.release_vars["cover_path"].set(path)
+            self.app.select_tab_by_id("release")
+            AkmToast(self.app, "COVER IN RELEASE ÜBERNOMMEN", color=ACCENT)
+        else:
+            AkmToast(self, "RELEASE-TAB NICHT BEREIT", color="#FF3B30")
 
     def export_cover(self):
         """Final high-quality render and save to file."""

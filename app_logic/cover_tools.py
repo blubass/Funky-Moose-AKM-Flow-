@@ -297,7 +297,9 @@ def draw_release_cover_text_block(
 
 def save_release_cover_variant(image, output_path):
     target = image.convert("RGB") if image.mode != "RGB" else image
-    target.save(output_path, quality=95)
+    if output_path:
+        target.save(output_path, quality=95)
+    return target
 
 
 def build_release_cover_variant(layout_key, base_image, title, artist, output_path, options, subtitle=None):
@@ -359,8 +361,14 @@ def _build_release_cover_variant_bottom(base_image, title, artist, output_path, 
     band_top = height - band_height
     vertical_shift = release_cover_vertical_shift(options.get("offset", "normal"), height, "bottom")
     overlay_alpha = release_cover_overlay_alpha(options.get("overlay", "medium"), "default")
+    bg_color = options.get("bg_color", "#000000")
+    
+    # Handle hex to RGBA
+    from PIL import ImageColor
+    try: rgba_bg = ImageColor.getrgb(bg_color) + (overlay_alpha,)
+    except: rgba_bg = (0, 0, 0, overlay_alpha)
 
-    draw.rectangle((0, band_top, width, height), fill=(0, 0, 0, overlay_alpha))
+    draw.rectangle((0, band_top, width, height), fill=rgba_bg)
     draw_release_cover_text_block(
         draw,
         margin_x,
@@ -377,6 +385,7 @@ def _build_release_cover_variant_bottom(base_image, title, artist, output_path, 
         align="center",
     )
     save_release_cover_variant(image, output_path)
+    return image
 
 
 def _build_release_cover_variant_top_left(base_image, title, artist, output_path, options, subtitle=None):
@@ -389,12 +398,21 @@ def _build_release_cover_variant_top_left(base_image, title, artist, output_path
     box_h = int(height * 0.24)
     vertical_shift = release_cover_vertical_shift(options.get("offset", "normal"), height, "card")
     overlay_alpha = release_cover_overlay_alpha(options.get("overlay", "medium"), "card")
+    bg_color = options.get("bg_color", "#000000")
+    accent_color = options.get("accent_color", "#FFFFFF")
+
+    from PIL import ImageColor
+    try: rgba_bg = ImageColor.getrgb(bg_color) + (overlay_alpha,)
+    except: rgba_bg = (0, 0, 0, overlay_alpha)
+    
+    try: rgba_accent = ImageColor.getrgb(accent_color) + (70,)
+    except: rgba_accent = (255, 255, 255, 70)
 
     draw.rounded_rectangle(
         (box_x, box_y, box_x + box_w, box_y + box_h),
         radius=max(16, int(min(width, height) * 0.025)),
-        fill=(0, 0, 0, overlay_alpha),
-        outline=(255, 255, 255, 70),
+        fill=rgba_bg,
+        outline=rgba_accent,
         width=2,
     )
     draw_release_cover_text_block(
@@ -413,6 +431,7 @@ def _build_release_cover_variant_top_left(base_image, title, artist, output_path
         align="left",
     )
     save_release_cover_variant(image, output_path)
+    return image
 
 
 def _build_release_cover_variant_center_band(base_image, title, artist, output_path, options, subtitle=None):
@@ -425,10 +444,19 @@ def _build_release_cover_variant_center_band(base_image, title, artist, output_p
     vertical_shift = release_cover_vertical_shift(options.get("offset", "normal"), height, "center")
     overlay_alpha = release_cover_overlay_alpha(options.get("overlay", "medium"), "default")
     line_alpha = release_cover_overlay_alpha(options.get("overlay", "medium"), "line")
+    bg_color = options.get("bg_color", "#0A0A0A")
+    accent_color = options.get("accent_color", "#FFFFFF")
 
-    draw.rectangle((0, band_y, width, band_y + band_h), fill=(10, 10, 10, overlay_alpha))
-    draw.line((margin_x, band_y + 18, width - margin_x, band_y + 18), fill=(255, 255, 255, line_alpha), width=2)
-    draw.line((margin_x, band_y + band_h - 18, width - margin_x, band_y + band_h - 18), fill=(255, 255, 255, line_alpha), width=2)
+    from PIL import ImageColor
+    try: rgba_bg = ImageColor.getrgb(bg_color) + (overlay_alpha,)
+    except: rgba_bg = (10, 10, 10, overlay_alpha)
+    
+    try: rgba_accent = ImageColor.getrgb(accent_color) + (line_alpha,)
+    except: rgba_accent = (255, 255, 255, line_alpha)
+
+    draw.rectangle((0, band_y, width, band_y + band_h), fill=rgba_bg)
+    draw.line((margin_x, band_y + 18, width - margin_x, band_y + 18), fill=rgba_accent, width=2)
+    draw.line((margin_x, band_y + band_h - 18, width - margin_x, band_y + band_h - 18), fill=rgba_accent, width=2)
     draw_release_cover_text_block(
         draw,
         margin_x,

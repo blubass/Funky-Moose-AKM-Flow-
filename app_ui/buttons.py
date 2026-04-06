@@ -40,10 +40,14 @@ def create_btn(parent, text, cmd, primary=False, quiet=False, width=None, accent
         
         cv.create_text(w/2, h/2, text=text.upper(), fill=base_fg, font=btn_font)
 
+    def _on_click(e):
+        _draw("pressed")
+        cv.after(100, lambda: _draw("normal"))
+        cmd()
+
     cv.bind("<Enter>", lambda e: _draw("hover"))
     cv.bind("<Leave>", lambda e: _draw("normal"))
-    cv.bind("<Button-1>", lambda e: (cmd(), _draw("pressed")))
-    cv.bind("<ButtonRelease-1>", lambda e: _draw("normal"))
+    cv.bind("<Button-1>", _on_click)
     cv.bind("<Configure>", lambda e: _draw())
     
     return cv
