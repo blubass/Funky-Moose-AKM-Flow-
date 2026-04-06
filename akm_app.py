@@ -165,11 +165,14 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         # Initial Boot Sequence
         self.append_log("-" * 30)
-        self.append_log("OBSIDIAN MASTER BOOT SEQUENCE ACTIVE")
-        self.append_log("Status: Alle UI-Kerne synchronisiert.")
+        self.append_log("OBSIDIAN MASTER v1.0.0 BOOTING")
+        self.append_log("Status: Version 1.0.0 stabilisiert.")
         self.after(500, lambda: self.append_log("Status: Slate-Steel Palette geladen."))
         self.after(1000, lambda: self.append_log("Status: System bereit für Produktion."))
         self.append_log("-" * 30)
+        
+        # Dashboard Label (Version Tag)
+        tk.Label(brand_container, text="OBSIDIAN MASTER v1.0.0", bg=inlay_bg, fg=ACCENT, font=FONT_ITALIC).pack(side="top", anchor="w")
         
         # Dual-Color Title (Full Branding)
         tk.Label(brand_container, text="FUNKY MOOSE", bg=inlay_bg, fg=ui_patterns.ACCENT, font=FONT_XXXL).pack(side="left")
