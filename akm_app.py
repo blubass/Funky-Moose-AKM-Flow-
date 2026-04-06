@@ -18,13 +18,6 @@ except Exception:
     DND_FILES = None
     TkinterDnD = None
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
 
 # Core Logic & Infrastructure
 from app_logic import (
@@ -64,6 +57,15 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     Central orchestrator for the Funky Moose Release Forge.
     Manages state via AppState, background tasks via TaskRunner, and coordinates the modular tab-based UI.
     """
+    @staticmethod
+    def resource_path(relative_path):
+        """ Get absolute path to resource, works for dev and for PyInstaller """
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
+
     def __init__(self):
         super().__init__()
         self._set_window_config()
