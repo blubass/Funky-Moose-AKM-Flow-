@@ -24,6 +24,7 @@ from app_logic import (
     loudness_tools
 )
 from app_ui import ui_patterns, path_ui_tools, release_view_tools
+from app_ui.ui_patterns import * 
 from app_workflows import loudness_workflows, release_workflows
 
 # Audio Engine & Player
