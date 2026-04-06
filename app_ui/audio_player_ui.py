@@ -156,7 +156,7 @@ class AkmAudioPlayer(tk.Toplevel):
         self._drag_active = False
         new_pos = self.pos_var.get()
         self.engine.set_pos(new_pos)
-        self.app.append_log(f"Seek: {loudness_tools.format_seconds(new_pos)}")
+        self.parent.append_log(f"Seek: {loudness_tools.format_seconds(new_pos)}")
 
     def _on_seek(self, val):
         """Optional: live display update during drag (no audio seek)."""
