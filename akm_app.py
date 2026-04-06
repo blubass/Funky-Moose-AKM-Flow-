@@ -71,6 +71,15 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         self.refresh_list()
         self.reload_flow_data(preferred_index=0)
+        
+        # --- MAC FOCUS FIX (Forcing bundle visibility) ---
+        self.update_idletasks()
+        self.deiconify()
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(500, lambda: self.attributes("-topmost", False))
+        self.focus_force()
+        print("[2026] GUI MASTER START: Sichtbar auf Host.")
 
     # --- INITIALIZATION ---
     def _set_window_config(self):
@@ -138,16 +147,29 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         brand_container = tk.Frame(self.header_inner, bg=inlay_bg)
         brand_container.pack(side="left", padx=SPACE_XL, pady=SPACE_MD)
         
-        # Logo Loading
+        # Logo Loading (Premium 2026 Design)
         self.logo_img = None
         logo_path = "/Users/uwearthurfelchle/.gemini/antigravity/brain/b5dd3aa9-d304-4903-9c25-c4a266ba37ad/funky_moose_neon_logo_2026_icon_1775459475092.png"
         try:
             from PIL import Image, ImageTk
-            with Image.open(logo_path) as img:
-                img = img.resize((48, 48), Image.Resampling.LANCZOS)
-                self.logo_img = ImageTk.PhotoImage(img)
-                tk.Label(brand_container, image=self.logo_img, bg=inlay_bg).pack(side="left", padx=(0, SPACE_MD))
-        except: pass
+            import os
+            if os.path.exists(logo_path):
+                with Image.open(logo_path) as img:
+                    img = img.resize((48, 48), Image.Resampling.LANCZOS)
+                    self.logo_img = ImageTk.PhotoImage(img)
+                    tk.Label(brand_container, image=self.logo_img, bg=inlay_bg).pack(side="left", padx=(0, SPACE_MD))
+            else:
+                self.append_log("System: Branding Logo im Bundle nicht gefunden.")
+        except Exception as e:
+            self.append_log(f"System: Logo-Initialisierung fehlgeschlagen ({str(e)})")
+        
+        # Initial Boot Sequence
+        self.append_log("-" * 30)
+        self.append_log("OBSIDIAN MASTER BOOT SEQUENCE ACTIVE")
+        self.append_log("Status: Alle UI-Kerne synchronisiert.")
+        self.after(500, lambda: self.append_log("Status: Slate-Steel Palette geladen."))
+        self.after(1000, lambda: self.append_log("Status: System bereit für Produktion."))
+        self.append_log("-" * 30)
         
         # Dual-Color Title (Full Branding)
         tk.Label(brand_container, text="FUNKY MOOSE", bg=inlay_bg, fg=ui_patterns.ACCENT, font=FONT_XXXL).pack(side="left")

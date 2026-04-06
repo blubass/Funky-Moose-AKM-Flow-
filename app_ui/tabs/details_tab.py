@@ -83,4 +83,4 @@ class DetailsTab(AkmPanel):
         actions = AkmPanel(self)
         actions.pack(anchor="w", padx=SPACE_MD, pady=SPACE_SM)
         self.app.btn(actions, "Speichern", self.app.save_details, primary=True).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(actions, "Zurücksetzen", self.app.clear_details_form, primary=True).pack(side="left", padx=SPACE_XS)
+        self.app.btn(actions, "Zurücksetzen", self.app.clear_details_form, quiet=True).pack(side="left", padx=SPACE_XS)

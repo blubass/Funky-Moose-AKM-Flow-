@@ -423,11 +423,15 @@ class AkmPanel(tk.Frame):
         super().__init__(parent, **kwargs)
 
 class AkmCard(AkmRoundedFrame):
-    """Hardware Card with organic rounded corners."""
+    """Hardware Card with organic rounded corners and 3D light-catch edge."""
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         self.inner = tk.Frame(self, bg=self.bg_color)
         self.inner.place(relx=0.5, rely=0.5, relwidth=0.9, relheight=0.88, anchor="center")
+        
+        # Add a subtle light-reflect edge at the top
+        self.line = tk.Frame(self, bg="#1E1E22", height=1)
+        self.line.place(relx=0.08, rely=0.06, relwidth=0.84)
 
 class AkmScrollablePanel(tk.Frame):
     """
@@ -506,14 +510,15 @@ class AkmAccentHeader(tk.Label):
 
 # --- MICRO-ANIMATIONS & FEEDBACK ---
 class PulseLabel(tk.Label):
-    """A label that pulses between two colors to indicate activity."""
-    def __init__(self, parent, base_color=PANEL, pulse_color=ACCENT_SOFT, **kwargs):
+    """A high-fidelity pulsing label with smooth sinus-based color transitions."""
+    def __init__(self, parent, base_color=PANEL, pulse_color=ACCENT, **kwargs):
         kwargs.setdefault("bg", base_color)
+        kwargs.setdefault("fg", TEXT)
         super().__init__(parent, **kwargs)
         self.base_color = base_color
         self.pulse_color = pulse_color
         self._running = False
-        self._phase = 0
+        self._step = 0
 
     def start(self):
         if not self._running:
@@ -526,13 +531,13 @@ class PulseLabel(tk.Label):
 
     def _animate(self):
         if not self._running: return
-        self._phase = (self._phase + 0.1) % (2 * 3.14159)
-        ratio = (1 + (0.5 * (1 + 0.5 * (1 + 0.5 * (1 + 0.5))))) # Simplified pulse
-        # Use a simpler ratio for now
-        ratio = 0.5 + 0.5 * (1 if self._phase < 3.14 else 0) # Just a simple blink for now
-        color = blend_color(self.base_color, self.pulse_color, 0.4 if self._phase < 3.14 else 0)
+        import math
+        self._step = (self._step + 1) % 20
+        # Smooth sinus interpolation between 0 and 1
+        ratio = (math.sin(self._step * (math.pi / 10)) + 1) / 2
+        color = blend_color(self.base_color, self.pulse_color, ratio * 0.4)
         self.config(bg=color)
-        self.after(200, self._animate)
+        self.after(50, self._animate)
 
 class AkmToast(tk.Label):
     """A self-dismissing popup notification."""
