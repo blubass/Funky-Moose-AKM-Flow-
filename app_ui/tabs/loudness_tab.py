@@ -52,6 +52,7 @@ class LoudnessTab(AkmPanel):
         controls.pack(fill="x", padx=CARD_PAD_X, pady=(5, 5))
         self.app.loudness_choose_btn = self.app.btn(controls, "Wählen", self.app.loudness_choose_files, primary=True, width=80)
         self.app.loudness_choose_btn.pack(side="left", padx=(0, 2))
+        self.app.btn(controls, "Löschen", self.app.loudness_delete_files, quiet=True, width=80).pack(side="left", padx=2)
         self.app.loudness_analyze_btn = self.app.btn(controls, "Analyse", self.app.loudness_analyze_files, primary=True, width=80)
         self.app.loudness_analyze_btn.pack(side="left", padx=2)
         self.app.loudness_export_btn = self.app.btn(controls, "Export", self.app.loudness_export_files, primary=True, width=80)

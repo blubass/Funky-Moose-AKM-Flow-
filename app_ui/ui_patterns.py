@@ -450,7 +450,7 @@ class AkmScrollablePanel(tk.Frame):
 
         self.scrollable_frame.bind(
             "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self._on_frame_configure
         )
 
         self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
@@ -461,10 +461,21 @@ class AkmScrollablePanel(tk.Frame):
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
         
-        # Mousewheel support
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        self.canvas.bind_all("<Button-4>", self._on_mousewheel) # Linux support
-        self.canvas.bind_all("<Button-5>", self._on_mousewheel)
+        # Proper local recursive binding instead of bind_all
+        self._bind_mousewheel_recursive(self.canvas)
+        self._bind_mousewheel_recursive(self.scrollable_frame)
+
+    def _on_frame_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        # Re-bind for any new children added during dynamic UI building
+        self._bind_mousewheel_recursive(self.scrollable_frame)
+
+    def _bind_mousewheel_recursive(self, widget):
+        widget.bind("<MouseWheel>", self._on_mousewheel)
+        widget.bind("<Button-4>", self._on_mousewheel)
+        widget.bind("<Button-5>", self._on_mousewheel)
+        for child in widget.winfo_children():
+            self._bind_mousewheel_recursive(child)
 
     def _on_canvas_configure(self, event):
         # Update the width of the scrollable frame to match the canvas
@@ -472,13 +483,19 @@ class AkmScrollablePanel(tk.Frame):
 
     def _on_mousewheel(self, event):
         if not self.winfo_exists(): return
-        # Handle different mousewheel event formats
+        
+        # Scroll logic (no complex 'is_over' check needed as we use direct local binding)
         if event.num == 4: # Linux
             self.canvas.yview_scroll(-1, "units")
         elif event.num == 5: # Linux
             self.canvas.yview_scroll(1, "units")
         else: # macOS / Windows
-            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            delta = event.delta
+            if abs(delta) >= 120:
+                self.canvas.yview_scroll(int(-1*(delta/120)), "units")
+            else: # macOS often sends 1 or -1
+                # Boost the scroll a bit for better feel on macOS canvas
+                self.canvas.yview_scroll(int(-1*delta*2), "units") 
 
 class AkmLabel(tk.Label):
     def __init__(self, parent, **kwargs):

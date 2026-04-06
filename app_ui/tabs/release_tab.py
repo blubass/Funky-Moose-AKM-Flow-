@@ -13,13 +13,16 @@ class ReleaseTab(AkmPanel):
         self.app = app
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
+        self._setup_dnd()
 
     def build_ui(self):
         AkmHeader(self, text="Release / Export").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         AkmSubLabel(self, text="Baue aus Werken, gematchten Dateien und Cover-Varianten ein sauberes Release-Paket.").pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        top = AkmPanel(self)
-        top.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        top = scroll_root.scrollable_frame
+        top.configure(padx=SPACE_MD, pady=0)
 
         left_card = AkmCard(top)
         right_card = AkmCard(top)
@@ -85,3 +88,11 @@ class ReleaseTab(AkmPanel):
 
         self.app.release_status_label = AkmSubLabel(self, text="0 Tracks im Release", bg=PANEL, anchor="w")
         self.app.release_status_label.pack(side="left", padx=SPACE_MD)
+
+    def _setup_dnd(self):
+        try:
+            from tkinterdnd2 import DND_FILES
+            self.app.release_track_listbox.drop_target_register(DND_FILES)
+            self.app.release_track_listbox.dnd_bind('<<Drop>>', self.app.release_handle_drop)
+            self.app.append_log("Release DnD bereit.")
+        except: pass

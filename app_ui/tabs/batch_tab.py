@@ -1,5 +1,6 @@
 import tkinter as tk
 import subprocess
+import os
 from tkinter import ttk
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator,
@@ -15,6 +16,7 @@ class BatchTab(AkmPanel):
         self.app = app
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
+        self._setup_dnd()
 
     def build_ui(self):
         AkmHeader(self, text="AKM Batch").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
@@ -58,3 +60,25 @@ class BatchTab(AkmPanel):
 
         self.app.progress = ttk.Progressbar(progress_card, length=420)
         self.app.progress.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+
+    def _setup_dnd(self):
+        try:
+            from tkinterdnd2 import DND_FILES
+            self.drop_target_register(DND_FILES)
+            self.dnd_bind('<<Drop>>', self._on_dnd_drop)
+        except: pass
+
+    def _on_dnd_drop(self, event):
+        data = event.data
+        if not data: return
+        files = self.tk.splitlist(data)
+        excel_files = [f.strip('"\'') for f in files if f.lower().endswith(('.xlsx', '.xls'))]
+        if excel_files:
+            # If Excel, import it
+            self.app.tasks.run(lambda: self.app.import_excel_path(excel_files[0]), 
+                               lambda r: self.app._on_import_done(r), 
+                               busy_text="Importiere Excel...")
+        else:
+            # Maybe audio files? We can add them as new works?
+            # For now, let's just log it.
+            self.app.append_log(f"Batch DnD: {len(files)} Dateien ignoriert (nur .xlsx unterstützt).")

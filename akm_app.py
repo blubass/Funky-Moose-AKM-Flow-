@@ -67,6 +67,11 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.tabs.bind("<<NotebookTabChanged>>", self.on_tab_changed)
         
+        # --- GLOBAL MOUSEWHEEL FIX ---
+        self.bind_all("<MouseWheel>", self._on_root_mousewheel)
+        self.bind_all("<Button-4>", self._on_root_mousewheel)
+        self.bind_all("<Button-5>", self._on_root_mousewheel)
+        
         dnd_status = "Aktiv" if TkinterDnD is not None else "Deaktiviert (Paket fehlt)"
         self.append_log(f"Drag & Drop System: {dnd_status}")
         
@@ -327,7 +332,10 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     # --- WRAPPERS FOR EXTERNAL TOOLS (Called by Tabs) ---
     def import_excel(self):
         p = filedialog.askopenfilename(filetypes=[("Excel", "*.xlsx")])
-        if p: self.tasks.run(lambda: akm_core.import_excel(p), self._on_import_done, busy_text="Importiere...")
+        if p: self.import_excel_path(p)
+
+    def import_excel_path(self, path):
+        if path: self.tasks.run(lambda: akm_core.import_excel(path), self._on_import_done, busy_text="Importiere...")
 
     def _on_import_done(self, r): 
         msg = f"Importiert: {r[0]} neu, {r[1]} alt"
@@ -431,16 +439,63 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
                 if os.path.exists(f) and os.path.isfile(f):
                     ext = os.path.splitext(f.lower())[1]
                     if ext in ['.wav', '.aiff', '.aif', '.mp3', '.flac', '.m4a']:
-                        valid_files.append(f)
+                        if f not in self.state.loudness_files:
+                            valid_files.append(f)
             
             if valid_files:
-                self.state.loudness_files = valid_files # Or append? User expectations vary, but let's replace for now.
-                self.state.loudness_results = []
+                self.state.loudness_files.extend(valid_files)
+                # results will stay as is, but we'll re-pop the tree
                 self._pop_l_tree()
-                self.append_log(f"DnD: {len(valid_files)} Audio-Dateien geladen.")
-                ui_patterns.AkmToast(self, f"{len(valid_files)} DATEIEN GELADEN")
+                self.append_log(f"Loudness DnD: {len(valid_files)} Audio-Dateien hinzugefügt.")
+                ui_patterns.AkmToast(self, f"{len(valid_files)} DATEIEN HINZUGEFÜGT")
         except Exception as e:
             self.append_log(f"Loudness DnD Parse Fehler: {e}")
+
+    def release_handle_drop(self, event):
+        """Adds dropped audio files to the release track list."""
+        data = event.data
+        if not data: return
+        try:
+            raw_files = self.tk.splitlist(data)
+            added = 0
+            for f in raw_files:
+                f = f.strip('"\'')
+                if os.path.exists(f) and os.path.isfile(f):
+                    ext = os.path.splitext(f.lower())[1]
+                    if ext in ['.wav', '.aiff', '.aif', '.mp3', '.flac', '.m4a']:
+                        # Create a release track object
+                        track = {
+                            "title": os.path.splitext(os.path.basename(f))[0].replace("_", " ").title(),
+                            "path": f
+                        }
+                        self.state.release_tracks.append(track)
+                        added += 1
+            if added:
+                self.refresh_release_view()
+                self.append_log(f"Release DnD: {added} Tracks hinzugefügt.")
+                ui_patterns.AkmToast(self, f"{added} TRACKS HINZUGEFÜGT")
+        except Exception as e:
+            self.append_log(f"Release DnD Parse Fehler: {e}")
+
+    def loudness_delete_files(self):
+        """Removes selected files from the loudness list."""
+        if not hasattr(self, 'loudness_tree'): return
+        selected = self.loudness_tree.selection()
+        if not selected:
+            ui_patterns.AkmToast(self, "KEINE AUSWAHL", color=ui_patterns.FLAVOR_ERROR)
+            return
+        
+        count = 0
+        for path in selected:
+            if path in self.state.loudness_files:
+                self.state.loudness_files.remove(path)
+                count += 1
+            # Also remove from results if present
+            self.state.loudness_results = [r for r in self.state.loudness_results if r.get("path") != path]
+        
+        self._pop_l_tree()
+        self.append_log(f"{count} Dateien aus der Liste entfernt.")
+        ui_patterns.AkmToast(self, f"{count} ENTFERNT")
 
     def loudness_analyze_files(self):
         """Triggers the heavy lifting: analyzing multiple files via ffmpeg in the background."""
@@ -550,7 +605,33 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def jump_to_last_open(self): (l := akm_core.get_last_open()) and self.open_track_in_batch(l)
     def _set_overview_status_filter(self, s): self.status_filter_var.set(s); self.refresh_list()
     def _open_overview_with_filter(self, s): self.status_filter_var.set(s); self.select_tab_by_id("overview"); self.refresh_list()
-    def choose_audio_path_for_details(self): (p := filedialog.askopenfilename(filetypes=path_ui_tools.AUDIO_FILETYPES)) and self.detail_vars["audio_path"].set(p)
+    def choose_audio_path_for_details(self):
+        p = filedialog.askopenfilename(filetypes=path_ui_tools.AUDIO_FILETYPES)
+        if p:
+            self.detail_vars["audio_path"].set(p)
+            # AUTO-POPULATE: Title from filename and Duration from file
+            filename = os.path.basename(p)
+            title_guess = os.path.splitext(filename)[0]
+            # Clean up title guess (remove BPM, key tags if common)
+            title_guess = title_guess.replace("_", " ").title()
+            
+            self.detail_vars["title"].set(title_guess)
+            
+            # Extract duration via ffmpeg/ffprobe
+            def _extract():
+                try: return loudness_tools.get_audio_duration(p)
+                except: return 0
+            
+            def _done(dur):
+                if dur:
+                    mins = int(dur // 60)
+                    secs = int(dur % 60)
+                    self.detail_vars["duration"].set(f"{mins}:{secs:02d}")
+                    self.append_log(f"Metadaten extrahiert: {title_guess} ({mins}:{secs:02d})")
+                else:
+                    self.append_log(f"Dauer konnte nicht extrahiert werden für {filename}")
+            
+            self.tasks.run(_extract, _done, busy_text="Lese Metadaten...")
     def open_audio_path_in_finder(self): (p := self.detail_vars["audio_path"].get()) and os.path.exists(p) and ui_patterns.open_in_finder(p)
     def choose_release_cover(self): (p := filedialog.askopenfilename(filetypes=[("Image", "*.jpg *.png")])) and self.release_vars["cover_path"].set(p)
     def choose_release_export_dir(self): (p := filedialog.askdirectory()) and self.release_vars["export_dir"].set(p)
@@ -670,6 +751,28 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             
         self.append_log(f"Projekt geladen: {os.path.basename(path)}")
         ui_patterns.AkmToast(self, "PROJEKT GELADEN", color=ui_patterns.FLAVOR_SUCCESS)
+
+    def _on_root_mousewheel(self, event):
+        """Intelligent global scroll handler for Listboxes, Treeviews, and Text widgets on any OS."""
+        x, y = event.x_root, event.y_root
+        target = self.winfo_containing(x, y)
+        if not target: return
+        
+        # Don't double-scroll if target is already handled by AkmScrollablePanel's canvas or children
+        # But for standard Tkinter widgets, we'll force it.
+        
+        if isinstance(target, (tk.Listbox, tk.Text, ttk.Treeview)):
+            # Handle scroll
+            if event.num == 4: # Linux
+                target.yview_scroll(-1, "units")
+            elif event.num == 5: # Linux
+                target.yview_scroll(1, "units")
+            else: # macOS / Windows
+                delta = event.delta
+                if abs(delta) >= 120:
+                    target.yview_scroll(int(-1*(delta/120)), "units")
+                else: # macOS fine scrolling often gives 1 or -1
+                    target.yview_scroll(int(-1*delta), "units")
 
 if __name__ == "__main__":
     app = AKMApp()

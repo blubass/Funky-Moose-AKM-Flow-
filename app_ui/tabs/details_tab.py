@@ -19,8 +19,10 @@ class DetailsTab(AkmPanel):
         AkmHeader(self, text="Werkdetails").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         AkmSubLabel(self, text="Metadaten, Notizen und Status an einem Ort pflegen.").pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        content = AkmPanel(self)
-        content.pack(fill="both", expand=True, padx=SPACE_MD, pady=0)
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        content = scroll_root.scrollable_frame
+        content.configure(padx=SPACE_MD, pady=0)
 
         left_card = AkmCard(content)
         right_card = AkmCard(content)

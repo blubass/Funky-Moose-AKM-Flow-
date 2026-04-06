@@ -231,6 +231,7 @@ class CoverTab(AkmPanel):
         btn_bar = AkmPanel(self)
         btn_bar.pack(fill="x", padx=SPACE_MD, pady=SPACE_SM)
         self.app.btn(btn_bar, "Zuweisen zu Release", lambda: self.app.select_tab_by_id("release"), primary=True).pack(side="left")
+        self.app.btn(btn_bar, "Cover exportieren", self.export_cover, primary=True).pack(side="left", padx=SPACE_SM)
         self.app.btn(btn_bar, "Projekt speichern", self.save_project_locally, quiet=True).pack(side="left", padx=SPACE_SM)
         self.app.btn(btn_bar, "Zertifikat erstellen", lambda: None, quiet=True).pack(side="left", padx=SPACE_SM)
 
@@ -468,4 +469,76 @@ class CoverTab(AkmPanel):
             child.destroy()
         
         self.preview_inner.configure(image=self._photo)
+
+    def export_cover(self):
+        """Final high-quality render and save to file."""
+        from tkinter import filedialog
+        
+        path = self.artwork_path_var.get()
+        if not path or not os.path.exists(path):
+            AkmToast(self, "KEIN MASTER-ARTWORK GELADEN", color="#FF3B30")
+            return
+
+        out_path = filedialog.asksaveasfilename(
+            defaultextension=".jpg",
+            filetypes=[("JPEG", "*.jpg"), ("PNG", "*.png")],
+            initialfile=f"Cover_{self.title_var.get().replace(' ', '_')}.jpg"
+        )
+        
+        if not out_path: return
+
+        def _render_full():
+            from app_logic import cover_tools
+            from PIL import Image, ImageDraw
+            
+            with Image.open(path) as img:
+                # Full size output (usually 3000x3000px if original is large enough)
+                zoom_val = self.zoom_var.get()
+                # Determine target size based on requirements (3000x3000px)
+                # But here we use a fixed 3000px target for 'Premium' output
+                full = cover_tools.resize_cover_canvas(img, 3000, 3000, zoom=zoom_val)
+                
+                font_configs = [
+                    {
+                        "text": self.artist_var.get().upper(), 
+                        "size": int(int(self.artist_size_var.get() or 60) * (3000 / 1800)), 
+                        "font": self.artist_font_var.get(), 
+                        "color": self.artist_color_var.get(),
+                        "x": int(int(self.artist_x_var.get() or 900) * (3000 / 1800)),
+                        "y": int(int(self.artist_y_var.get() or 1400) * (3000 / 1800))
+                    },
+                    {
+                        "text": self.title_var.get().upper(), 
+                        "size": int(int(self.title_size_var.get() or 140) * (3000 / 1800)), 
+                        "font": self.title_font_var.get(), 
+                        "color": self.title_color_var.get(),
+                        "x": int(int(self.title_x_var.get() or 900) * (3000 / 1800)),
+                        "y": int(int(self.title_y_var.get() or 1500) * (3000 / 1800))
+                    },
+                    {
+                        "text": self.subtitle_var.get(), 
+                        "size": int(int(self.subtitle_size_var.get() or 40) * (3000 / 1800)), 
+                        "font": self.subtitle_font_var.get(), 
+                        "color": self.subtitle_color_var.get(),
+                        "x": int(int(self.subtitle_x_var.get() or 900) * (3000 / 1800)),
+                        "y": int(int(self.subtitle_y_var.get() or 1600) * (3000 / 1800))
+                    }
+                ]
+                
+                image = full.convert("RGBA")
+                draw = ImageDraw.Draw(image, "RGBA")
+                cover_tools.render_manual_layout(draw, 3000, 3000, font_configs, zoom=zoom_val)
+                
+                final = image.convert("RGB")
+                final.save(out_path, quality=95, subsampling=0)
+                return out_path
+
+        def _done(res):
+            if res:
+                self.app.append_log(f"Cover exportiert: {os.path.basename(res)}")
+                AkmToast(self, "COVER ERFOLGREICH EXPORTIERT")
+            else:
+                AkmToast(self, "FEHLER BEIM EXPORT", color="#FF3B30")
+
+        self.app.tasks.run(_render_full, _done, busy_text="Exportiere hochauflösendes Cover...")
 
