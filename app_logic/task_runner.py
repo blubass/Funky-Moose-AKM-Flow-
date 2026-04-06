@@ -44,3 +44,11 @@ class TaskRunner:
         except queue.Empty:
             pass
         self.app.after(100, self._check_queue)
+
+    def parse_dnd_files(self, data):
+        """Intelligently parses DND strings from various OS platforms (handles braces and spacing)."""
+        import re
+        if not data: return []
+        # Handles macOS space wrapping in curly braces
+        files = re.findall(r'\{.*?\}|\S+', str(data))
+        return [f.strip('{}') for f in files]
