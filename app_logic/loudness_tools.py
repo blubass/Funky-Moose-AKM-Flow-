@@ -370,8 +370,8 @@ def generate_waveform_image(path: str, out_path: str, width: int = 800, height: 
     if not have_ffmpeg():
         return False
     
-    # Simple color name for better compatibility
-    color_val = "orange"
+    # Use the hex color if provided, otherwise fallback to orange
+    accent_hex = hex_color.replace("#", "0x") if hex_color.startswith("#") else "orange"
     
     # Force absolute paths
     abs_in = os.path.abspath(path)
@@ -381,7 +381,7 @@ def generate_waveform_image(path: str, out_path: str, width: int = 800, height: 
         "ffmpeg",
         "-y",
         "-i", abs_in,
-        "-filter_complex", f"showwavespic=s={width}x{height}:colors={color_val}",
+        "-filter_complex", f"showwavespic=s={width}x{height}:colors={accent_hex}:mode=line",
         "-frames:v", "1",
         abs_out
     ]

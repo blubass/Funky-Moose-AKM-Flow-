@@ -22,7 +22,7 @@ class AkmAudioPlayer(tk.Toplevel):
         self.title_text = track_title
         
         self.title(f"Funky Moose Player - {os.path.basename(track_path)}")
-        w, h = 560, 480
+        w, h = 640, 480
         self.resizable(False, False)
         self.configure(bg=BG)
         self.transient(parent)
@@ -61,7 +61,7 @@ class AkmAudioPlayer(tk.Toplevel):
         
         # Async waveform generation
         def _gen():
-            if loudness_tools.generate_waveform_image(self.path, self._waveform_path, width=480, height=180, hex_color=ACCENT):
+            if loudness_tools.generate_waveform_image(self.path, self._waveform_path, width=560, height=180, hex_color=ACCENT):
                 self.after(50, self._load_waveform)
         
         # Quick check if exists, otherwise generate
@@ -114,12 +114,12 @@ class AkmAudioPlayer(tk.Toplevel):
         self.vol_slider.pack(side="left")
         
         # Close
-        create_btn(c_inner, "CLOSE", self.destroy, quiet=True, width=80).pack(side="right", padx=SPACE_SM)
+        create_btn(c_inner, "CLOSE", self.destroy, quiet=True, width=100).pack(side="right", padx=(SPACE_MD, SPACE_SM))
 
     def _load_waveform(self):
         try:
             with Image.open(self._waveform_path) as img:
-                w, h = 480, 180
+                w, h = 560, 180
                 img_resized = img.resize((w, h), Image.Resampling.LANCZOS)
                 self._photo = ImageTk.PhotoImage(img_resized)
                 self.wave_label.config(image=self._photo)
