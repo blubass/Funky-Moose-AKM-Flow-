@@ -77,8 +77,16 @@ class AkmAudioPlayer(tk.Toplevel):
         self.pos_slider = tk.Scale(p_inner, from_=0, to=self._duration, orient="horizontal", 
                                    variable=self.pos_var, bg=PANEL, fg=TEXT, 
                                    highlightthickness=0, troughcolor="#000000", activebackground=ACCENT,
-                                   showvalue=False, command=self._on_seek)
+                                   showvalue=False)
         self.pos_slider.pack(fill="x", padx=SPACE_SM, pady=(SPACE_SM, 0))
+        
+        # Smooth Seeking: Drag detection
+        self._drag_active = False
+        self.pos_slider.bind("<Button-1>", lambda e: setattr(self, "_drag_active", True))
+        self.pos_slider.bind("<ButtonRelease-1>", self._on_drag_end)
+        
+        # Update during drag (display only)
+        self.pos_slider.config(command=self._on_seek)
         
         time_frame = tk.Frame(p_inner, bg=PANEL)
         time_frame.pack(fill="x", padx=SPACE_SM, pady=(0, SPACE_XS))
@@ -143,11 +151,17 @@ class AkmAudioPlayer(tk.Toplevel):
         new_pos = cur + delta
         self.engine.set_pos(max(0, min(self._duration, new_pos)))
 
+    def _on_drag_end(self, event):
+        """Finalizes seek on mouse release to prevent audio crackling."""
+        self._drag_active = False
+        new_pos = self.pos_var.get()
+        self.engine.set_pos(new_pos)
+        self.app.append_log(f"Seek: {loudness_tools.format_seconds(new_pos)}")
+
     def _on_seek(self, val):
-        # We only seek if the engine position is significantly different from slider
-        # to avoid feedback loops. For now, simple set_pos.
-        try: self.engine.set_pos(float(val))
-        except: pass
+        """Optional: live display update during drag (no audio seek)."""
+        if self._drag_active:
+            self.curr_time_label.config(text=loudness_tools.format_seconds(float(val)))
 
     def _on_volume(self, val):
         self.engine.set_volume(float(val))
@@ -158,14 +172,15 @@ class AkmAudioPlayer(tk.Toplevel):
         try:
             pos = self.engine.get_pos()
             if pos is not None:
-                self.pos_var.set(pos)
-                self.curr_time_label.config(text=loudness_tools.format_seconds(pos))
+                # ONLY update the slider if the user isn't dragging it!
+                if not self._drag_active:
+                    self.pos_var.set(pos)
+                    self.curr_time_label.config(text=loudness_tools.format_seconds(pos))
                 
                 if pos >= self._duration - 0.1:
-                    self.engine.stop()
-                    # Keep on end
-        except Exception as e: 
-            print(f"DEBUG Player: {e}")
+                    # End reached (don't stop immediately)
+                    pass
+        except: pass
             
         self.after(100, self.update_pos)
 
