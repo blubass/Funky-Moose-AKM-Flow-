@@ -156,8 +156,17 @@ class LoudnessTab(AkmPanel):
             self.dnd_bind('<<Drop>>', self._on_dnd_drop)
 
     def _on_dnd_drop(self, event):
-        files = self.app.tasks.parse_dnd_files(event.data)
-        if files:
-            self.app.state.loudness_files = files
+        new_files = self.app.tasks.parse_dnd_files(event.data)
+        if new_files:
+            # Initialize if None
+            if not self.app.state.loudness_files: self.app.state.loudness_files = []
+            
+            # Add only if not already present
+            added = 0
+            for f in new_files:
+                if f not in self.app.state.loudness_files:
+                    self.app.state.loudness_files.append(f)
+                    added += 1
+            
             self.app._pop_l_tree()
-            self.app.append_log(f"{len(files)} Dateien via Drag & Drop geladen.")
+            self.app.append_log(f"{added} neue Dateien via Drag & Drop hinzugefügt (Total: {len(self.app.state.loudness_files)}).")

@@ -483,28 +483,28 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         if not hasattr(self, 'loudness_tree'): return
         self.loudness_tree.delete(*self.loudness_tree.get_children())
         
-        # 1. If we have results, show them (Highest priority)
-        if self.state.loudness_results:
-            for it in self.state.loudness_results:
-                row = loudness_workflows.build_tree_row(it)
-                self.loudness_tree.insert("", tk.END, iid=it.get("path", ""), values=row["values"], tags=row["tags"])
+        # Create a result map for quick lookup
+        results_map = {it.get("path"): it for it in self.state.loudness_results} if self.state.loudness_results else {}
         
-        # 2. Otherwise, show placeholders from loudness_files
-        elif self.state.loudness_files:
+        # Show all files in the current loudness session
+        if self.state.loudness_files:
             for f in self.state.loudness_files:
-                placeholder = {
-                    "filename": os.path.basename(f),
-                    "duration_display": "---",
-                    "integrated_lufs": None,
-                    "true_peak_dbtp": None,
-                    "sample_peak_dbfs": None,
-                    "gain_to_target_db": None,
-                    "predicted_true_peak_after_gain": None,
-                    "match_status": "Geladen",
-                    "export_info": "Bereit für Analyse"
-                }
-                row = loudness_workflows.build_tree_row(placeholder)
-                self.loudness_tree.insert("", tk.END, iid=f, values=row["values"], tags=row["tags"])
+                # If we already have a result, use it
+                it = results_map.get(f)
+                if it:
+                    row = loudness_workflows.build_tree_row(it)
+                    self.loudness_tree.insert("", tk.END, iid=f, values=row["values"], tags=row["tags"])
+                else:
+                    # Otherwise show placeholder
+                    placeholder = {
+                        "filename": os.path.basename(f), "path": f,
+                        "duration_display": "---", "integrated_lufs": None,
+                        "true_peak_dbtp": None, "sample_peak_dbfs": None,
+                        "gain_to_target_db": None, "predicted_true_peak_after_gain": None,
+                        "match_status": "Neu geladen", "export_info": "Bereit für Analyse"
+                    }
+                    row = loudness_workflows.build_tree_row(placeholder)
+                    self.loudness_tree.insert("", tk.END, iid=f, values=row["values"], tags=row["tags"])
 
     def _get_selected_overview_item(self):
         try: return self.state.filtered_records[self.listbox.curselection()[0]]
