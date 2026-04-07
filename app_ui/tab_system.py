@@ -50,9 +50,21 @@ class AppTabs:
             "loudness":  LoudnessTab
         }
 
+        TAB_LABELS = {
+            "dashboard": "📊  Dashboard",
+            "assistant": "🤖  Assistent",
+            "batch":     "⚡  Batch",
+            "overview":  "📋  Übersicht",
+            "details":   "✏️  Details",
+            "cover":     "🎨  Cover",
+            "release":   "🚀  Release",
+            "loudness":  "🎚  Lautheit",
+        }
+
         # Initial notebook population (empty frames)
         for tid, frame in self.map.items():
-            self.notebook.add(frame, text=tid.capitalize())
+            self.notebook.add(frame, text=TAB_LABELS.get(tid, tid.capitalize()))
+
             
         # Internal Lazy-Build Trigger
         self.notebook.bind("<<NotebookTabChanged>>", self._on_internal_tab_change)

@@ -6,7 +6,7 @@ from app_ui.ui_patterns import (
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_XL, FONT_LG
 )
-import tkinter as tk
+
 
 class OverviewTab(AkmPanel):
     def __init__(self, parent, app):

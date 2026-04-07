@@ -67,7 +67,7 @@ def filter_and_sort_entries(entries, query="", status_filter="all", sort_key="ti
             item.get("year", ""),
             item.get("notes", ""),
             item.get("status", ""),
-            " ".join(item.get("tags", [])),
+            ", ".join(item.get("tags", []) if isinstance(item.get("tags"), list) else []),
         ]
         haystack = " ".join(str(part) for part in haystack_parts if part).lower()
         item_status = item.get("status", "")
@@ -136,6 +136,6 @@ def _sort_value(item, sort_key, sort_desc):
         return -999999 if sort_desc else 999999
 
     if sort_key == "last_change":
-        return item.get("last_change", "") or item.get("date", "")
+        return item.get("last_change") or item.get("date") or ""
 
     return str(item.get("title", "")).lower()
