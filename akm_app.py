@@ -257,6 +257,9 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
                 self.update_flow()
                 self._last_batch_refresh["mtime"] = mtime
 
+        elif active_tab_id == "details":
+            self.details_ctrl.refresh_titles()
+
         elif active_tab_id == "release":
             self.release_ctrl.refresh_view()
 
@@ -343,9 +346,6 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def save_details(self): 
         self.details_ctrl.save_details()
         
-    def toggle_release(self): 
-        self.details_ctrl.toggle_release()
-
     def clear_details_form(self): 
         self.details_ctrl.clear_details_form()
 
@@ -381,20 +381,11 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.batch_ctrl.open_track_in_batch(it)
 
     # --- DELEGATES: LOUDNESS ---
-    def process_all_loudness(self): 
-        self.loudness_ctrl.process_all()
-
     def loudness_choose_files(self): 
         self.loudness_ctrl.choose_files()
         
     def loudness_handle_drop(self, event): 
         self.loudness_ctrl.handle_drop(event)
-        
-    def loudness_choose_outdir(self): 
-        self.loudness_ctrl.choose_outdir()
-        
-    def process_selected_loudness(self, item_index): 
-        self.loudness_ctrl.process_selected(item_index)
 
     def loudness_delete_files(self): 
         self.loudness_ctrl.delete_files()

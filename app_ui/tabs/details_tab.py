@@ -14,6 +14,25 @@ class DetailsTab(AkmPanel):
         self.app = app
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
+        self._setup_dnd()
+
+    def _setup_dnd(self):
+        try:
+            from tkinterdnd2 import DND_FILES
+            self.drop_target_register(DND_FILES)
+            self.dnd_bind('<<Drop>>', self._on_dnd_drop)
+        except: pass
+
+    def _on_dnd_drop(self, event):
+        data = event.data
+        if not data: return
+        try:
+            files = self.tk.splitlist(data)
+            if files:
+                f = files[0].strip('"\'')
+                # Trigger the controller's logic with the dropped path
+                self.app.details_ctrl.handle_audio_drop(f)
+        except Exception: pass
 
     def build_ui(self):
         AkmHeader(self, text="Werkdetails").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
@@ -38,7 +57,11 @@ class DetailsTab(AkmPanel):
             var = tk.StringVar()
             self.app.detail_vars[key] = var
             
-            if key == "audio_path":
+            if key == "title":
+                # Special Case: Title is a Combobox for quick selection/search
+                self.app.detail_title_combo = left_form.add_combobox(label, var, [])
+                self.app.detail_title_combo.bind("<<ComboboxSelected>>", lambda e: self.app.details_ctrl.load_selected_title())
+            elif key == "audio_path":
                 def _create_audio_field(parent):
                     wrap = tk.Frame(parent, bg=PANEL_2)
                     entry = AkmEntry(wrap, textvariable=var)

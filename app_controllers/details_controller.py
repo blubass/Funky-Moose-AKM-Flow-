@@ -12,9 +12,16 @@ class DetailsController(BaseController):
     def save_details(self):
         orig = self.app.detail_original_title
         if orig:
-            upd = {k: v.get().strip() for k, v in self.app.detail_vars.items()}
-            upd["notes"] = self.app.detail_notes.get("1.0", tk.END).strip()
-            upd["status"] = self.app.current_detail_status
+            tags_text = self.app.detail_tags.get("1.0", "end-1c").strip() if hasattr(self.app, 'detail_tags') else ""
+            notes_text = self.app.detail_notes.get("1.0", "end-1c").strip() if hasattr(self.app, 'detail_notes') else ""
+            instrumental = self.app.detail_instrumental_var.get() if hasattr(self.app, 'detail_instrumental_var') else False
+            detail_values = {k: v.get().strip() for k, v in self.app.detail_vars.items()}
+            
+            from app_logic import detail_tools
+            upd = detail_tools.build_detail_updates(
+                detail_values, tags_text, notes_text,
+                self.app.current_detail_status, instrumental
+            )
             self.tasks.run(lambda: akm_core.update_entry(orig, upd), 
                            lambda r: self.app.overview_ctrl._on_g_done(r, "Gespeichert"), 
                            busy_text="Speichere...")
@@ -22,29 +29,84 @@ class DetailsController(BaseController):
     def clear_details_form(self):
         self.app.detail_original_title = None
         for v in self.app.detail_vars.values(): v.set("")
+        if hasattr(self.app, 'detail_tags'):
+            self.app.detail_tags.delete("1.0", tk.END)
+        if hasattr(self.app, 'detail_notes'):
+            self.app.detail_notes.delete("1.0", tk.END)
+        if hasattr(self.app, 'detail_instrumental_var'):
+            self.app.detail_instrumental_var.set(False)
         self._set_detail_status_chip("in_progress")
 
+    def refresh_titles(self):
+        """Updates the Title combobox with current records."""
+        recs = self.state.get_all_records(False)
+        titles = sorted([r.get("title", "") for r in recs if r.get("title")])
+        if hasattr(self.app, 'detail_title_combo'):
+            self.app.detail_title_combo.config(values=titles)
+
+    def load_selected_title(self):
+        """Loads data for a title chosen from the combobox."""
+        title = self.app.detail_vars["title"].get().strip()
+        recs = self.state.get_all_records(False)
+        match = next((r for r in recs if r.get("title") == title), None)
+        if match:
+            self.app.detail_original_title = title
+            for k, v in self.app.detail_vars.items():
+                v.set(str(match.get(k, "")))
+            if hasattr(self.app, 'detail_notes'):
+                self.app.detail_notes.delete("1.0", tk.END)
+                self.app.detail_notes.insert("1.0", match.get("notes", ""))
+            # Load Tags
+            if hasattr(self.app, 'detail_tags'):
+                raw_tags = match.get("tags", [])
+                tags_text = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+                self.app.detail_tags.delete("1.0", tk.END)
+                self.app.detail_tags.insert("1.0", tags_text)
+            # Load Instrumental flag
+            if hasattr(self.app, 'detail_instrumental_var'):
+                self.app.detail_instrumental_var.set(bool(match.get("instrumental", False)))
+            self._set_detail_status_chip(match.get("status", "in_progress"))
+            self.log(f"Werk geladen: {title}")
+
     def choose_audio_path(self):
+        """Selects audio file via dialog and extracts metadata."""
         p = filedialog.askopenfilename(filetypes=path_ui_tools.AUDIO_FILETYPES)
         if p:
-            self.app.detail_vars["audio_path"].set(p)
-            filename = os.path.basename(p)
-            title_guess = os.path.splitext(filename)[0].replace("_", " ").title()
+            self._process_audio_path(p)
+
+    def handle_audio_drop(self, p):
+        """Processes an audio file dropped onto the DetailsTab."""
+        if p:
+            self._process_audio_path(p)
+
+    def _process_audio_path(self, p):
+        """Internal logic to extract title/duration and match with existing database entries."""
+        self.app.detail_vars["audio_path"].set(p)
+        filename = os.path.basename(p)
+        title_guess = os.path.splitext(filename)[0].replace("_", " ").title()
+        
+        # Smart logic: If title is empty, use guess. If guess exists in DB, load it!
+        current_title = self.app.detail_vars["title"].get().strip()
+        if not current_title or current_title == title_guess:
             self.app.detail_vars["title"].set(title_guess)
-            
-            def _extract():
-                try: return loudness_tools.get_audio_duration(p)
-                except: return 0
-            
-            def _done(dur):
-                if dur:
-                    mins, secs = int(dur // 60), int(dur % 60)
-                    self.app.detail_vars["duration"].set(f"{mins}:{secs:02d}")
-                    self.log(f"Metadaten extrahiert: {title_guess} ({mins}:{secs:02d})")
-                else:
-                    self.log(f"Dauer konnte nicht extrahiert werden für {filename}")
-            
-            self.tasks.run(_extract, _done, busy_text="Lese Metadaten...")
+            recs = self.state.get_all_records(False)
+            match = next((r for r in recs if r.get("title") == title_guess), None)
+            if match:
+                self.load_selected_title()
+
+        def _extract():
+            try: return loudness_tools.probe_duration(p)
+            except: return 0
+        
+        def _done(dur):
+            if dur:
+                mins, secs = int(dur // 60), int(dur % 60)
+                self.app.detail_vars["duration"].set(f"{mins}:{secs:02d}")
+                self.log(f"Audio-Info erfasst: {title_guess} ({mins}:{secs:02d})")
+            else:
+                self.log(f"Dauer konnte nicht gelesen werden: {filename}")
+        
+        self.tasks.run(_extract, _done, busy_text="Metadaten-Analyse...")
 
     def open_audio_path_in_finder(self): 
         p = self.app.detail_vars["audio_path"].get()

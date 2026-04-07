@@ -38,14 +38,22 @@ class ReleaseTab(AkmPanel):
             ("title", "Release-Titel"), ("artist", "Artist"), ("type", "Typ"),
             ("release_date", "Datum (JJJJ-MM-TT)"), ("genre", "Genre"),
             ("label", "Label"), ("copyright_line", "Copyright"),
-            ("export_dir", "Export-Ordner"),
+            ("cover_path", "Cover-Bild (JPG/PNG)"), ("export_dir", "Export-Ordner"),
         ]
         defaults = {"artist": akm_core.get_release_default_artist(), "type": "Single"}
 
         for key, label in fields:
             var = tk.StringVar(value=defaults.get(key, ""))
             self.app.release_vars[key] = var
-            if key == "export_dir":
+            
+            if key == "cover_path":
+                def _create_cover_field(parent, v=var):
+                    wrap = tk.Frame(parent, bg=PANEL_2)
+                    AkmEntry(wrap, textvariable=v, font=FONT_SM).pack(side="left", fill="x", expand=True)
+                    self.app.btn(wrap, "Wählen", self.app.choose_release_cover, primary=True).pack(side="left", padx=(SPACE_XS, 0))
+                    return wrap
+                left_form.add_row(label, _create_cover_field)
+            elif key == "export_dir":
                 def _create_export_field(parent):
                     wrap = tk.Frame(parent, bg=PANEL_2)
                     AkmEntry(wrap, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True)

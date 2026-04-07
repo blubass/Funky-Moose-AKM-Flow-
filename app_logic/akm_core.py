@@ -676,7 +676,7 @@ def get_dashboard_stats():
         "with_notes": with_notes,
     }
 
-def save_project(path, data, cover_state=None, settings=None):
+def save_project(path, data, cover_state=None, release_state=None, settings=None):
     """
     Saves the entire project state to a single JSON bundle.
     """
@@ -685,6 +685,7 @@ def save_project(path, data, cover_state=None, settings=None):
         "timestamp": datetime.now().isoformat(),
         "data": data,
         "cover": cover_state or {},
+        "release": release_state or {},
         "settings": settings or {}
     }
     

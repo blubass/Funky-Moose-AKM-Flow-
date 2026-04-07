@@ -196,3 +196,66 @@ def build_release_export_status_text(release_dir, tracks, copied_audio):
         f"Tracks: {len(tracks or [])} | "
         f"Audio kopiert: {copied_audio}"
     )
+
+def start_distro_export(metadata, tracks):
+    """
+    Orchestrates the full distribution export: directory creation, 
+    audio copying, and metadata generation.
+    """
+    import shutil
+    import csv
+    
+    export_dir = metadata.get("export_dir", "").strip()
+    if not export_dir:
+        return False, "Kein Export-Ordner angegeben."
+    
+    release_title = metadata.get("title", "Release").strip()
+    safe_title = safe_directory_name(release_title)
+    full_export_path = os.path.join(export_dir, safe_title)
+    
+    try:
+        os.makedirs(full_export_path, exist_ok=True)
+        
+        # 1. Copy Cover
+        cover_src = metadata.get("cover_path", "").strip()
+        if cover_src and os.path.exists(cover_src):
+            ext = os.path.splitext(cover_src)[1]
+            shutil.copy2(cover_src, os.path.join(full_export_path, f"cover{ext}"))
+
+        # 2. Copy Tracks
+        copied_audio = 0
+        missing_audio = 0
+        for i, track in enumerate(tracks, start=1):
+            src = track.get("path") or track.get("audio_path")
+            if src and os.path.exists(src):
+                target_name = build_release_audio_target_name(i, track, src)
+                shutil.copy2(src, os.path.join(full_export_path, target_name))
+                copied_audio += 1
+            else:
+                missing_audio += 1
+
+        # 3. Write Release Info
+        info_lines = build_release_info_lines(metadata)
+        with open(os.path.join(full_export_path, "release_info.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join(info_lines))
+
+        # 4. Write Tracklist CSV
+        csv_rows = build_release_track_csv_rows(tracks)
+        with open(os.path.join(full_export_path, "tracklist.csv"), "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(csv_rows)
+
+        # 5. Write Checklist
+        checklist_lines = build_release_checklist_lines(cover_src, tracks, copied_audio, missing_audio)
+        with open(os.path.join(full_export_path, "checklist.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join(checklist_lines))
+
+        status = build_release_export_status_text(full_export_path, tracks, copied_audio)
+        return True, status
+
+    except Exception as e:
+        return False, f"Fehler beim Export: {str(e)}"
+
+def safe_directory_name(title):
+    # This is a local helper or I can use the one already in the file if I rename it
+    return safe_release_directory_name(title)

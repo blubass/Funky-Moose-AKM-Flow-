@@ -169,5 +169,5 @@ class LoudnessTab(AkmPanel):
                     self.app.state.loudness_files.append(f)
                     added += 1
             
-            self.app._pop_l_tree()
+            self.app.loudness_ctrl._pop_l_tree()
             self.app.append_log(f"{added} neue Dateien via Drag & Drop hinzugefügt (Total: {len(self.app.state.loudness_files)}).")

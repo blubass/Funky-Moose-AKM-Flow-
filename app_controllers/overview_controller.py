@@ -1,7 +1,7 @@
 
 import tkinter as tk
 from .base_controller import BaseController
-from app_logic import akm_core, overview_tools
+from app_logic import akm_core, overview_tools, loudness_tools
 from app_ui import ui_patterns
 
 class OverviewController(BaseController):
@@ -84,9 +84,31 @@ class OverviewController(BaseController):
             if hasattr(self.app, 'detail_notes'): 
                 self.app.detail_notes.delete("1.0", tk.END)
                 self.app.detail_notes.insert("1.0", it.get("notes", ""))
+            # Load Tags
+            if hasattr(self.app, 'detail_tags'):
+                raw_tags = it.get("tags", [])
+                tags_text = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+                self.app.detail_tags.delete("1.0", tk.END)
+                self.app.detail_tags.insert("1.0", tags_text)
+            # Load Instrumental flag
+            if hasattr(self.app, 'detail_instrumental_var'):
+                self.app.detail_instrumental_var.set(bool(it.get("instrumental", False)))
             
             self.app.details_ctrl._set_detail_status_chip(it.get("status", "in_progress"))
             self.app.select_tab_by_id("details")
+
+            # NEW: Extraction if duration is missing but audio path exists
+            audio_p = it.get("audio_path")
+            if audio_p and not it.get("duration"):
+                def _ext():
+                    try: return loudness_tools.probe_duration(audio_p)
+                    except: return 0
+                def _upd(dur):
+                    if dur:
+                        mins, secs = int(dur // 60), int(dur % 60)
+                        self.app.detail_vars["duration"].set(f"{mins}:{secs:02d}")
+                        self.log(f"Dauer automatisch nacherfasst: {mins}:{secs:02d}")
+                self.tasks.run(_ext, _upd, busy_text="Aktualisiere Dauer...")
 
     def set_status(self, s):
         items = self._get_selected_overview_items()

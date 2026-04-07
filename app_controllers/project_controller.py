@@ -25,7 +25,14 @@ class ProjectController(BaseController):
             data = self.state.get_all_records()
             cover_state = self.app.cover_tab.get_state() if hasattr(self.app, "cover_tab") else {}
             
-            akm_core.save_project(path, data, cover_state)
+            # Collect Release State
+            release_vars = {k: v.get() for k, v in self.app.release_vars.items()}
+            release_state = {
+                "vars": release_vars,
+                "tracks": self.state.release_tracks
+            }
+            
+            akm_core.save_project(path, data, cover_state, release_state)
             
             self.log(f"Projekt erfolgreich gespeichert: {os.path.basename(path)}")
             self.toast("PROJEKT GESPEICHERT", color=ui_patterns.FLAVOR_SUCCESS)
@@ -57,6 +64,14 @@ class ProjectController(BaseController):
         
         if "cover" in bundle and hasattr(self.app, "cover_tab"):
             self.app.cover_tab.set_state(bundle["cover"])
+            
+        if "release" in bundle:
+            r_data = bundle["release"]
+            self.state.release_tracks = r_data.get("tracks", [])
+            for k, v in r_data.get("vars", {}).items():
+                if k in self.app.release_vars:
+                    self.app.release_vars[k].set(v)
+            self.app.release_ctrl.refresh_view()
             
         self.log(f"Projekt geladen: {os.path.basename(path)}")
         self.toast("PROJEKT GELADEN", color=ui_patterns.FLAVOR_SUCCESS)
