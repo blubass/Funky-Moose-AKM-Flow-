@@ -46,14 +46,12 @@ def build_dashboard_chip_counts(stats):
 
 
 def build_overview_filter_counts(entries):
-    return {
-        "all": len(entries),
-        "open": sum(1 for item in entries if item.get("status") != "confirmed"),
-        "in_progress": sum(1 for item in entries if item.get("status") == "in_progress"),
-        "ready": sum(1 for item in entries if item.get("status") == "ready"),
-        "submitted": sum(1 for item in entries if item.get("status") == "submitted"),
-        "confirmed": sum(1 for item in entries if item.get("status") == "confirmed"),
-    }
+    counts = {"all": len(entries), "open": 0, "in_progress": 0, "ready": 0, "submitted": 0, "confirmed": 0}
+    for item in entries:
+        st = item.get("status")
+        if st != "confirmed": counts["open"] += 1
+        if st in counts: counts[st] += 1
+    return counts
 
 
 def filter_and_sort_entries(entries, query="", status_filter="all", sort_key="title", sort_desc=False):

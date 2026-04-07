@@ -53,6 +53,23 @@ class AppTabs:
         # Initial notebook population (empty frames)
         for tid, frame in self.map.items():
             self.notebook.add(frame, text=tid.capitalize())
+            
+        # Internal Lazy-Build Trigger
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_internal_tab_change)
+
+    def _on_internal_tab_change(self, event=None):
+        """Ensures the selected tab is built when the user clicks it or it's changed programmatically."""
+        try:
+            selected = self.notebook.select()
+            if not selected: return
+            
+            for tid, widget in self.map.items():
+                if str(widget) == selected:
+                    # Triggers __getattr__ to build the tab
+                    getattr(self, tid)
+                    break
+        except Exception:
+            pass
 
     def __getattr__(self, name):
         """Builds tab content on-demand when accessed (e.g., self.tab_system.dashboard)."""
@@ -70,5 +87,4 @@ class AppTabs:
         """Switches visibility to the specified tab id."""
         if tab_id in self.map:
             self.notebook.select(self.map[tab_id])
-            # Ensure it's built if we select it manually
-            getattr(self, tab_id)
+            # getattr(self, tab_id) is now handled by <<NotebookTabChanged>>

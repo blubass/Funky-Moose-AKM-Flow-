@@ -76,7 +76,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         # Final Bindings & Initial Data Load
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.tab_system.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        self.tab_system.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed, add="+")
         
         # Performance Trackers (Reduces redundant tab refreshes)
         self._last_overview_refresh = {"search": None, "filter": None, "sort": None, "desc": None, "mtime": None}
@@ -179,6 +179,9 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.append_log("System: Core architecture decoupled.")
         self.append_log("-" * 30)
 
+        # Force initial tab loading
+        self.after(100, lambda: self.on_tab_changed(None))
+
     @property
     def dashboard_tab(self): return self.tab_system.dashboard
     @property
@@ -212,31 +215,50 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.select_tab_by_id("loudness")
 
     def on_tab_changed(self, event):
-        """Central event handler for tab transitions (optimized)."""
-        selected = self.tab_system.notebook.select()
+        """Central event handler for tab transitions (highly optimized)."""
+        selected_path = self.tab_system.notebook.select()
+        if not selected_path: return
+        
+        # 1. Deduplication (Prevents redundant calls on some OS/Tkinter versions)
+        if hasattr(self, "_prev_selected_path") and self._prev_selected_path == selected_path:
+            return
+        self._prev_selected_path = selected_path
+
+        # 2. Identify the active tab
+        active_tab_id = None
+        for tid, widget in self.tab_system.map.items():
+            if str(widget) == selected_path:
+                active_tab_id = tid
+                break
+        
+        if not active_tab_id: return
+        
+        # 3. Ensure built (via lazy system)
+        getattr(self.tab_system, active_tab_id)
+        
         mtime = self.state._get_data_mtime()
         
-        if selected == str(self.tab_system.map["dashboard"]):
+        # 4. Perspective-Specific Logic (Only if data changed or filters mismatched)
+        if active_tab_id == "dashboard":
             if self._last_dashboard_refresh["mtime"] != mtime:
                 self.refresh_dashboard()
                 self._last_dashboard_refresh["mtime"] = mtime
                 
-        elif selected == str(self.tab_system.map["overview"]):
-            curr = {
-                "search": (self.search_var.get() or "").lower() if self.search_var else "",
-                "filter": (self.status_filter_var.get() or "all") if self.status_filter_var else "all",
-                "sort": (self.sort_key_var.get() or "title") if self.sort_key_var else "title",
-                "desc": (self.sort_desc_var.get() or False) if self.sort_desc_var else False,
-                "mtime": mtime
-            }
-            if any(self._last_overview_refresh[k] != curr[k] for k in curr):
+        elif active_tab_id == "overview":
+            search = (self.search_var.get() or "").lower() if self.search_var else ""
+            filt = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
+            # We skip sort/desc for the immediate "back-and-forth" check to stay fast
+            if self._last_overview_refresh["mtime"] != mtime or self._last_overview_refresh["filter"] != filt:
                 self.refresh_list()
-                self._last_overview_refresh = curr
+                self._last_overview_refresh.update({"search": search, "filter": filt, "mtime": mtime})
                 
-        elif selected == str(self.tab_system.map["batch"]):
+        elif active_tab_id == "batch":
             if self._last_batch_refresh["mtime"] != mtime:
                 self.update_flow()
                 self._last_batch_refresh["mtime"] = mtime
+
+        elif active_tab_id == "release":
+            self.release_ctrl.refresh_view()
 
     def refresh_all_tabs(self):
         """Standardized orchestrator to update all modular components and reset trackers."""
@@ -490,13 +512,14 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
                     target.yview_scroll(int(-1*delta), "units")
 
     def select_all(self, event=None):
-        """Universal 'Select All' handler for Listboxes and Treeviews."""
-        focus = self.focus_get()
-        if isinstance(focus, tk.Listbox):
-            focus.selection_set(0, tk.END)
-        elif isinstance(focus, ttk.Treeview):
-            focus.selection_set(focus.get_children())
-        return "break" # Prevent default behavior
+        """Universal 'Select All' handler for Listboxes and Treeviews (Cmd+A)."""
+        focused = self.focus_get()
+        if isinstance(focused, tk.Listbox):
+            focused.select_set(0, tk.END)
+            focused.event_generate("<<ListboxSelect>>")
+        elif isinstance(focused, ttk.Treeview):
+            focused.selection_set(focused.get_children())
+        return "break"
 
 if __name__ == "__main__":
     app = AKMApp()

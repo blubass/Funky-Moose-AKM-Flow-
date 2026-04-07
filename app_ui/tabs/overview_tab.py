@@ -65,9 +65,10 @@ class OverviewTab(AkmPanel):
         self.app.overview_summary_label = AkmSubLabel(self, text="0 Treffer", anchor="w")
         self.app.overview_summary_label.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_XS))
 
-        # List Area
+        # List Area (Restored to Listbox for original aesthetic, optimized for speed)
         list_frame = AkmPanel(self)
         list_frame.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
+        
         self.app.listbox = tk.Listbox(
             list_frame, bg=FIELD_BG, fg=FIELD_FG, relief="flat", exportselection=False,
             font=FONT_SM, selectbackground=ACCENT, selectforeground="black",
@@ -75,6 +76,7 @@ class OverviewTab(AkmPanel):
         )
         self.app.listbox.pack(side="left", fill="both", expand=True)
         self.app.listbox.bind("<Double-1>", self.app.on_listbox_activate)
+        
         sb = tk.Scrollbar(list_frame, command=self.app.listbox.yview)
         sb.pack(side="right", fill="y")
         self.app.listbox.config(yscrollcommand=sb.set)

@@ -8,45 +8,49 @@ class OverviewController(BaseController):
     """Manages catalogue overview, filtering, and cross-tab triggers."""
     
     def refresh_list(self):
-        """Orchestrates filtering, sorting, and UI population of the catalogue overview."""
-        recs = self.state.get_all_records()
+        """Orchestrates filtering, sorting, and UI population of the catalogue overview (Listbox optimized)."""
+        recs = self.state.get_all_records(copy_data=False)
         if not recs: return
         
         search = (self.app.search_var.get() or "").lower() if self.app.search_var else ""
-        filt = self.app.status_filter_var.get() if self.app.status_filter_var else "all"
-        key = self.app.sort_key_var.get() if self.app.sort_key_var else "title"
-        desc = self.app.sort_desc_var.get() if self.app.sort_desc_var else False
+        filt = (self.app.status_filter_var.get() or "all") if self.app.status_filter_var else "all"
+        key = (self.app.sort_key_var.get() or "title") if self.app.sort_key_var else "title"
+        desc = (self.app.sort_desc_var.get() or False) if self.app.sort_desc_var else False
+        mtime = self.state._get_data_mtime()
         
+        # Performance Guard: Skip if nothing has changed since last visit
+        curr_params = f"{search}|{filt}|{key}|{desc}|{mtime}"
+        if hasattr(self, "_last_refresh_params") and self._last_refresh_params == curr_params:
+            return
+        self._last_refresh_params = curr_params
+
         self.state.filtered_records = overview_tools.filter_and_sort_entries(recs, search, filt, key, desc)
         
         if hasattr(self.app, 'listbox'):
             self.app.listbox.delete(0, tk.END)
             s_map = akm_core.get_status_map(akm_core.get_lang())
             
-            # Batch insertion is faster
-            labels = [overview_tools.format_overview_list_label(it, s_map.get(it['status'], it['status'])) 
+            # 1. Faster Insertion
+            labels = [overview_tools.format_overview_list_label(it, s_map.get(it.get('status', 'in_progress'), it.get('status', 'in_progress'))) 
                      for it in self.state.filtered_records]
             self.app.listbox.insert(tk.END, *labels)
             
-            # Colorizing is still row-by-row, but we check if it's the default background to save time
+            # 2. Optimized Row Colorization (Only if status is special)
             for idx, it in enumerate(self.state.filtered_records):
                 row_status = it.get("status", "in_progress")
-                # Pre-calculate color only if needed
-                bg_col = ui_patterns.get_row_color(row_status, 0.16)
-                self.app.listbox.itemconfig(idx, bg=bg_col, fg=ui_patterns.FIELD_FG)
+                if row_status in ui_patterns.STATUS_PALETTES:
+                    bg_col = ui_patterns.get_row_color(row_status, 0.16)
+                    self.app.listbox.itemconfig(idx, bg=bg_col, fg=ui_patterns.FIELD_FG)
         
         if hasattr(self.app, 'overview_summary_label') and self.app.overview_summary_label:
             self.app.overview_summary_label.config(text=f"{len(self.state.filtered_records)} Werke gefunden")
         
         self._refresh_overview_filter_chips(recs)
-        
-        # Only refresh dashboard if it's currently visible to avoid slow tab switching from Overview
-        selected = self.app.tab_system.notebook.select()
-        if selected == str(self.app.tab_system.map["dashboard"]):
-            self.refresh_dashboard()
 
     def refresh_dashboard(self):
-        st = overview_tools.build_dashboard_stats(self.state.get_all_records())
+        st = overview_tools.build_dashboard_stats(self.state.get_all_records(copy_data=False))
+        if not hasattr(self.app, 'dashboard_labels'): return
+        
         for k, l in self.app.dashboard_labels.items(): 
             l.config(text=str(st.get(k, 0)))
         
@@ -66,6 +70,7 @@ class OverviewController(BaseController):
             self.log(message)
             self.toast(message)
             self.state.invalidate_cache()
+            self._last_refresh_params = None # Force refresh
             self.refresh_list()
         else: 
             self.log(f"FEHLER: {result[1]}")
@@ -116,8 +121,12 @@ class OverviewController(BaseController):
         self.refresh_list()
 
     def _get_selected_overview_item(self):
-        try: return self.state.filtered_records[self.app.listbox.curselection()[0]]
-        except: return None
+        try:
+            sel = self.app.listbox.curselection()
+            if not sel: return None
+            return self.state.filtered_records[sel[0]]
+        except:
+            return None
 
     def _get_selected_overview_items(self):
         try:

@@ -29,17 +29,17 @@ class AppState:
         self.all_records = []
         self.current_mtime = None
 
-    def get_all_records(self, force: bool = False) -> List[Dict[str, Any]]:
+    def get_all_records(self, force: bool = False, copy_data: bool = False) -> List[Dict[str, Any]]:
         """Retrieves all catalogue records, utilizing an mtime-based cache."""
         mtime = self._get_data_mtime()
         if not force and self.all_records and self.current_mtime == mtime:
-            return copy.deepcopy(self.all_records)
+            return copy.deepcopy(self.all_records) if copy_data else self.all_records
             
         try:
             records = akm_core.get_all_entries()
             self.all_records = records
             self.current_mtime = mtime
-            return copy.deepcopy(self.all_records)
+            return copy.deepcopy(self.all_records) if copy_data else self.all_records
         except Exception:
             return []
 
