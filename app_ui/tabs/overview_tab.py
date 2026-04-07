@@ -71,7 +71,7 @@ class OverviewTab(AkmPanel):
         self.app.listbox = tk.Listbox(
             list_frame, bg=FIELD_BG, fg=FIELD_FG, relief="flat", exportselection=False,
             font=FONT_SM, selectbackground=ACCENT, selectforeground="black",
-            highlightthickness=0, activestyle="none"
+            highlightthickness=0, activestyle="none", selectmode="extended"
         )
         self.app.listbox.pack(side="left", fill="both", expand=True)
         self.app.listbox.bind("<Double-1>", self.app.on_listbox_activate)

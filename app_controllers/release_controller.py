@@ -90,7 +90,10 @@ class ReleaseController(BaseController):
             self.app.release_track_listbox.selection_set(index+1)
 
     def remove_track(self): 
-        selection = self.app.release_track_listbox.curselection()
+        selection = sorted(self.app.release_track_listbox.curselection(), reverse=True)
         if selection:
-            self.state.release_tracks.pop(selection[0])
+            for idx in selection:
+                if 0 <= idx < len(self.state.release_tracks):
+                    self.state.release_tracks.pop(idx)
             self.refresh_view()
+            self.toast(f"{len(selection)} TRACKS ENTFERNT")

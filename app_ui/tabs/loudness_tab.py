@@ -93,7 +93,7 @@ class LoudnessTab(AkmPanel):
         tree_card.pack(fill="both", expand=True)
         
         cols = ("filename", "duration", "lufs", "peak", "sample", "gain", "predicted_tp", "status", "limit", "export_info")
-        self.app.loudness_tree = ttk.Treeview(tree_card.inner, columns=cols, show="headings", height=8)
+        self.app.loudness_tree = ttk.Treeview(tree_card.inner, columns=cols, show="headings", height=8, selectmode="extended")
         headers = {"filename": "Datei", "duration": "Dauer", "lufs": "LUFS", "peak": "TP", "status": "Match"}
         for col in cols:
             head = headers.get(col, col.upper()[:4])

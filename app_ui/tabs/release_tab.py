@@ -64,7 +64,7 @@ class ReleaseTab(AkmPanel):
         self.app.release_track_listbox = tk.Listbox(
             list_frame, bg=FIELD_BG, fg=FIELD_FG, relief="flat", exportselection=False,
             font=FONT_SM, selectbackground=ACCENT, selectforeground="black",
-            highlightthickness=0, activestyle="none"
+            highlightthickness=0, activestyle="none", selectmode="extended"
         )
         self.app.release_track_listbox.pack(side="left", fill="both", expand=True)
         sb = tk.Scrollbar(list_frame, command=self.app.release_track_listbox.yview)

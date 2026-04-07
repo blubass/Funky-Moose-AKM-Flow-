@@ -17,13 +17,15 @@ from app_ui.tabs.release_tab import ReleaseTab
 from app_ui.tabs.loudness_tab import LoudnessTab
 
 class AppTabs:
-    """Orchestrates all functional modules within the central Tkinter Notebook."""
+    """Orchestrates all functional modules within the central Tkinter Notebook.
+    Uses lazy loading to initialize tab objects only when they are first accessed.
+    """
     def __init__(self, parent, app):
         self.app = app
         self.notebook = ttk.Notebook(parent)
         self.notebook.pack(fill="both", expand=True)
 
-        # Registry for frames
+        # Registry for tab frames (placeholders)
         self.map = {
             "dashboard": tk.Frame(self.notebook, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
             "assistant": tk.Frame(self.notebook, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG),
@@ -35,20 +37,38 @@ class AppTabs:
             "loudness":  tk.Frame(self.notebook, bg=ui_patterns.BG, padx=SPACE_LG, pady=SPACE_LG)
         }
 
+        # Lazy instantiation storage
+        self._instances = {}
+        self._classes = {
+            "dashboard": DashboardTab,
+            "assistant": AssistantTab,
+            "batch":     BatchTab,
+            "overview":  OverviewTab,
+            "details":   DetailsTab,
+            "cover":     CoverTab,
+            "release":   ReleaseTab,
+            "loudness":  LoudnessTab
+        }
+
+        # Initial notebook population (empty frames)
         for tid, frame in self.map.items():
             self.notebook.add(frame, text=tid.capitalize())
 
-        # Logic Injection
-        self.dashboard = DashboardTab(self.map["dashboard"], self.app)
-        self.assistant = AssistantTab(self.map["assistant"], self.app)
-        self.batch     = BatchTab(self.map["batch"], self.app)
-        self.overview  = OverviewTab(self.map["overview"], self.app)
-        self.details   = DetailsTab(self.map["details"], self.app)
-        self.cover     = CoverTab(self.map["cover"], self.app)
-        self.release   = ReleaseTab(self.map["release"], self.app)
-        self.loudness  = LoudnessTab(self.map["loudness"], self.app)
+    def __getattr__(self, name):
+        """Builds tab content on-demand when accessed (e.g., self.tab_system.dashboard)."""
+        if name in self._classes:
+            if name not in self._instances:
+                # First Access: Create the heavy UI content
+                cls = self._classes[name]
+                frame = self.map[name]
+                # Inject logic
+                self._instances[name] = cls(frame, self.app)
+            return self._instances[name]
+        raise AttributeError(f"'{self.__class__.__name__}' has no attribute '{name}'")
 
     def select(self, tab_id):
         """Switches visibility to the specified tab id."""
         if tab_id in self.map:
             self.notebook.select(self.map[tab_id])
+            # Ensure it's built if we select it manually
+            getattr(self, tab_id)

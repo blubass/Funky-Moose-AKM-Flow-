@@ -22,15 +22,28 @@ class OverviewController(BaseController):
         if hasattr(self.app, 'listbox'):
             self.app.listbox.delete(0, tk.END)
             s_map = akm_core.get_status_map(akm_core.get_lang())
-            for it in self.state.filtered_records:
-                self.app.listbox.insert(tk.END, overview_tools.format_overview_list_label(it, s_map.get(it['status'], it['status'])))
-                self.app.listbox.itemconfig(tk.END, bg=ui_patterns.get_row_color(it.get("status", "in_progress"), 0.16), fg=ui_patterns.FIELD_FG)
+            
+            # Batch insertion is faster
+            labels = [overview_tools.format_overview_list_label(it, s_map.get(it['status'], it['status'])) 
+                     for it in self.state.filtered_records]
+            self.app.listbox.insert(tk.END, *labels)
+            
+            # Colorizing is still row-by-row, but we check if it's the default background to save time
+            for idx, it in enumerate(self.state.filtered_records):
+                row_status = it.get("status", "in_progress")
+                # Pre-calculate color only if needed
+                bg_col = ui_patterns.get_row_color(row_status, 0.16)
+                self.app.listbox.itemconfig(idx, bg=bg_col, fg=ui_patterns.FIELD_FG)
         
         if hasattr(self.app, 'overview_summary_label') and self.app.overview_summary_label:
             self.app.overview_summary_label.config(text=f"{len(self.state.filtered_records)} Werke gefunden")
         
         self._refresh_overview_filter_chips(recs)
-        self.refresh_dashboard()
+        
+        # Only refresh dashboard if it's currently visible to avoid slow tab switching from Overview
+        selected = self.app.tab_system.notebook.select()
+        if selected == str(self.app.tab_system.map["dashboard"]):
+            self.refresh_dashboard()
 
     def refresh_dashboard(self):
         st = overview_tools.build_dashboard_stats(self.state.get_all_records())
@@ -71,12 +84,18 @@ class OverviewController(BaseController):
             self.app.select_tab_by_id("details")
 
     def set_status(self, s):
-        it = self._get_selected_overview_item()
-        if it:
-            self.tasks.run(lambda: akm_core.update_entry(it['title'], {"status": s}), 
-                           lambda r: self._on_g_done(r, f"Status {s} gesetzt"), 
-                           busy_text="Setze Status...")
-
+        items = self._get_selected_overview_items()
+        if not items: return
+        
+        def _work():
+            for it in items:
+                akm_core.update_entry(it['title'], {"status": s})
+            return len(items)
+            
+        self.tasks.run(_work, 
+                       lambda count: self._on_g_done((True, None), f"Status {s} für {count} Werke gesetzt"), 
+                       busy_text="Setze Status...")
+        
     def on_listbox_activate(self, e): 
         it = self._get_selected_overview_item()
         if it:
@@ -99,3 +118,9 @@ class OverviewController(BaseController):
     def _get_selected_overview_item(self):
         try: return self.state.filtered_records[self.app.listbox.curselection()[0]]
         except: return None
+
+    def _get_selected_overview_items(self):
+        try:
+            return [self.state.filtered_records[idx] for idx in self.app.listbox.curselection()]
+        except:
+            return []

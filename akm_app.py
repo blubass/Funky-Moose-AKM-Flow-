@@ -8,8 +8,11 @@ import os
 import sys
 import time
 import tkinter as tk
+import logging
 import traceback
 from tkinter import filedialog, messagebox, ttk
+from app_logic.config import cfg
+from app_logic import logger_config
 
 # Optional: DnD Support
 try:
@@ -57,17 +60,12 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     Central orchestrator for the Funky Moose Release Forge.
     Manages state via AppState, background tasks via TaskRunner, and coordinates the modular tab-based UI.
     """
-    @staticmethod
-    def resource_path(relative_path):
-        """ Get absolute path to resource, works for dev and for PyInstaller """
-        try:
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(".")
-        return os.path.join(base_path, relative_path)
-
     def __init__(self):
         super().__init__()
+        # 0. Global Setup (Paths & Logs)
+        cfg.ensure_dirs()
+        logger_config.setup_logging(self)
+        
         self._set_window_config()
         self._init_state_and_services()
         self._init_ui_vars()
@@ -77,13 +75,22 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.build_ui()
         
         # Final Bindings & Initial Data Load
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.tab_system.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        
+        # Performance Trackers (Reduces redundant tab refreshes)
+        self._last_overview_refresh = {"search": None, "filter": None, "sort": None, "desc": None, "mtime": None}
+        self._last_dashboard_refresh = {"mtime": None}
+        self._last_batch_refresh = {"mtime": None}
+        self._refresh_timer = None
         
         # --- GLOBAL MOUSEWHEEL FIX ---
         self.bind_all("<MouseWheel>", self._on_root_mousewheel)
         self.bind_all("<Button-4>", self._on_root_mousewheel)
         self.bind_all("<Button-5>", self._on_root_mousewheel)
+        
+        # --- COMMAND BINDINGS ---
+        self.bind_all("<Command-a>", self.select_all)
         
         dnd_status = "Aktiv" if TkinterDnD is not None else "Deaktiviert (Paket fehlt)"
         self.append_log(f"Drag & Drop System: {dnd_status}")
@@ -98,13 +105,13 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.attributes("-topmost", True)
         self.after(500, lambda: self.attributes("-topmost", False))
         self.focus_force()
-        print("[2026] GUI MASTER START: Sichtbar auf Host.")
+        logging.info(f"GUI MASTER START: {cfg.APP_NAME} v{cfg.VERSION}")
 
     # --- INITIALIZATION ---
     def _set_window_config(self):
         """Standard window initialization and styling."""
-        self.title("Funky Moose Release Forge")
-        self.geometry("1000x820")
+        self.title(cfg.APP_NAME)
+        self.geometry("1100x860")
         self.minsize(860, 620)
         self.configure(bg=ui_patterns.BG)
 
@@ -162,19 +169,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         # 2. Tab System (Functional Modules)
         self.tab_system = AppTabs(self.content_root, self)
         
-        # Redundancy mapping for backwards compatibility with controller references
-        self.tabs = self.tab_system.notebook
-        self.tab_map = self.tab_system.map
-        self.dashboard_tab = self.tab_system.dashboard
-        self.assistant_tab = self.tab_system.assistant
-        self.batch_tab = self.tab_system.batch
-        self.overview_tab = self.tab_system.overview
-        self.details_tab = self.tab_system.details
-        self.cover_tab = self.tab_system.cover
-        self.release_tab = self.tab_system.release
-        self.loudness_tab = self.tab_system.loudness
-        
-        # Utility link to task indicator (which was moved to header)
+        # Dynamic Property Access for Functional Modules (Lazy)
+        # These are generated on-demand by the Tab System
         self.task_indicator = self.header.task_indicator
 
         # Initial Boot Info Logger (Branding Trace)
@@ -182,6 +178,28 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.append_log("OBSIDIAN MASTER v1.0.1 INITIALIZED")
         self.append_log("System: Core architecture decoupled.")
         self.append_log("-" * 30)
+
+    @property
+    def dashboard_tab(self): return self.tab_system.dashboard
+    @property
+    def assistant_tab(self): return self.tab_system.assistant
+    @property
+    def batch_tab(self): return self.tab_system.batch
+    @property
+    def overview_tab(self): return self.tab_system.overview
+    @property
+    def details_tab(self): return self.tab_system.details
+    @property
+    def cover_tab(self): return self.tab_system.cover
+    @property
+    def release_tab(self): return self.tab_system.release
+    @property
+    def loudness_tab(self): return self.tab_system.loudness
+
+    @property
+    def tabs(self): return self.tab_system.notebook
+    @property
+    def tab_map(self): return self.tab_system.map
 
     # --- TAB NAVIGATION & CONTROL ---
     def select_tab_by_id(self, tab_id):
@@ -194,20 +212,65 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.select_tab_by_id("loudness")
 
     def on_tab_changed(self, event):
-        """Central event handler for tab transitions (e.g., to trigger data refreshes)."""
+        """Central event handler for tab transitions (optimized)."""
         selected = self.tab_system.notebook.select()
+        mtime = self.state._get_data_mtime()
+        
         if selected == str(self.tab_system.map["dashboard"]):
-            self.refresh_dashboard()
+            if self._last_dashboard_refresh["mtime"] != mtime:
+                self.refresh_dashboard()
+                self._last_dashboard_refresh["mtime"] = mtime
+                
         elif selected == str(self.tab_system.map["overview"]):
-            self.refresh_list()
+            curr = {
+                "search": (self.search_var.get() or "").lower() if self.search_var else "",
+                "filter": (self.status_filter_var.get() or "all") if self.status_filter_var else "all",
+                "sort": (self.sort_key_var.get() or "title") if self.sort_key_var else "title",
+                "desc": (self.sort_desc_var.get() or False) if self.sort_desc_var else False,
+                "mtime": mtime
+            }
+            if any(self._last_overview_refresh[k] != curr[k] for k in curr):
+                self.refresh_list()
+                self._last_overview_refresh = curr
+                
         elif selected == str(self.tab_system.map["batch"]):
-            self.update_flow()
+            if self._last_batch_refresh["mtime"] != mtime:
+                self.update_flow()
+                self._last_batch_refresh["mtime"] = mtime
+
     def refresh_all_tabs(self):
-        """Standardized orchestrator to update all modular components after a state change."""
+        """Standardized orchestrator to update all modular components and reset trackers."""
         self.overview_ctrl.refresh_list()
         self.overview_ctrl.refresh_dashboard()
         self.batch_ctrl.reload_flow_data()
         self.release_ctrl.refresh_view()
+        # Reset trackers to ensure next tab switch catches up if needed
+        self._last_overview_refresh["mtime"] = None
+        self._last_dashboard_refresh["mtime"] = None
+        self._last_batch_refresh["mtime"] = None
+
+    def on_closing(self):
+        """Asks for confirmation before exiting."""
+        from tkinter import messagebox
+        res = messagebox.askyesnocancel(
+            "Beenden", 
+            "Möchten Sie vor dem Beenden speichern? \nNur das Speichern als Projekt (.akm) erhält alle aktuellen Einstellungen.",
+            icon='warning',
+            default='yes'
+        )
+        if res is True:
+            self.save_project()
+            self.destroy()
+        elif res is False:
+            self.destroy()
+        else:
+            pass
+
+    def _schedule_refresh_list(self):
+        """Debounced list refresh for search input."""
+        if self._refresh_timer:
+            self.after_cancel(self._refresh_timer)
+        self._refresh_timer = self.after(300, self.refresh_list)
 
     # --- SHARED DELEGATES (Called by Tabs) ---
     # --- DELEGATES: PROJECT & PERSISTENCE ---
@@ -369,12 +432,12 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         return ui_patterns.create_btn(parent, text, cmd, primary=primary, quiet=quiet, width=width, accent_color=accent_color)
 
     def append_log(self, message): 
-        """Safely appends activity to the global log and prints to console for redundancy."""
-        msg_str = f"[{time.strftime('%H:%M:%S')}] {message}"
-        print(msg_str)
-        if hasattr(self, 'log'): 
-            self.log.insert(tk.END, msg_str + "\n")
-            self.log.see(tk.END)
+        """Safely appends activity to the global log via the central logging engine."""
+        # This is now a wrapper around logging to keep compatibility
+        logging.info(message)
+
+    def resource_path(self, relative_path):
+        return cfg.get_resource_path(relative_path)
 
     def update_task_indicator(self, busy):
         """Starts or stops the activity pulse on the Task Indicator label."""
@@ -425,6 +488,15 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
                     target.yview_scroll(int(-1*(delta/120)), "units")
                 else: # macOS fine scrolling often gives 1 or -1
                     target.yview_scroll(int(-1*delta), "units")
+
+    def select_all(self, event=None):
+        """Universal 'Select All' handler for Listboxes and Treeviews."""
+        focus = self.focus_get()
+        if isinstance(focus, tk.Listbox):
+            focus.selection_set(0, tk.END)
+        elif isinstance(focus, ttk.Treeview):
+            focus.selection_set(focus.get_children())
+        return "break" # Prevent default behavior
 
 if __name__ == "__main__":
     app = AKMApp()

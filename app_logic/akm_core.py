@@ -8,12 +8,15 @@ from zipfile import BadZipFile
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
-DATA_DIR = os.path.expanduser("~/akm_assistant")
-PROJECTS_DIR = os.path.join(DATA_DIR, "projects")
-DATA_FILE = os.path.join(DATA_DIR, "data.json")
-BACKUP_FILE = os.path.join(DATA_DIR, "data_backup.json")
+from app_logic.config import cfg
+
+# Use Centralized Config Constants
+DATA_DIR = cfg.DATA_DIR
+PROJECTS_DIR = cfg.PROJECTS_DIR
+DATA_FILE = cfg.DATA_FILE
+BACKUP_FILE = cfg.BACKUP_FILE
 LANG_FILE = os.path.join(DATA_DIR, "lang.txt")
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+SETTINGS_FILE = cfg.SETTINGS_FILE
 SUPPORTED_EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xltx", ".xltm"}
 
 STATUS_KEYS = ["in_progress", "ready", "submitted", "confirmed"]
@@ -52,7 +55,7 @@ def _today():
 
 
 def _ensure_storage_dir():
-    os.makedirs(DATA_DIR, exist_ok=True)
+    cfg.ensure_dirs()
 
 
 def _clean_text(value):
