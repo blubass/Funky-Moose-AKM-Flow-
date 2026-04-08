@@ -215,6 +215,10 @@ def start_distro_export(metadata, tracks):
     
     try:
         os.makedirs(full_export_path, exist_ok=True)
+        _, cleanup_errors = release_tools.cleanup_release_export_dir(full_export_path)
+        if cleanup_errors:
+            first_path, first_error = cleanup_errors[0]
+            return False, f"Fehler beim Bereinigen von {first_path}: {first_error}"
         
         # 1. Copy Cover
         cover_src = metadata.get("cover_path", "").strip()

@@ -15,6 +15,23 @@ def normalize_assistant_title(value):
     return _clean_text(value)
 
 
+def build_assistant_radar_state(value):
+    title = normalize_assistant_title(value)
+    if not title:
+        return {
+            "status_text": "Schnellstart bereit",
+            "hint_text": "Gib einen Titel ein, importiere Excel oder nutze die Status-Aktionen mit deiner Auswahl aus der Übersicht.",
+            "meta_text": "Keine Eingabe aktiv | Excel-Import und Statuswechsel stehen bereit",
+        }
+
+    words = len([part for part in title.split(" ") if part])
+    return {
+        "status_text": f"Bereit für neuen Titel: {title}",
+        "hint_text": "Werk anlegen erstellt sofort einen Datensatz. Status-Aktionen arbeiten auf die aktuelle Auswahl in der Übersicht.",
+        "meta_text": f"{words} Wort/Wörter | {len(title)} Zeichen | Direkt aus dem Schnellstart anlegbar",
+    }
+
+
 def build_import_log_messages(imported_items):
     items = list(imported_items or [])
     if not items:

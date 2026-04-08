@@ -16,7 +16,9 @@ class LoudnessController(BaseController):
             self.state.loudness_files = list(p)
             self.state.loudness_results = [] # Reset to show new files
             self._pop_l_tree()
-            self.log(f"{len(p)} neue Audio-Dateien geladen.")
+            self._apply_workflow_state(
+                loudness_workflows.build_loaded_files_state(self.state.loudness_files)
+            )
 
     def handle_drop(self, event):
         """Unified drop handler for loudness files."""
@@ -35,6 +37,9 @@ class LoudnessController(BaseController):
             if valid_files:
                 self.state.loudness_files.extend(valid_files)
                 self._pop_l_tree()
+                self._apply_workflow_state(
+                    loudness_workflows.build_loaded_files_state(self.state.loudness_files)
+                )
                 self.log(f"Loudness DnD: {len(valid_files)} Audio-Dateien hinzugefügt.")
                 self.toast(f"{len(valid_files)} DATEIEN HINZUGEFÜGT")
         except Exception as e:
@@ -116,13 +121,30 @@ class LoudnessController(BaseController):
     def import_selected_work(self):
         it = self.app.overview_ctrl._get_selected_overview_item()
         if it and it.get("audio_path"):
+            _ = getattr(self.app, "loudness_tab", None)
             self.state.loudness_files = [it["audio_path"]]
+            self.state.loudness_results = []
             self._pop_l_tree()
+            self._apply_workflow_state(
+                loudness_workflows.build_selected_work_import_state(
+                    it.get("title") or os.path.basename(it["audio_path"]),
+                    it["audio_path"],
+                )
+            )
             self.app.select_tab_by_id("loudness")
 
     def import_filtered_works(self):
-        self.state.loudness_files = [it["audio_path"] for it in self.state.filtered_records if it.get("audio_path")]
+        items = loudness_workflows.collect_importable_overview_audio(
+            self.state.filtered_records
+        )
+        _ = getattr(self.app, "loudness_tab", None)
+        self.state.loudness_files = [item["path"] for item in items]
+        self.state.loudness_results = []
         self._pop_l_tree()
+        if items:
+            self._apply_workflow_state(
+                loudness_workflows.build_filtered_works_import_state(items)
+            )
         self.app.select_tab_by_id("loudness")
 
     def choose_output_dir(self):
@@ -151,3 +173,23 @@ class LoudnessController(BaseController):
         self.log(f"Export abgeschlossen: {len(r)} Dateien verarbeitet.")
         self._pop_l_tree()
         self.toast("EXPORT FERTIG", color=ui_patterns.FLAVOR_SUCCESS)
+
+    def _apply_workflow_state(self, workflow_state):
+        if not workflow_state:
+            return
+
+        status_text = workflow_state.get("status_text")
+        hint_text = workflow_state.get("hint_text")
+        log_lines = workflow_state.get("log_lines", [])
+
+        if hasattr(self.app, "loudness_status_label"):
+            self.app.loudness_status_label.config(text=status_text or "")
+        if hasattr(self.app, "loudness_hint_label"):
+            self.app.loudness_hint_label.config(text=hint_text or "")
+        if hasattr(self.app, "loudness_log"):
+            self.app.loudness_log.delete("1.0", tk.END)
+            if log_lines:
+                self.app.loudness_log.insert("1.0", "\n".join(log_lines))
+
+        for line in log_lines:
+            self.log(line)

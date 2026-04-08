@@ -97,6 +97,46 @@ def build_copy_button_label(item, copy_stage):
     return EMPTY_COPY_LABEL
 
 
+def build_flow_queue_counts(entries):
+    counts = {"in_progress": 0, "ready": 0}
+    for item in entries or []:
+        status = item.get("status")
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+
+def build_flow_status_text(entries, flow_state):
+    if not flow_state.get("has_item"):
+        return "Keine offenen Batch-Werke"
+
+    total = len(entries or [])
+    return f"{flow_state.get('progress_text', '0 / 0')} im Fokus | {flow_state.get('current_title') or '—'}"
+
+
+def build_flow_hint_text(entries, flow_state, copy_stage):
+    if not flow_state.get("has_item"):
+        return "Importiere Excel oder lege neue Werke an, dann füllt sich die Queue automatisch."
+
+    item = flow_state.get("item") or {}
+    has_duration = bool(_clean_text(item.get("duration")))
+    if copy_stage == "duration" and has_duration:
+        return "Titel ist kopiert. Jetzt kannst du die Dauer übernehmen oder direkt als gemeldet markieren."
+    if has_duration:
+        return "Starte mit dem Titel. Danach springt der Copy-Button automatisch auf die Dauer."
+    return "Dieses Werk hat noch keine Dauer. Du kannst direkt melden oder zum nächsten offenen Titel gehen."
+
+
+def build_flow_meta_summary(entries):
+    counts = build_flow_queue_counts(entries)
+    total = len(entries or [])
+    return (
+        f"In Arbeit: {counts['in_progress']}"
+        f"   •   Bereit: {counts['ready']}"
+        f"   •   Queue: {total}"
+    )
+
+
 def resolve_copy_action(item, copy_stage):
     if not item:
         return {

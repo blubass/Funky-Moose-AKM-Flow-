@@ -3,7 +3,7 @@ import os
 import traceback
 from tkinter import filedialog, messagebox
 from .base_controller import BaseController
-from app_logic import akm_core
+from app_logic import akm_core, assistant_tools
 from app_ui import ui_patterns
 
 class ProjectController(BaseController):
@@ -83,15 +83,17 @@ class ProjectController(BaseController):
     def import_excel_path(self, path):
         if path: self.tasks.run(lambda: akm_core.import_excel(path), self._on_import_done, busy_text="Importiere...")
 
-    def _on_import_done(self, r): 
-        msg = f"Importiert: {r[0]} neu, {r[1]} alt"
-        self.log(msg)
-        self.toast(msg)
+    def _on_import_done(self, imported_items):
+        messages = assistant_tools.build_import_log_messages(imported_items)
+        for message in messages:
+            self.log(message)
+        self.toast(messages[0])
         self.state.invalidate_cache()
         self.app.overview_ctrl.refresh_list()
 
     def add_entry(self, title):
         if not title: return
-        self.tasks.run(lambda: akm_core.add_entry(title), 
+        lang = akm_core.get_lang()
+        self.tasks.run(lambda: akm_core.add_entry(title, lang), 
                        lambda r: self.app.overview_ctrl._on_g_done(r, f"'{title}' angelegt"), 
                        busy_text=f"Lege '{title}' an...")

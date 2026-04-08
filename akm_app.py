@@ -94,6 +94,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         dnd_status = "Aktiv" if TkinterDnD is not None else "Deaktiviert (Paket fehlt)"
         self.append_log(f"Drag & Drop System: {dnd_status}")
+        if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
+            self.header.task_detail_label.config(text=f"Workspace bereit | Drag & Drop: {dnd_status}")
         
         self.refresh_list()
         self.reload_flow_data(preferred_index=0)
@@ -213,6 +215,12 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""
         self.select_tab_by_id("loudness")
+        view_state = assistant_tools.build_loudness_tab_open_state(loudness_tools is not None)
+        if hasattr(self, "loudness_status_label"):
+            self.loudness_status_label.config(text=view_state["status_text"])
+        if hasattr(self, "loudness_hint_label"):
+            self.loudness_hint_label.config(text=view_state["hint_text"])
+        self.append_log(view_state["log_message"])
 
     def on_tab_changed(self, event):
         """Central event handler for tab transitions (highly optimized)."""
@@ -311,10 +319,11 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def import_excel_path(self, path): 
         self.project_ctrl.import_excel_path(path)
         
-    def add(self): 
-        title = ""
-        if hasattr(self, 'entry'):
-            title = self.entry.get().strip()
+    def add(self, title=None): 
+        if title is None:
+            title = ""
+            if hasattr(self, 'entry'):
+                title = self.entry.get().strip()
         self.project_ctrl.add_entry(title)
 
     # --- DELEGATES: OVERVIEW & DASHBOARD ---
@@ -455,10 +464,21 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def update_task_indicator(self, busy):
         """Starts or stops the activity pulse on the Task Indicator label."""
         if hasattr(self, 'task_indicator'):
-            if busy: 
+            if busy:
+                self.task_indicator.config(text="TASK AKTIV", fg=ui_patterns.ACCENT)
                 self.task_indicator.start()
+                if hasattr(self, "header") and hasattr(self.header, "task_state_label"):
+                    self.header.task_state_label.config(text="Hintergrundjob läuft")
+                if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
+                    self.header.task_detail_label.config(text="Import, Analyse oder Export arbeitet gerade.")
             else: 
+                self.task_indicator.config(text="SYSTEM BEREIT", fg="#94A3B8")
                 self.task_indicator.stop()
+                if hasattr(self, "header") and hasattr(self.header, "task_state_label"):
+                    self.header.task_state_label.config(text="System bereit")
+                if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
+                    dnd_text = "Aktiv" if TkinterDnD is not None else "Deaktiviert"
+                    self.header.task_detail_label.config(text=f"Keine Hintergrundjobs aktiv | Drag & Drop: {dnd_text}")
 
     def status_text(self, status): 
         """Translated status text helper."""

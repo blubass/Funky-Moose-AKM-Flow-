@@ -9,8 +9,7 @@ class OverviewController(BaseController):
     
     def refresh_list(self):
         """Orchestrates filtering, sorting, and UI population of the catalogue overview (Listbox optimized)."""
-        recs = self.state.get_all_records(copy_data=False)
-        if not recs: return
+        recs = self.state.get_all_records(copy_data=False) or []
         
         search = (self.app.search_var.get() or "").lower() if self.app.search_var else ""
         filt = (self.app.status_filter_var.get() or "all") if self.app.status_filter_var else "all"
@@ -33,7 +32,8 @@ class OverviewController(BaseController):
             # 1. Faster Insertion
             labels = [overview_tools.format_overview_list_label(it, s_map.get(it.get('status', 'in_progress'), it.get('status', 'in_progress'))) 
                      for it in self.state.filtered_records]
-            self.app.listbox.insert(tk.END, *labels)
+            if labels:
+                self.app.listbox.insert(tk.END, *labels)
             
             # 2. Optimized Row Colorization (Only if status is special)
             for idx, it in enumerate(self.state.filtered_records):
@@ -43,7 +43,51 @@ class OverviewController(BaseController):
                     self.app.listbox.itemconfig(idx, bg=bg_col, fg=ui_patterns.FIELD_FG)
         
         if hasattr(self.app, 'overview_summary_label') and self.app.overview_summary_label:
-            self.app.overview_summary_label.config(text=f"{len(self.state.filtered_records)} Werke gefunden")
+            status_label = self.app.status_text(filt) if filt not in {"all", "open"} else None
+            self.app.overview_summary_label.config(
+                text=overview_tools.build_overview_summary(
+                    len(self.state.filtered_records),
+                    status_filter=filt,
+                    query=search,
+                    sort_key=key,
+                    sort_desc=desc,
+                    status_label=status_label,
+                    open_label=self.app.status_text("open"),
+                )
+            )
+
+        if hasattr(self.app, "overview_status_label") and self.app.overview_status_label:
+            self.app.overview_status_label.config(
+                text=overview_tools.build_overview_status_text(
+                    len(self.state.filtered_records),
+                    len(recs),
+                )
+            )
+        if hasattr(self.app, "overview_hint_label") and self.app.overview_hint_label:
+            self.app.overview_hint_label.config(
+                text=overview_tools.build_overview_hint_text(
+                    len(self.state.filtered_records),
+                    len(recs),
+                    status_filter=filt,
+                    query=search,
+                )
+            )
+        if hasattr(self.app, "overview_empty_label") and self.app.overview_empty_label:
+            self.app.overview_empty_label.config(
+                text=overview_tools.build_overview_hint_text(
+                    len(self.state.filtered_records),
+                    len(recs),
+                    status_filter=filt,
+                    query=search,
+                )
+            )
+            if self.state.filtered_records:
+                self.app.overview_empty_label.pack_forget()
+            else:
+                pack_kwargs = {"fill": "x", "padx": 12, "pady": 12}
+                if hasattr(self.app, "overview_bottom_actions"):
+                    pack_kwargs["before"] = self.app.overview_bottom_actions
+                self.app.overview_empty_label.pack(**pack_kwargs)
         
         self._refresh_overview_filter_chips(recs)
 
@@ -53,6 +97,13 @@ class OverviewController(BaseController):
         
         for k, l in self.app.dashboard_labels.items(): 
             l.config(text=str(st.get(k, 0)))
+
+        if hasattr(self.app, "dashboard_status_label") and self.app.dashboard_status_label:
+            self.app.dashboard_status_label.config(text=overview_tools.build_dashboard_status_text(st))
+        if hasattr(self.app, "dashboard_hint_label") and self.app.dashboard_hint_label:
+            self.app.dashboard_hint_label.config(text=overview_tools.build_dashboard_focus_text(st))
+        if hasattr(self.app, "dashboard_meta_label") and self.app.dashboard_meta_label:
+            self.app.dashboard_meta_label.config(text=overview_tools.build_dashboard_meta_text(st))
         
         counts = overview_tools.build_dashboard_chip_counts(st)
         for st_key, widget in self.app.dashboard_status_chips.items(): 
@@ -78,6 +129,7 @@ class OverviewController(BaseController):
     def load_selected_into_details(self):
         it = self._get_selected_overview_item()
         if it:
+            _ = self.app.details_tab
             self.app.detail_original_title = it.get("title")
             for k, v in self.app.detail_vars.items(): 
                 v.set(str(it.get(k, "")))
@@ -126,7 +178,7 @@ class OverviewController(BaseController):
     def on_listbox_activate(self, e): 
         it = self._get_selected_overview_item()
         if it:
-            self.app.open_audio_player_for_selected()
+            self.load_selected_into_details()
 
     def jump_to_last_open(self): 
         l = akm_core.get_last_open()

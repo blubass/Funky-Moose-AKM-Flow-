@@ -3,7 +3,9 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from .base_controller import BaseController
+from app_logic import release_tools
 from app_ui import ui_patterns
+from app_ui import release_view_tools
 from app_workflows import release_workflows
 
 class ReleaseController(BaseController):
@@ -14,22 +16,37 @@ class ReleaseController(BaseController):
         if not data: return
         try:
             raw_files = self.app.tk.splitlist(data)
-            added = 0
-            for f in raw_files:
-                f = f.strip('"\'')
-                if os.path.exists(f) and os.path.isfile(f):
-                    ext = os.path.splitext(f.lower())[1]
-                    if ext in ['.wav', '.aiff', '.aif', '.mp3', '.flac', '.m4a']:
-                        track = {
-                            "title": os.path.splitext(os.path.basename(f))[0].replace("_", " ").title(),
-                            "path": f
-                        }
-                        self.state.release_tracks.append(track)
-                        added += 1
-            if added:
+            clean_paths = release_workflows.clean_release_drop_paths(raw_files)
+            records = self.state.get_all_records(copy_data=False)
+            candidate_tracks = []
+            for path in clean_paths:
+                if not release_tools.is_supported_audio_path(path):
+                    continue
+                exact_work = release_tools.find_work_by_exact_audio_path(records, path)
+                title_work = None
+                if exact_work is None:
+                    title_work = release_tools.find_work_by_title_like_audio_path(records, path)
+                candidate_tracks.append(
+                    release_workflows.build_release_track_from_match(
+                        path,
+                        exact_work=exact_work,
+                        title_work=title_work,
+                    )
+                )
+
+            result = release_workflows.append_unique_release_tracks(
+                self.state.release_tracks,
+                candidate_tracks,
+            )
+            if result["added"]:
+                self.state.release_tracks = result["tracks"]
                 self.refresh_view()
-                self.log(f"Release DnD: {added} Tracks hinzugefügt.")
-                self.toast(f"{added} TRACKS HINZUGEFÜGT")
+                self.log(f"Release DnD: {len(result['added'])} Tracks hinzugefügt.")
+                if result["duplicates"]:
+                    self.log(
+                        f"Release DnD: {len(result['duplicates'])} Dubletten übersprungen."
+                    )
+                self.toast(f"{len(result['added'])} TRACKS HINZUGEFÜGT")
         except Exception as e:
             self.log(f"Release DnD Parse Fehler: {e}")
 
@@ -37,9 +54,29 @@ class ReleaseController(BaseController):
         if hasattr(self.app, 'release_track_listbox'):
             self.app.release_track_listbox.delete(0, tk.END)
             for i, t in enumerate(self.state.release_tracks): 
-                self.app.release_track_listbox.insert(tk.END, f"{i+1}. {t['title']}")
-            if self.app.release_status_label: 
-                self.app.release_status_label.config(text=f"{len(self.state.release_tracks)} Tracks")
+                label = release_view_tools.build_release_track_row_label(i + 1, t)
+                self.app.release_track_listbox.insert(tk.END, label)
+        if hasattr(self.app, "release_action_hint_label"):
+            counts = release_view_tools.build_release_source_counts(self.state.release_tracks)
+            self.app.release_action_hint_label.config(
+                text=release_view_tools.build_release_action_hint(counts)
+            )
+        if hasattr(self.app, "release_status_label") and self.app.release_status_label:
+            cover_path = ""
+            export_dir = ""
+            if hasattr(self.app, "release_vars"):
+                cover_var = self.app.release_vars.get("cover_path")
+                export_var = self.app.release_vars.get("export_dir")
+                cover_path = cover_var.get().strip() if cover_var else ""
+                export_dir = export_var.get().strip() if export_var else ""
+            self.app.release_status_label.config(
+                text=release_view_tools.build_release_status_text(
+                    len(self.state.release_tracks),
+                    bool(cover_path),
+                    bool(export_dir),
+                    hasattr(self.app, "release_track_listbox"),
+                )
+            )
 
     def choose_cover(self): 
         p = filedialog.askopenfilename(filetypes=[("Image", "*.jpg *.png")])

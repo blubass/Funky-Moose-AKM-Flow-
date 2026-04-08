@@ -8,32 +8,55 @@ class BatchController(BaseController):
 
     def reload_flow_data(self, preferred_index=None):
         """Re-synchronizes the Batch Queue with current state."""
-        self.state.batch_queue = flow_tools.filter_batch_entries(self.state.get_all_records(True))
-        if preferred_index is not None:
-            self.state.batch_index = min(preferred_index, max(0, len(self.state.batch_queue) - 1))
+        previous_title = getattr(self.app, "current_title", None)
+        queue = flow_tools.filter_batch_entries(self.state.get_all_records(True))
+        self.state.batch_queue = queue
+        self.state.batch_index = flow_tools.resolve_flow_index(
+            queue,
+            current_index=self.state.batch_index,
+            previous_title=previous_title,
+            preferred_index=preferred_index,
+        )
         self.update_flow()
 
     def update_flow(self):
         """Updates the visual state of the Batch Tab."""
-        q = self.state.batch_queue
-        if not q:
-            self._set_empty_state()
-            return
-
-        idx = self.state.batch_index % len(q)
-        item = q[idx]
+        flow_state = flow_tools.build_flow_state(
+            self.state.batch_queue,
+            self.state.batch_index,
+            self.app.copy_stage,
+        )
+        self.state.batch_index = flow_state["resolved_index"]
+        self.app.current_title = flow_state["current_title"]
 
         if hasattr(self.app, 'flow_title'):
-            self.app.flow_title.config(text=item.get('title', '—'))
+            self.app.flow_title.config(text=flow_state["title_text"])
         if hasattr(self.app, 'flow_meta'):
-            self.app.flow_meta.config(text=flow_tools.build_flow_meta_text(item))
+            self.app.flow_meta.config(text=flow_state["meta_text"])
         if hasattr(self.app, 'progress'):
-            self.app.progress["value"] = ((idx + 1) / len(q)) * 100
+            self.app.progress["value"] = flow_state["progress_value"]
         if hasattr(self.app, 'progress_label'):
-            self.app.progress_label.config(text=f"{idx + 1} / {len(q)}")
+            self.app.progress_label.config(text=flow_state["progress_text"])
         if hasattr(self.app, 'copy_button') and self.app.copy_button:
-            self.app.copy_button.config(text="Titel kopieren")
-        self.app.copy_stage = flow_tools.DEFAULT_COPY_STAGE
+            self.app.copy_button.config(text=flow_state["copy_button_label"])
+        if hasattr(self.app, "batch_status_label") and self.app.batch_status_label:
+            self.app.batch_status_label.config(
+                text=flow_tools.build_flow_status_text(self.state.batch_queue, flow_state)
+            )
+        if hasattr(self.app, "batch_hint_label") and self.app.batch_hint_label:
+            self.app.batch_hint_label.config(
+                text=flow_tools.build_flow_hint_text(
+                    self.state.batch_queue,
+                    flow_state,
+                    self.app.copy_stage,
+                )
+            )
+        if hasattr(self.app, "batch_meta_label") and self.app.batch_meta_label:
+            self.app.batch_meta_label.config(
+                text=flow_tools.build_flow_meta_summary(self.state.batch_queue)
+            )
+        if hasattr(self.app, "_set_batch_buttons_enabled"):
+            self.app._set_batch_buttons_enabled(flow_state["has_item"])
 
     def _set_empty_state(self):
         """Shows an empty/done state when the batch queue is exhausted."""

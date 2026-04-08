@@ -47,22 +47,44 @@ class LoudnessTab(AkmPanel):
         action_card = AkmCard(mid_row, height=140)
         action_card.pack(side="left", fill="both", expand=True, padx=(0, SPACE_XS))
         AkmLabel(action_card.inner, text="Workflow", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(10, 0))
+        AkmSubLabel(
+            action_card.inner,
+            text="Dateien laden, Ziel definieren und den Match in einem Rutsch fahren.",
+            bg=PANEL_2,
+            wraplength=380,
+            justify="left",
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(2, 6))
         
         controls = AkmPanel(action_card.inner, bg=PANEL_2)
-        controls.pack(fill="x", padx=CARD_PAD_X, pady=(5, 5))
-        self.app.loudness_choose_btn = self.app.btn(controls, "Wählen", self.app.loudness_choose_files, primary=True, width=80)
-        self.app.loudness_choose_btn.pack(side="left", padx=(0, 2))
-        self.app.btn(controls, "Löschen", self.app.loudness_delete_files, quiet=True, width=80).pack(side="left", padx=2)
-        self.app.loudness_analyze_btn = self.app.btn(controls, "Analyse", self.app.loudness_analyze_files, primary=True, width=80)
-        self.app.loudness_analyze_btn.pack(side="left", padx=2)
-        self.app.loudness_export_btn = self.app.btn(controls, "Export", self.app.loudness_export_files, primary=True, width=80)
-        self.app.loudness_export_btn.pack(side="left", padx=2)
+        controls.pack(fill="x", padx=CARD_PAD_X, pady=(2, 4))
+        self.app.loudness_choose_btn = self.app.btn(controls, "Dateien", self.app.loudness_choose_files, primary=True, width=96)
+        self.app.loudness_choose_btn.pack(side="left", padx=(0, 4))
+        self.app.loudness_analyze_btn = self.app.btn(controls, "Analyse", self.app.loudness_analyze_files, primary=True, width=96)
+        self.app.loudness_analyze_btn.pack(side="left", padx=4)
+        self.app.loudness_export_btn = self.app.btn(controls, "Export", self.app.loudness_export_files, primary=True, width=96)
+        self.app.loudness_export_btn.pack(side="left", padx=4)
+
+        aux_controls = AkmPanel(action_card.inner, bg=PANEL_2)
+        aux_controls.pack(fill="x", padx=CARD_PAD_X, pady=(0, 6))
+        self.app.btn(aux_controls, "Aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=96).pack(side="left", padx=(0, 4))
+        self.app.btn(aux_controls, "Aus Filter", self.app.loudness_import_filtered_works, quiet=True, width=96).pack(side="left", padx=4)
+        self.app.btn(aux_controls, "Löschen", self.app.loudness_delete_files, quiet=True, width=96).pack(side="left", padx=4)
 
         # Status / Log (Side-by-side with Workflow)
         log_card = AkmCard(mid_row, height=140)
         log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
+        AkmLabel(log_card.inner, text="Systemstatus", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(10, 0))
         self.app.loudness_status_label = AkmLabel(log_card.inner, text="Bereit", bg=PANEL_2, anchor="w", font=FONT_BOLD)
-        self.app.loudness_status_label.pack(fill="x", padx=CARD_PAD_X, pady=(10, 0))
+        self.app.loudness_status_label.pack(fill="x", padx=CARD_PAD_X, pady=(2, 0))
+        self.app.loudness_hint_label = AkmSubLabel(
+            log_card.inner,
+            text="Dateien laden oder direkt Werke aus der aktuellen Übersicht übernehmen.",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        )
+        self.app.loudness_hint_label.pack(fill="x", padx=CARD_PAD_X, pady=(2, 2))
         self.app.loudness_log = tk.Text(log_card.inner, height=3, bg=LOG_BG, fg=LOG_FG, relief="flat", font=("Courier", 9))
         self.app.loudness_log.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(2, 10))
 
@@ -78,30 +100,68 @@ class LoudnessTab(AkmPanel):
         settings_card.pack(fill="both", expand=True)
         settings_form = AkmForm(settings_card.inner, padx=CARD_PAD_X, pady=CARD_PAD_Y)
         settings_form.pack(fill="both")
-        settings_form.add_header("Parameter")
-        settings_form.add_entry("LUFS", self.app.loudness_target_var, width=8)
-        settings_form.add_entry("TP", self.app.loudness_peak_var, width=8)
+        settings_form.add_header("Match-Parameter")
+        settings_form.add_entry("Ziel-LUFS", self.app.loudness_target_var, width=8)
+        settings_form.add_entry("True Peak", self.app.loudness_peak_var, width=8)
+        settings_form.add_row(
+            "Export-Ziel",
+            lambda parent: self._create_dir_row(parent, self.app.loudness_output_dir_var),
+        )
         self.app.loudness_use_limiter_var = tk.BooleanVar(value=True)
         settings_form.add_checkbox("Limiter", self.app.loudness_use_limiter_var)
         self.app.loudness_auto_link_var = tk.BooleanVar(value=True)
         settings_form.add_checkbox("Auto-Link", self.app.loudness_auto_link_var)
+        AkmSubLabel(
+            settings_card.inner,
+            text="Limiter greift nur bei Peak-Warnungen. Auto-Link ist fuer spaetere Rueckverweise gedacht.",
+            bg=PANEL_2,
+            justify="left",
+            wraplength=260,
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         # Right: Treeview
         right_p = tk.Frame(split_frame, bg=BG)
         right_p.pack(side="left", fill="both", expand=True)
         tree_card = AkmCard(right_p)
         tree_card.pack(fill="both", expand=True)
+        AkmLabel(tree_card.inner, text="Analyse-Matrix", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmSubLabel(
+            tree_card.inner,
+            text="Doppelklick oeffnet den Player, Auswahl aktualisiert die Wellenform.",
+            bg=PANEL_2,
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+
+        tree_wrap = tk.Frame(tree_card.inner, bg=PANEL_2)
+        tree_wrap.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         
         cols = ("filename", "duration", "lufs", "peak", "sample", "gain", "predicted_tp", "status", "limit", "export_info")
-        self.app.loudness_tree = ttk.Treeview(tree_card.inner, columns=cols, show="headings", height=8, selectmode="extended")
-        headers = {"filename": "Datei", "duration": "Dauer", "lufs": "LUFS", "peak": "TP", "status": "Match"}
+        self.app.loudness_tree = ttk.Treeview(tree_wrap, columns=cols, show="headings", height=8, selectmode="extended")
+        headers = {
+            "filename": "Datei",
+            "duration": "Dauer",
+            "lufs": "LUFS",
+            "peak": "TP",
+            "sample": "Peak",
+            "gain": "Gain",
+            "predicted_tp": "TP nach Gain",
+            "status": "Match",
+            "limit": "Limiter",
+            "export_info": "Export",
+        }
         for col in cols:
             head = headers.get(col, col.upper()[:4])
             self.app.loudness_tree.heading(col, text=head)
-            self.app.loudness_tree.column(col, width=50, anchor="center")
-        self.app.loudness_tree.column("filename", width=120, anchor="w")
+            self.app.loudness_tree.column(col, width=78, anchor="center")
+        self.app.loudness_tree.column("filename", width=200, anchor="w")
+        self.app.loudness_tree.column("status", width=110, anchor="center")
+        self.app.loudness_tree.column("export_info", width=120, anchor="center")
+        self.app.loudness_tree.column("predicted_tp", width=110, anchor="center")
+        self.app.loudness_tree.tag_configure("exported", background=ui_patterns.get_row_color("confirmed", ratio=0.22))
+        self.app.loudness_tree.tag_configure("error", background=ui_patterns.blend_color(FIELD_BG, ui_patterns.FLAVOR_ERROR, 0.18))
+        self.app.loudness_tree.tag_configure("peak_warn", background=ui_patterns.blend_color(FIELD_BG, ui_patterns.FLAVOR_WARN, 0.2))
+        self.app.loudness_tree.tag_configure("match_ok", background=ui_patterns.get_row_color("ready", ratio=0.18))
         self.app.loudness_tree.pack(side="left", fill="both", expand=True)
-        sb = tk.Scrollbar(tree_card.inner, command=self.app.loudness_tree.yview)
+        sb = tk.Scrollbar(tree_wrap, command=self.app.loudness_tree.yview)
         sb.pack(side="right", fill="y")
         self.app.loudness_tree.config(yscrollcommand=sb.set)
         self.app.loudness_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
@@ -146,9 +206,8 @@ class LoudnessTab(AkmPanel):
 
     def _create_dir_row(self, parent, var):
         frame = tk.Frame(parent, bg=PANEL_2)
-        frame.pack(fill="x", expand=True)
-        AkmEntry(frame, textvariable=var).pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
-        tk.Button(frame, text="Wählen", command=self.app.loudness_choose_output_dir).pack(side="right")
+        AkmEntry(frame, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
+        self.app.btn(frame, "Wählen", self.app.loudness_choose_output_dir, quiet=True, width=86).pack(side="right")
         return frame
 
     def _setup_dnd(self):
@@ -157,17 +216,4 @@ class LoudnessTab(AkmPanel):
             self.dnd_bind('<<Drop>>', self._on_dnd_drop)
 
     def _on_dnd_drop(self, event):
-        new_files = self.app.tasks.parse_dnd_files(event.data)
-        if new_files:
-            # Initialize if None
-            if not self.app.state.loudness_files: self.app.state.loudness_files = []
-            
-            # Add only if not already present
-            added = 0
-            for f in new_files:
-                if f not in self.app.state.loudness_files:
-                    self.app.state.loudness_files.append(f)
-                    added += 1
-            
-            self.app.loudness_ctrl._pop_l_tree()
-            self.app.append_log(f"{added} neue Dateien via Drag & Drop hinzugefügt (Total: {len(self.app.state.loudness_files)}).")
+        self.app.loudness_handle_drop(event)

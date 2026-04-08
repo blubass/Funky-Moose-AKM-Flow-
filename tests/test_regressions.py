@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from openpyxl import Workbook
@@ -16,7 +17,13 @@ import path_ui_tools
 import release_tools
 import release_view_tools
 import release_workflows
-from akm_app import AKMApp
+from app_logic import akm_core as package_akm_core
+from app_controllers.batch_controller import BatchController
+from app_controllers.details_controller import DetailsController
+from app_controllers.loudness_controller import LoudnessController
+from app_controllers.overview_controller import OverviewController
+from app_controllers.project_controller import ProjectController
+from app_controllers.release_controller import ReleaseController
 
 
 class FakeVar:
@@ -106,12 +113,77 @@ class FakeReleaseListbox:
     def __init__(self, selection=()):
         self.selection = tuple(selection)
         self.selected_index = None
+        self.items = []
 
     def curselection(self):
         return self.selection
 
     def selection_set(self, index):
         self.selected_index = index
+
+    def delete(self, *_args):
+        self.items = []
+
+    def insert(self, _index, value):
+        self.items.append(value)
+
+
+class FakeListbox:
+    def __init__(self, selection=()):
+        self.selection = tuple(selection)
+        self.items = []
+        self.row_options = {}
+
+    def delete(self, *_args):
+        self.items = []
+
+    def insert(self, _index, *values):
+        self.items.extend(values)
+
+    def itemconfig(self, index, **kwargs):
+        self.row_options[index] = kwargs
+
+    def curselection(self):
+        return self.selection
+
+
+class ImmediateTaskRunner:
+    def run(self, task_func, on_success=None, on_error=None, busy_text=None):
+        del busy_text
+        try:
+            result = task_func()
+        except Exception as exc:
+            if on_error:
+                on_error(str(exc))
+                return
+            raise
+        if on_success:
+            on_success(result)
+
+
+class FakeState:
+    def __init__(self, records=None, mtime=None):
+        self._records = list(records or [])
+        self.filtered_records = []
+        self.batch_queue = []
+        self.batch_index = 0
+        self.release_tracks = []
+        self.loudness_files = []
+        self.loudness_results = []
+        self.current_mtime = mtime
+        self.invalidated = False
+
+    def get_all_records(self, force=False, copy_data=False):
+        del force
+        if copy_data:
+            return [dict(item) for item in self._records]
+        return self._records
+
+    def invalidate_cache(self):
+        self.invalidated = True
+
+    def _get_data_mtime(self):
+        return self.current_mtime
 
 
 class FakeLoudnessModule:
@@ -160,16 +232,25 @@ class TemporaryStorageTestCase(unittest.TestCase):
         super().setUp()
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
-        self.storage_patcher = mock.patch.multiple(
-            akm_core,
+        patch_values = dict(
             DATA_DIR=self.tempdir.name,
             DATA_FILE=os.path.join(self.tempdir.name, "data.json"),
             BACKUP_FILE=os.path.join(self.tempdir.name, "data_backup.json"),
             LANG_FILE=os.path.join(self.tempdir.name, "lang.txt"),
             SETTINGS_FILE=os.path.join(self.tempdir.name, "settings.json"),
         )
+        self.storage_patcher = mock.patch.multiple(
+            akm_core,
+            **patch_values,
+        )
         self.storage_patcher.start()
         self.addCleanup(self.storage_patcher.stop)
+        self.package_storage_patcher = mock.patch.multiple(
+            package_akm_core,
+            **patch_values,
+        )
+        self.package_storage_patcher.start()
+        self.addCleanup(self.package_storage_patcher.stop)
 
     def save_entries(self, entries):
         akm_core.save_data(entries)
@@ -226,6 +307,29 @@ class OverviewToolsTests(unittest.TestCase):
         self.assertEqual(1, stats["with_production"])
         self.assertEqual(1, stats["with_notes"])
 
+    def test_dashboard_helpers_build_status_focus_and_meta_texts(self):
+        stats = {
+            "total": 8,
+            "confirmed": 3,
+            "ready": 2,
+            "submitted": 1,
+            "in_progress": 2,
+            "with_production": 5,
+            "with_notes": 4,
+            "instrumental": 1,
+        }
+
+        self.assertEqual(38, overview_tools.build_dashboard_completion_percent(stats))
+        self.assertEqual(
+            "8 Werke | 38% bestätigt | 2 bereit | 2 in Arbeit",
+            overview_tools.build_dashboard_status_text(stats),
+        )
+        self.assertIn("2 Werk(e) brauchen noch Feinschliff", overview_tools.build_dashboard_focus_text(stats))
+        self.assertEqual(
+            "Mit Produktion: 5   •   Mit Notizen: 4   •   Instrumental: 1",
+            overview_tools.build_dashboard_meta_text(stats),
+        )
+
     def test_filter_and_sort_entries_applies_query_filter_and_sorting(self):
         entries = [
             {"title": "Beta", "status": "confirmed", "year": "2021", "notes": "", "tags": []},
@@ -256,6 +360,20 @@ class OverviewToolsTests(unittest.TestCase):
         self.assertEqual(
             "5 Treffer   •   Status: Bereit   •   Suche: mix   •   Sortierung: Änderung absteigend",
             summary,
+        )
+
+    def test_overview_helpers_describe_empty_and_filtered_states(self):
+        self.assertEqual(
+            "Noch keine Werke im Katalog",
+            overview_tools.build_overview_status_text(0, 0),
+        )
+        self.assertEqual(
+            "Keine Treffer im aktuellen Filter",
+            overview_tools.build_overview_status_text(0, 8),
+        )
+        self.assertIn(
+            "keine Treffer",
+            overview_tools.build_overview_hint_text(0, 4, status_filter="ready", query="mix"),
         )
 
 
@@ -402,6 +520,15 @@ class AssistantToolsTests(unittest.TestCase):
             available["hint_text"],
         )
 
+    def test_build_assistant_radar_state_handles_empty_and_filled_input(self):
+        empty = assistant_tools.build_assistant_radar_state("")
+        filled = assistant_tools.build_assistant_radar_state("Neuer Song")
+
+        self.assertEqual("Schnellstart bereit", empty["status_text"])
+        self.assertIn("Excel-Import", empty["meta_text"])
+        self.assertEqual("Bereit für neuen Titel: Neuer Song", filled["status_text"])
+        self.assertIn("2 Wort/Wörter", filled["meta_text"])
+
 
 class FlowToolsTests(unittest.TestCase):
     def test_resolve_flow_index_prefers_previous_title_then_clamps(self):
@@ -471,6 +598,30 @@ class FlowToolsTests(unittest.TestCase):
     def test_next_flow_index_wraps_at_end(self):
         self.assertEqual(0, flow_tools.next_flow_index(2, 3))
         self.assertEqual(1, flow_tools.next_flow_index(0, 3))
+
+    def test_flow_dashboard_helpers_describe_queue_and_next_action(self):
+        entries = [
+            {"title": "Song A", "status": "in_progress", "duration": "3:11"},
+            {"title": "Song B", "status": "ready"},
+        ]
+        flow_state = flow_tools.build_flow_state(entries, 0, "title")
+
+        self.assertEqual(
+            {"in_progress": 1, "ready": 1},
+            flow_tools.build_flow_queue_counts(entries),
+        )
+        self.assertEqual(
+            "1 / 2 im Fokus | Song A",
+            flow_tools.build_flow_status_text(entries, flow_state),
+        )
+        self.assertIn(
+            "Copy-Button automatisch auf die Dauer",
+            flow_tools.build_flow_hint_text(entries, flow_state, "title"),
+        )
+        self.assertEqual(
+            "In Arbeit: 1   •   Bereit: 1   •   Queue: 2",
+            flow_tools.build_flow_meta_summary(entries),
+        )
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
@@ -676,7 +827,7 @@ class CoverToolsTests(unittest.TestCase):
                 title="Test Release",
                 artist="Test Artist",
                 output_dir=output_dir,
-                selected_layouts=["bottom", "center"],
+                selected_layouts=["bottom", "topleft", "center"],
                 selected_formats=["square"],
                 options={
                     "style": "clean",
@@ -686,9 +837,10 @@ class CoverToolsTests(unittest.TestCase):
                 },
             )
 
-            self.assertEqual(2, len(created))
+            self.assertEqual(3, len(created))
             self.assertTrue(created[0].endswith("cover_bottom_1x1.jpg"))
-            self.assertTrue(created[1].endswith("cover_center_1x1.jpg"))
+            self.assertTrue(created[1].endswith("cover_topleft_1x1.jpg"))
+            self.assertTrue(created[2].endswith("cover_center_1x1.jpg"))
             for path in created:
                 self.assertTrue(os.path.exists(path))
 
@@ -739,64 +891,20 @@ class ReleaseViewToolsTests(unittest.TestCase):
 
 
 class AppRegressionTests(TemporaryStorageTestCase):
-    def make_app_stub(self):
-        app = AKMApp.__new__(AKMApp)
-        app_logs = []
-        app.append_log = app_logs.append
-        app.append_core_error = lambda context, exc: app_logs.append(f"{context}: {exc}")
-        app._invalidate_all_records_cache = lambda: None
-        app._set_detail_status_chip = lambda status: setattr(app, "last_status", status)
-        app.refresh_list = lambda: setattr(app, "refreshed", True)
-        app.reload_flow_data = lambda preferred_title=None, preferred_index=None: setattr(
-            app, "reloaded_title", preferred_title
-        )
-        app.entry = FakeEntry()
-        app.tabs = FakeTabs()
-        app.tab_details = "details-tab"
-        app.logs = app_logs
+    def make_app_stub(self, records=None, mtime=None):
+        app = SimpleNamespace()
+        app.logs = []
+        app.toasts = []
+        app.state = FakeState(records=records, mtime=mtime)
+        app.tasks = ImmediateTaskRunner()
+        app.append_log = app.logs.append
+        app.select_tab_by_id = lambda tab_id: setattr(app, "selected_tab", tab_id)
+        app.status_text = lambda status: status
         return app
 
-    def test_load_item_into_details_applies_form_state_and_selects_tab(self):
+    def test_batch_controller_update_flow_applies_meta_progress_and_copy_label(self):
         app = self.make_app_stub()
-        app.detail_vars = {
-            "title": FakeVar(""),
-            "duration": FakeVar(""),
-            "composer": FakeVar(""),
-            "production": FakeVar(""),
-            "year": FakeVar(""),
-            "audio_path": FakeVar(""),
-        }
-        app.detail_tags = FakeText("")
-        app.detail_notes = FakeText("")
-        app.detail_instrumental_var = FakeVar(False)
-
-        app.load_item_into_details(
-            {
-                "title": "Song A",
-                "duration": "3:11",
-                "composer": "Uwe",
-                "production": "FM",
-                "year": "2026",
-                "audio_path": "/tmp/song-a.wav",
-                "instrumental": True,
-                "status": "ready",
-                "notes": "Testnotiz",
-                "tags": ["tag1", "tag2"],
-            }
-        )
-
-        self.assertEqual("Song A", app.detail_original_title)
-        self.assertEqual("Song A", app.current_title)
-        self.assertEqual("3:11", app.detail_vars["duration"].get())
-        self.assertTrue(app.detail_instrumental_var.get())
-        self.assertEqual("ready", app.last_status)
-        self.assertEqual("tag1, tag2", app.detail_tags.get())
-        self.assertEqual("Testnotiz", app.detail_notes.get())
-        self.assertEqual("details-tab", app.tabs.selected)
-
-    def test_update_flow_applies_meta_progress_and_copy_label(self):
-        app = self.make_app_stub()
-        app.data = [
+        app.state.batch_queue = [
             {
                 "title": "Song A",
                 "composer": "Uwe",
@@ -805,7 +913,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
                 "year": "2026",
             }
         ]
-        app.flow_index = 0
         app.copy_stage = "duration"
         app.flow_title = FakeLabel()
         app.flow_meta = FakeLabel()
@@ -814,7 +921,8 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.copy_button = FakeLabel()
         app._set_batch_buttons_enabled = lambda enabled: setattr(app, "batch_enabled", enabled)
 
-        app.update_flow()
+        controller = BatchController(app)
+        controller.update_flow()
 
         self.assertEqual("Song A", app.current_title)
         self.assertEqual("Song A", app.flow_title.options["text"])
@@ -827,93 +935,85 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("Dauer kopieren", app.copy_button.options["text"])
         self.assertTrue(app.batch_enabled)
 
-    def test_open_loudness_tab_updates_ui_and_logs(self):
+    def test_project_controller_import_done_logs_summary_and_refreshes_overview(self):
         app = self.make_app_stub()
-        app.tabs = FakeTabs(["dash", "akm", "laut"])
-        app.loudness_status_label = FakeLabel()
-        app.loudness_hint_label = FakeLabel()
-
-        with mock.patch("akm_app.loudness_tools", None):
-            app.open_loudness_tab()
-
-        self.assertEqual(2, app.tabs.selected)
-        self.assertTrue(app.tabs.updated)
-        self.assertTrue(app.tabs.focused)
-        self.assertIn("konnte nicht geladen", app.loudness_status_label.options["text"])
-        self.assertEqual(
-            "Dateien laden oder direkt Werke aus der aktuellen Übersicht übernehmen.",
-            app.loudness_hint_label.options["text"],
+        app.overview_ctrl = SimpleNamespace(
+            refresh_list=lambda: setattr(app, "overview_refreshed", True)
         )
-        self.assertIn("Lautheit-Tab wurde geöffnet.", app.logs)
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = app.toasts.append
 
-    def test_use_selected_title_transfers_title_and_focuses_assistant_tab(self):
+        controller._on_import_done(
+            [
+                {
+                    "title": "Song A",
+                    "action": "added",
+                    "duration": "3:11",
+                    "composer": "Uwe",
+                },
+                {
+                    "title": "Song B",
+                    "action": "updated",
+                    "duration": "",
+                    "composer": "",
+                },
+            ]
+        )
+
+        self.assertEqual("Excel-Import abgeschlossen: 2 Einträge", app.logs[0])
+        self.assertEqual("  + Song A (3:11 | Uwe)", app.logs[1])
+        self.assertEqual("  ~ Song B", app.logs[2])
+        self.assertEqual("Excel-Import abgeschlossen: 2 Einträge", app.toasts[0])
+        self.assertTrue(app.state.invalidated)
+        self.assertTrue(app.overview_refreshed)
+
+    def test_project_controller_add_entry_uses_current_language(self):
         app = self.make_app_stub()
-        app.tab_assistant = "assistant-tab"
-        app._get_selected_overview_item = lambda: {"title": "Song A"}
+        app.overview_ctrl = SimpleNamespace(
+            _on_g_done=lambda result, message: setattr(app, "done_payload", (result, message))
+        )
+        controller = ProjectController(app)
 
-        app.use_selected_title()
+        with mock.patch(
+            "app_controllers.project_controller.akm_core.get_lang",
+            return_value="de",
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.add_entry",
+            return_value=(True, {"title": "Song A"}),
+        ) as add_entry:
+            controller.add_entry("Song A")
 
-        self.assertEqual("Song A", app.entry.get())
-        self.assertEqual("Song A", app.current_title)
-        self.assertEqual("assistant-tab", app.tabs.selected)
-        self.assertTrue(app.entry.focused)
-        self.assertIn("In Eingabe übernommen: Song A", app.logs)
+        add_entry.assert_called_once_with("Song A", "de")
+        self.assertEqual("'Song A' angelegt", app.done_payload[1])
 
-    def test_on_release_drop_files_normalizes_paths_before_import(self):
-        app = self.make_app_stub()
-        app.tk = type("FakeTk", (), {"splitlist": lambda _self, data: ("{/tmp/a.wav}", "/tmp/b.wav", "/tmp/a.wav")})()
-        app.release_import_audio_paths = lambda paths: setattr(app, "dropped_paths", paths)
+    def test_overview_controller_refresh_list_clears_stale_ui_when_no_records(self):
+        app = self.make_app_stub(records=[], mtime=None)
+        app.state.filtered_records = [{"title": "Veraltet"}]
+        app.search_var = FakeVar("")
+        app.status_filter_var = FakeVar("all")
+        app.sort_key_var = FakeVar("title")
+        app.sort_desc_var = FakeVar(False)
+        app.listbox = FakeListbox()
+        app.listbox.items = ["Stale Row"]
+        app.overview_summary_label = FakeLabel()
+        app.overview_filter_chips = {
+            key: FakeLabel()
+            for key in ["all", "open", "in_progress", "ready", "submitted", "confirmed"]
+        }
 
-        app.on_release_drop_files(type("Event", (), {"data": "ignored"})())
+        controller = OverviewController(app)
+        controller.refresh_list()
 
-        self.assertEqual(["/tmp/a.wav", "/tmp/b.wav"], app.dropped_paths)
-        self.assertIn("Drag&Drop erkannt: 2 Datei(en)", app.logs)
+        self.assertEqual([], app.state.filtered_records)
+        self.assertEqual([], app.listbox.items)
+        self.assertEqual(
+            "0 Treffer   •   Sortierung: Titel aufsteigend",
+            app.overview_summary_label.options["text"],
+        )
+        self.assertEqual("all  0", app.overview_filter_chips["all"].options["text"])
 
-    def test_release_import_filtered_works_skips_duplicates(self):
-        app = self.make_app_stub()
-        app.tab_release = "release-tab"
-        app.refresh_release_track_list = lambda: setattr(app, "release_refreshed", True)
-        app.release_tracks = [
-            {"title": "Song A", "duration": "", "production": "", "year": "", "audio_path": "", "source": "Werk"}
-        ]
-        app.overview_records = [
-            {"title": "Song A", "duration": "", "production": "", "year": "", "audio_path": ""},
-            {"title": "Song B", "duration": "3:11", "production": "FM", "year": "2026", "audio_path": ""},
-        ]
-
-        app.release_import_filtered_works()
-
-        self.assertEqual(2, len(app.release_tracks))
-        self.assertEqual("Song B", app.release_tracks[-1]["title"])
-        self.assertEqual("release-tab", app.tabs.selected)
-        self.assertTrue(app.release_refreshed)
-        self.assertIn("Ins Release übernommen: 1 Werke", app.logs)
-        self.assertIn("Schon im Release übersprungen: 1 Werke", app.logs)
-
-    def test_loudness_import_filtered_works_uses_helper_state_and_selects_tab(self):
-        app = self.make_app_stub()
-        app.tab_loudness = "loudness-tab"
-        app.overview_records = [
-            {"title": "Song A", "audio_path": "/tmp/a.wav"},
-            {"title": "Song B", "audio_path": "/tmp/missing.wav"},
-        ]
-        app.loudness_hint_label = FakeLabel()
-        app.loudness_status_label = FakeLabel()
-        app.loudness_results = ["old"]
-        app._clear_loudness_tree = lambda: setattr(app, "loudness_tree_cleared", True)
-        app.append_loudness_log = lambda message: app.logs.append(message)
-
-        with mock.patch("os.path.exists", side_effect=lambda path: path == "/tmp/a.wav"):
-            app.loudness_import_filtered_works()
-
-        self.assertEqual(["/tmp/a.wav"], app.loudness_files)
-        self.assertEqual([], app.loudness_results)
-        self.assertTrue(app.loudness_tree_cleared)
-        self.assertEqual("1 Werke in Lautheit übernommen.", app.loudness_status_label.options["text"])
-        self.assertEqual("loudness-tab", app.tabs.selected)
-        self.assertIn("Aus Werken übernommen: 1 Dateien", app.logs)
-
-    def test_save_details_updates_loaded_record_even_if_other_items_exist(self):
+    def test_details_controller_save_details_updates_loaded_record(self):
         self.save_entries(
             [
                 {
@@ -949,7 +1049,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
         app = self.make_app_stub()
         app.detail_original_title = "Song A"
-        app.current_title = "Song A"
         app.current_detail_status = "ready"
         app.detail_vars = {
             "title": FakeVar("Song A"),
@@ -962,53 +1061,129 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.detail_tags = FakeText("")
         app.detail_notes = FakeText("updated A")
         app.detail_instrumental_var = FakeVar(False)
+        app.overview_ctrl = SimpleNamespace(
+            _on_g_done=lambda result, message: setattr(app, "saved_payload", (result, message))
+        )
 
-        app.save_details()
+        controller = DetailsController(app)
+        controller.save_details()
 
         entries = {item["title"]: item for item in self.load_entries()}
         self.assertEqual("updated A", entries["Song A"]["notes"])
         self.assertEqual("old B", entries["Song B"]["notes"])
-        self.assertEqual("Song A", app.reloaded_title)
-        self.assertIn("Werkdetails gespeichert: Song A", app.logs)
+        self.assertTrue(app.saved_payload[0][0])
+        self.assertEqual("Gespeichert", app.saved_payload[1])
+
+    def test_loudness_controller_import_filtered_works_updates_state_and_labels(self):
+        app = self.make_app_stub()
+        app.state.filtered_records = [
+            {"title": "Song A", "audio_path": "/tmp/a.wav"},
+            {"title": "Song B", "audio_path": "/tmp/missing.wav"},
+        ]
+        app.loudness_hint_label = FakeLabel()
+        app.loudness_status_label = FakeLabel()
+        app.loudness_log = FakeText("")
+
+        controller = LoudnessController(app)
+        controller._pop_l_tree = lambda: setattr(app, "loudness_tree_cleared", True)
+        controller.log = app.logs.append
+
+        with mock.patch(
+            "app_workflows.loudness_workflows.os.path.exists",
+            side_effect=lambda path: path == "/tmp/a.wav",
+        ):
+            controller.import_filtered_works()
+
+        self.assertEqual(["/tmp/a.wav"], app.state.loudness_files)
+        self.assertEqual([], app.state.loudness_results)
+        self.assertTrue(app.loudness_tree_cleared)
+        self.assertEqual("1 Werke in Lautheit übernommen.", app.loudness_status_label.options["text"])
+        self.assertEqual("loudness", app.selected_tab)
+        self.assertIn("Aus Werken übernommen: 1 Dateien", app.logs)
+
+    def test_release_controller_handle_drop_deduplicates_and_matches_titles(self):
+        matched_path = os.path.join(self.tempdir.name, "01 - Intro_matched.wav")
+        with open(matched_path, "wb") as handle:
+            handle.write(b"audio")
+
+        app = self.make_app_stub(
+            records=[
+                {
+                    "title": "Intro",
+                    "duration": "1:11",
+                    "production": "Prod",
+                    "year": "2026",
+                    "audio_path": "",
+                }
+            ]
+        )
+        app.tk = SimpleNamespace(
+            splitlist=lambda _data: (f"{{{matched_path}}}", matched_path)
+        )
+        app.release_track_listbox = FakeReleaseListbox()
+        app.release_action_hint_label = FakeLabel()
+        app.release_status_label = FakeLabel()
+        app.release_vars = {"cover_path": FakeVar(""), "export_dir": FakeVar("")}
+
+        controller = ReleaseController(app)
+        controller.log = app.logs.append
+        controller.toast = app.toasts.append
+
+        controller.handle_drop(SimpleNamespace(data="ignored"))
+
+        self.assertEqual(1, len(app.state.release_tracks))
+        self.assertEqual("Datei→Werk", app.state.release_tracks[0]["source"])
+        self.assertEqual("01. Intro | 1:11 | Prod | 2026 | Datei→Werk", app.release_track_listbox.items[0])
+        self.assertIn("Release DnD: 1 Tracks hinzugefügt.", app.logs)
+        self.assertEqual("1 TRACKS HINZUGEFÜGT", app.toasts[0])
 
     def test_release_title_matching_requires_exact_normalized_match(self):
-        app = self.make_app_stub()
-        app._get_all_entries_cached = lambda _context: [
-            {
-                "title": "Intro Remix",
-                "duration": "",
-                "production": "",
-                "year": "",
-                "audio_path": "",
-            }
-        ]
-
         source_path = os.path.join(self.tempdir.name, "Intro.wav")
         with open(source_path, "wb") as handle:
             handle.write(b"audio")
 
-        track = app._release_track_from_audio_path(source_path)
+        title_work = release_tools.find_work_by_title_like_audio_path(
+            [
+                {
+                    "title": "Intro Remix",
+                    "duration": "",
+                    "production": "",
+                    "year": "",
+                    "audio_path": "",
+                }
+            ],
+            source_path,
+        )
+        track = release_workflows.build_release_track_from_match(
+            source_path,
+            title_work=title_work,
+        )
 
+        self.assertIsNone(title_work)
         self.assertEqual("Datei", track["source"])
         self.assertEqual("Intro", track["title"])
 
     def test_release_title_matching_keeps_exact_normalized_matches(self):
-        app = self.make_app_stub()
-        app._get_all_entries_cached = lambda _context: [
-            {
-                "title": "Intro",
-                "duration": "1:11",
-                "production": "Prod",
-                "year": "2026",
-                "audio_path": "",
-            }
-        ]
-
         source_path = os.path.join(self.tempdir.name, "01 - Intro_matched.wav")
         with open(source_path, "wb") as handle:
             handle.write(b"audio")
 
-        track = app._release_track_from_audio_path(source_path)
+        title_work = release_tools.find_work_by_title_like_audio_path(
+            [
+                {
+                    "title": "Intro",
+                    "duration": "1:11",
+                    "production": "Prod",
+                    "year": "2026",
+                    "audio_path": "",
+                }
+            ],
+            source_path,
+        )
+        track = release_workflows.build_release_track_from_match(
+            source_path,
+            title_work=title_work,
+        )
 
         self.assertEqual("Datei→Werk", track["source"])
         self.assertEqual("Intro", track["title"])
@@ -1026,7 +1201,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
             merged,
         )
 
-    def test_build_distro_export_removes_old_release_artifacts_only(self):
+    def test_start_distro_export_removes_old_release_artifacts_only(self):
         source_dir = os.path.join(self.tempdir.name, "source")
         export_root = os.path.join(self.tempdir.name, "exports")
         os.makedirs(source_dir, exist_ok=True)
@@ -1049,39 +1224,41 @@ class AppRegressionTests(TemporaryStorageTestCase):
             with open(path, "wb") as handle:
                 handle.write(b"old")
 
-        app = self.make_app_stub()
-        app.release_vars = {
-            "title": FakeVar("My Release"),
-            "artist": FakeVar("Artist"),
-            "export_dir": FakeVar(export_root),
-            "cover_path": FakeVar(cover_path),
-            "type": FakeVar("Album"),
-            "release_date": FakeVar("2026-04-05"),
-            "genre": FakeVar("Pop"),
-            "subgenre": FakeVar("Indie"),
-            "label": FakeVar("Label"),
-            "copyright_line": FakeVar("C 2026"),
-        }
-        app.release_tracks = [
+        ok, _status = release_workflows.start_distro_export(
             {
-                "title": "Fresh Track",
-                "duration": "3:45",
-                "production": "Prod",
-                "year": "2026",
-                "audio_path": audio_path,
-            }
-        ]
-        app.release_status_label = FakeLabel()
+                "title": "My Release",
+                "artist": "Artist",
+                "export_dir": export_root,
+                "cover_path": cover_path,
+                "type": "Album",
+                "release_date": "2026-04-05",
+                "genre": "Pop",
+                "subgenre": "Indie",
+                "label": "Label",
+                "copyright_line": "C 2026",
+            },
+            [
+                {
+                    "title": "Fresh Track",
+                    "duration": "3:45",
+                    "production": "Prod",
+                    "year": "2026",
+                    "audio_path": audio_path,
+                }
+            ],
+        )
 
-        app.build_distro_export()
-
+        self.assertTrue(ok)
         self.assertFalse(os.path.exists(obsolete_audio))
         self.assertFalse(os.path.exists(obsolete_cover))
+        self.assertTrue(os.path.exists(obsolete_info))
         self.assertTrue(os.path.exists(keep_file))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "01 - Fresh Track.wav")))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "cover.jpg")))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "tracklist.csv")))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "checklist.txt")))
+        with open(obsolete_info, "r", encoding="utf-8") as handle:
+            self.assertIn("Release Title: My Release", handle.read())
 
 
 if __name__ == "__main__":

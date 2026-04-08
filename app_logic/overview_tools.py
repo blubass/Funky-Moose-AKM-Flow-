@@ -45,6 +45,77 @@ def build_dashboard_chip_counts(stats):
     }
 
 
+def build_dashboard_completion_percent(stats):
+    total = stats.get("total", 0)
+    confirmed = stats.get("confirmed", 0)
+    if total <= 0:
+        return 0
+    return int(round((confirmed / total) * 100))
+
+
+def build_dashboard_status_text(stats):
+    total = stats.get("total", 0)
+    if total <= 0:
+        return "Noch keine Werke im Katalog"
+
+    return (
+        f"{total} Werke | "
+        f"{build_dashboard_completion_percent(stats)}% bestätigt | "
+        f"{stats.get('ready', 0)} bereit | "
+        f"{stats.get('in_progress', 0)} in Arbeit"
+    )
+
+
+def build_dashboard_focus_text(stats):
+    total = stats.get("total", 0)
+    if total <= 0:
+        return "Importiere ein Werk oder lege direkt einen neuen Titel an, um loszulegen."
+
+    in_progress = stats.get("in_progress", 0)
+    ready = stats.get("ready", 0)
+    submitted = stats.get("submitted", 0)
+    confirmed = stats.get("confirmed", 0)
+
+    if in_progress:
+        return f"Gerade am stärksten unter Spannung: {in_progress} Werk(e) brauchen noch Feinschliff."
+    if ready:
+        return f"Nächster sauberer Move: {ready} Werk(e) sind bereit für die Meldung."
+    if submitted:
+        return f"{submitted} Werk(e) warten auf Bestätigung – ideal zum Nachverfolgen."
+    if confirmed == total:
+        return "Alles bestätigt. Perfekter Moment, um neues Material anzulegen."
+    return "Der Katalog ist in Bewegung – ein Blick in die Übersicht bringt dich direkt zum nächsten Schritt."
+
+
+def build_dashboard_meta_text(stats):
+    return (
+        f"Mit Produktion: {stats.get('with_production', 0)}"
+        f"   •   Mit Notizen: {stats.get('with_notes', 0)}"
+        f"   •   Instrumental: {stats.get('instrumental', 0)}"
+    )
+
+
+def build_overview_status_text(result_count, total_count):
+    if total_count <= 0:
+        return "Noch keine Werke im Katalog"
+    if result_count <= 0:
+        return "Keine Treffer im aktuellen Filter"
+    return f"{result_count} von {total_count} Werken sichtbar"
+
+
+def build_overview_hint_text(result_count, total_count, status_filter="all", query=""):
+    normalized_query = (query or "").strip()
+    if total_count <= 0:
+        return "Lege neue Werke an oder importiere eine Excel-Datei, damit sich die Übersicht füllt."
+    if result_count <= 0:
+        if normalized_query:
+            return f"Für \"{normalized_query}\" gibt es im aktuellen Filter keine Treffer. Suche oder Status einmal lockern."
+        if status_filter != "all":
+            return "Der aktuelle Statusfilter zeigt gerade nichts. Wechsle den Filter oder öffne wieder alle Werke."
+        return "Gerade ist nichts sichtbar. Prüfe Suche und Sortierung."
+    return "Details öffnen springt in den Datensatz. Audio Preview und Loudness übernehmen direkt die aktuelle Auswahl."
+
+
 def build_overview_filter_counts(entries):
     counts = {"all": len(entries), "open": 0, "in_progress": 0, "ready": 0, "submitted": 0, "confirmed": 0}
     for item in entries:
