@@ -11,6 +11,19 @@ class BatchController(BaseController):
             return self.app.get_built_tab("batch")
         return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("batch")
 
+    def _get_batch_copy_stage(self):
+        batch_view = self._get_batch_view()
+        if batch_view and hasattr(batch_view, "get_copy_stage"):
+            return batch_view.get_copy_stage()
+        return getattr(self, "_copy_stage", flow_tools.DEFAULT_COPY_STAGE)
+
+    def _set_batch_copy_stage(self, stage):
+        batch_view = self._get_batch_view()
+        if batch_view and hasattr(batch_view, "set_copy_stage"):
+            batch_view.set_copy_stage(stage)
+            return
+        self._copy_stage = stage or flow_tools.DEFAULT_COPY_STAGE
+
     def _render_legacy_flow_widgets(self, flow_state):
         if hasattr(self.app, 'flow_title'):
             self.app.flow_title.config(text=flow_state["title_text"])
@@ -31,7 +44,7 @@ class BatchController(BaseController):
                 text=flow_tools.build_flow_hint_text(
                     self.state.batch_queue,
                     flow_state,
-                    self.app.copy_stage,
+                    self._get_batch_copy_stage(),
                 )
             )
         if hasattr(self.app, "batch_meta_label") and self.app.batch_meta_label:
@@ -69,7 +82,7 @@ class BatchController(BaseController):
         flow_state = flow_tools.build_flow_state(
             self.state.batch_queue,
             self.state.batch_index,
-            self.app.copy_stage,
+            self._get_batch_copy_stage(),
         )
         self.state.batch_index = flow_state["resolved_index"]
         self.app.current_title = flow_state["current_title"]
@@ -85,7 +98,7 @@ class BatchController(BaseController):
                 hint_text=flow_tools.build_flow_hint_text(
                     self.state.batch_queue,
                     flow_state,
-                    self.app.copy_stage,
+                    self._get_batch_copy_stage(),
                 ),
                 meta_summary=flow_tools.build_flow_meta_summary(self.state.batch_queue),
                 enabled=flow_state["has_item"],
@@ -105,10 +118,10 @@ class BatchController(BaseController):
         if not self.state.batch_queue:
             return
         it = self.state.batch_queue[self.state.batch_index % len(self.state.batch_queue)]
-        res = flow_tools.resolve_copy_action(it, self.app.copy_stage)
+        res = flow_tools.resolve_copy_action(it, self._get_batch_copy_stage())
         self.app.clipboard_clear()
         self.app.clipboard_append(res["value"])
-        self.app.copy_stage = res["next_stage"]
+        self._set_batch_copy_stage(res["next_stage"])
         batch_view = self._get_batch_view()
         if batch_view:
             batch_view.set_copy_button_label(f"{res['copied_label']} ✓")

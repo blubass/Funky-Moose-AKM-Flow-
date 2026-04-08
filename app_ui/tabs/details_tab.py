@@ -36,7 +36,8 @@ class DetailsTab(AkmPanel):
             from tkinterdnd2 import DND_FILES
             self.drop_target_register(DND_FILES)
             self.dnd_bind('<<Drop>>', self._on_dnd_drop)
-        except: pass
+        except Exception:
+            pass
 
     def _on_dnd_drop(self, event):
         data = event.data

@@ -321,4 +321,5 @@ class ReleaseTab(AkmPanel):
             self.release_track_listbox.drop_target_register(DND_FILES)
             self.release_track_listbox.dnd_bind('<<Drop>>', self.app.release_ctrl.handle_drop)
             self.app.append_log("Release DnD bereit.")
-        except: pass
+        except Exception:
+            pass

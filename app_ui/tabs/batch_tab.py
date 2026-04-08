@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from app_logic import flow_tools
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, TEXT,
@@ -14,6 +15,7 @@ class BatchTab(AkmPanel):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.copy_stage = flow_tools.DEFAULT_COPY_STAGE
         self._batch_action_buttons = []
         self._status_action_mode = None
         self._focus_action_mode = None
@@ -199,6 +201,12 @@ class BatchTab(AkmPanel):
 
     def get_quick_add_title(self):
         return self.batch_entry.get().strip()
+
+    def get_copy_stage(self):
+        return self.copy_stage
+
+    def set_copy_stage(self, stage):
+        self.copy_stage = stage or flow_tools.DEFAULT_COPY_STAGE
 
     def render_flow_state(self, *, title_text, meta_text, progress_value, progress_text, copy_button_label, status_text, hint_text, meta_summary, enabled):
         self.flow_title.config(text=title_text)

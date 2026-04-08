@@ -111,10 +111,11 @@ class FakeLabel:
 
 
 class FakeBatchView:
-    def __init__(self):
+    def __init__(self, copy_stage="title"):
         self.flow_state = None
         self.empty_rendered = False
         self.copy_button_text = None
+        self.copy_stage = copy_stage
 
     def render_flow_state(self, **kwargs):
         self.flow_state = kwargs
@@ -124,6 +125,12 @@ class FakeBatchView:
 
     def set_copy_button_label(self, text):
         self.copy_button_text = text
+
+    def get_copy_stage(self):
+        return self.copy_stage
+
+    def set_copy_stage(self, stage):
+        self.copy_stage = stage
 
 
 class FakeMessagebox:
@@ -1219,8 +1226,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
                 "year": "2026",
             }
         ]
-        app.copy_stage = "duration"
-        batch_view = FakeBatchView()
+        batch_view = FakeBatchView(copy_stage="duration")
         app.tab_system._instances["batch"] = batch_view
 
         controller = BatchController(app)
@@ -1236,6 +1242,28 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual(100.0, batch_view.flow_state["progress_value"])
         self.assertEqual("Dauer kopieren", batch_view.flow_state["copy_button_label"])
         self.assertTrue(batch_view.flow_state["enabled"])
+
+    def test_batch_controller_flow_copy_updates_batch_view_copy_stage(self):
+        app = self.make_app_stub()
+        app.state.batch_queue = [
+            {
+                "title": "Song A",
+                "duration": "3:11",
+            }
+        ]
+        app.state.batch_index = 0
+        app.clipboard_value = None
+        app.clipboard_clear = lambda: setattr(app, "clipboard_value", "")
+        app.clipboard_append = lambda value: setattr(app, "clipboard_value", value)
+        batch_view = FakeBatchView(copy_stage="title")
+        app.tab_system._instances["batch"] = batch_view
+
+        controller = BatchController(app)
+        controller.flow_copy()
+
+        self.assertEqual("Song A", app.clipboard_value)
+        self.assertEqual("duration", batch_view.copy_stage)
+        self.assertEqual("Titel ✓", batch_view.copy_button_text)
 
     def test_project_controller_import_done_logs_summary_and_refreshes_overview(self):
         app = self.make_app_stub()

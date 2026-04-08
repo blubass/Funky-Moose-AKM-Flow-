@@ -153,7 +153,6 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.current_detail_status = "in_progress"
         
         # Batch & Flow
-        self.copy_stage = flow_tools.DEFAULT_COPY_STAGE
         self.copy_button = None
 
     # --- UI BUILDING ---
