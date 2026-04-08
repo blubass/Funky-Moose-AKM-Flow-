@@ -117,16 +117,21 @@ class CoverTab(AkmPanel):
 
     def build_ui(self):
         sys_fonts = _get_system_fonts()
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        self._page_scroll_root = scroll_root
+        scroll_root.canvas.bind("<Configure>", self._on_page_resize, add="+")
+        page = scroll_root.scrollable_frame
         
-        AkmHeader(self, text="Cover Forge").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        AkmHeader(page, text="Cover Forge").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
-            self,
+            page,
             text="Artwork, Typografie und Export in einer durchgaengigen Live-Ansicht. Alles, was nach Release riechen soll, sitzt hier.",
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, min_height=118)
+        status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -169,7 +174,7 @@ class CoverTab(AkmPanel):
             self.app.btn(status_action_row, "Finder", self._open_artwork_in_finder, quiet=True, width=86),
         )
 
-        content = AkmPanel(self)
+        content = AkmPanel(page)
         content.pack(fill="both", expand=True, padx=SPACE_MD, pady=0)
 
         left_side = AkmPanel(content)
@@ -181,7 +186,7 @@ class CoverTab(AkmPanel):
         scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
         self._cover_split_widgets = (left_side, scroll_container)
         content.bind("<Configure>", self._on_responsive_resize, add="+")
-        self.after_idle(lambda: self._apply_responsive_layout(content.winfo_width()))
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
         # LEFT: PREVIEW & VARIATION LIST
         preview_card = AkmCard(left_side)
@@ -374,6 +379,9 @@ class CoverTab(AkmPanel):
         self._update_cover_dashboard()
 
     def _on_responsive_resize(self, event):
+        self._apply_responsive_layout(event.width)
+
+    def _on_page_resize(self, event):
         self._apply_responsive_layout(event.width)
 
     def _apply_responsive_layout(self, width):

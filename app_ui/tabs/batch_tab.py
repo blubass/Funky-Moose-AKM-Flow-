@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, TEXT,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_XL, FONT_LG, FONT_XXL, fit_wraplength
@@ -23,18 +23,23 @@ class BatchTab(AkmPanel):
         self._setup_dnd()
         self.app._set_batch_buttons_enabled = self._set_batch_buttons_enabled
         self._set_batch_buttons_enabled(False)
-        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
-        AkmHeader(self, text="AKM Batch").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        self._page_scroll_root = scroll_root
+        scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
+        page = scroll_root.scrollable_frame
+
+        AkmHeader(page, text="AKM Batch").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
-            self,
+            page,
             text="Arbeite fokussiert durch offene Werke: Titel kopieren, Dauer mitnehmen und danach direkt als gemeldet markieren.",
             wraplength=760, justify="left"
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, min_height=118)
+        status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -79,7 +84,7 @@ class BatchTab(AkmPanel):
         )
 
         # --- FOCUS CARD ---
-        focus_card = AkmCard(self)
+        focus_card = AkmCard(page)
         focus_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         AkmLabel(focus_card.inner, text="Aktuelles Werk", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(
@@ -113,7 +118,7 @@ class BatchTab(AkmPanel):
         )
 
         # --- PROGRESS CARD ---
-        progress_card = AkmCard(self)
+        progress_card = AkmCard(page)
         progress_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         AkmLabel(progress_card.inner, text="Fortschritt", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(
@@ -127,7 +132,7 @@ class BatchTab(AkmPanel):
         self.app.progress.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         # --- QUICK-ADD CARD ---
-        add_card = AkmCard(self)
+        add_card = AkmCard(page)
         add_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         AkmLabel(add_card.inner, text="Werk schnell anlegen", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(
@@ -148,7 +153,7 @@ class BatchTab(AkmPanel):
         self.app.batch_entry = AkmEntry(add_row, width=40)
         self.app.batch_entry.bind("<Return>", lambda _event: self.app.add(self.app.batch_entry.get().strip()))
         self._quick_add_button = self.app.btn(add_row, "+ Werk anlegen", lambda: self.app.add(self.app.batch_entry.get().strip()), primary=True)
-        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)

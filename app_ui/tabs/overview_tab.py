@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_XL, FONT_LG, fit_wraplength
@@ -20,18 +20,23 @@ class OverviewTab(AkmPanel):
         self._bottom_action_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
-        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
-        AkmHeader(self, text="Übersicht aller Werke").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        self._page_scroll_root = scroll_root
+        scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
+        page = scroll_root.scrollable_frame
+
+        AkmHeader(page, text="Übersicht aller Werke").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
-            self,
+            page,
             text="Suche, filtere und sortiere den gesamten Katalog. Doppelklick öffnet die Details, Audio-Preview bleibt als eigener Move erhalten.",
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, min_height=118)
+        status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -68,7 +73,7 @@ class OverviewTab(AkmPanel):
             self.app.btn(action_row, "Lautheit", self.app.loudness_import_selected_work, quiet=True, width=96),
         )
 
-        controls_card = AkmCard(self)
+        controls_card = AkmCard(page)
         controls_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         filter_strip = AkmPanel(controls_card.inner, bg=PANEL_2)
@@ -117,7 +122,7 @@ class OverviewTab(AkmPanel):
         self.app.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
         self.app.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
-        list_card = AkmCard(self)
+        list_card = AkmCard(page)
         list_card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
         AkmLabel(list_card.inner, text="Katalogliste", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._list_intro_label = AkmSubLabel(
@@ -162,7 +167,7 @@ class OverviewTab(AkmPanel):
             self.app.btn(bottom_actions, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
             self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=164),
         )
-        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)

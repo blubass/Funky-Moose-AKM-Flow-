@@ -1,6 +1,6 @@
 import tkinter as tk
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmText,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmText, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, SUBTLE, SPACE_MD, SPACE_SM, SPACE_XS, 
     CARD_PAD_X, CARD_PAD_Y, FONT_LG, FONT_MD, FONT_XL, LOG_BG, LOG_FG, FONT_LOG, fit_wraplength
 )
@@ -18,18 +18,23 @@ class AssistantTab(AkmPanel):
         self.build_ui()
         self._setup_entry_trace()
         self._update_assistant_radar()
-        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
-        AkmHeader(self, text="AKM Schnellstart").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        self._page_scroll_root = scroll_root
+        scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
+        page = scroll_root.scrollable_frame
+
+        AkmHeader(page, text="AKM Schnellstart").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
-            self,
+            page,
             text="Neue Werke anlegen, Status setzen und Excel-Import direkt aus dem schnellen Eingabebereich starten.",
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, min_height=118)
+        status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -72,7 +77,7 @@ class AssistantTab(AkmPanel):
             self.app.btn(status_actions, "Lautheit", self.app.open_loudness_tab, quiet=True, width=92),
         )
 
-        intake_card = AkmCard(self)
+        intake_card = AkmCard(page)
         intake_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         AkmLabel(intake_card.inner, text="Titel eingeben", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
@@ -106,7 +111,7 @@ class AssistantTab(AkmPanel):
             self.app.btn(imp_row, "Lautheit", self.app.open_loudness_tab),
         )
 
-        log_card = AkmCard(self)
+        log_card = AkmCard(page)
         log_card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
         AkmLabel(log_card.inner, text="AKM Log", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
         self._log_intro_label = AkmSubLabel(
@@ -119,7 +124,7 @@ class AssistantTab(AkmPanel):
         
         self.app.log = AkmText(log_card.inner, height=10, bg=LOG_BG, fg=LOG_FG, insertbackground=LOG_FG)
         self.app.log.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)

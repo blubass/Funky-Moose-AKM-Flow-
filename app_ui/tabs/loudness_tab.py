@@ -29,11 +29,16 @@ class LoudnessTab(AkmPanel):
         self.wv_ref = None 
         self.build_ui()
         self._setup_dnd()
-        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        self._page_scroll_root = scroll_root
+        scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
+        page = scroll_root.scrollable_frame
+
         # --- 1. WAVEFORM PROMINENCE (TOP) ---
-        self.preview_card = AkmCard(self, height=240)
+        self.preview_card = AkmCard(page, height=240)
         self.preview_card.pack(fill="x", padx=SPACE_MD, pady=(SPACE_MD, SPACE_SM))
         
         inlay = tk.Frame(self.preview_card.inner, bg="#050507", padx=2, pady=2)
@@ -48,7 +53,7 @@ class LoudnessTab(AkmPanel):
         self.waveform_label.pack(fill="both", expand=True)
 
         # --- 2. MIDDLE ROW (Workflow | Status) ---
-        mid_row = tk.Frame(self, bg=BG)
+        mid_row = tk.Frame(page, bg=BG)
         mid_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         self._mid_row = mid_row
         
@@ -107,7 +112,7 @@ class LoudnessTab(AkmPanel):
         self.app.loudness_log.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(2, 10))
 
         # --- 3. BOTTOM ROW (Settings | List) ---
-        split_frame = tk.Frame(self, bg=BG)
+        split_frame = tk.Frame(page, bg=BG)
         split_frame.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
         self._split_frame = split_frame
         
@@ -190,7 +195,7 @@ class LoudnessTab(AkmPanel):
         self.app.loudness_tree.config(yscrollcommand=sb.set)
         self.app.loudness_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.app.loudness_tree.bind("<Double-1>", self.app.on_loudness_tree_activate)
-        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)

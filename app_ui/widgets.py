@@ -166,8 +166,11 @@ class AkmScrollablePanel(tk.Frame):
         self._bind_mousewheel_recursive(self.scrollable_frame)
 
     def _bind_mousewheel_recursive(self, widget):
+        if widget is not self and isinstance(widget, AkmScrollablePanel):
+            return
         widget_id = str(widget)
-        if widget_id not in self._mousewheel_bound:
+        skip_widget = isinstance(widget, (tk.Listbox, tk.Text, tk.Canvas, ttk.Treeview, ttk.Scrollbar))
+        if widget_id not in self._mousewheel_bound and not skip_widget:
             widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
             widget.bind("<Button-4>", self._on_mousewheel, add="+")
             widget.bind("<Button-5>", self._on_mousewheel, add="+")

@@ -1,7 +1,7 @@
 import tkinter as tk
 from app_ui import ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator, AkmScrollablePanel,
     ACCENT, PANEL_2, SPACE_MD, SPACE_SM, SPACE_XS,
     CARD_PAD_X, CARD_PAD_Y, FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_LG, FONT_XXL, fit_wraplength
 )
@@ -19,22 +19,27 @@ class DashboardTab(AkmPanel):
         self._stat_cards = []
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
-        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
+        scroll_root = AkmScrollablePanel(self)
+        scroll_root.pack(fill="both", expand=True)
+        self._page_scroll_root = scroll_root
+        scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
+        page = scroll_root.scrollable_frame
+
         AkmHeader(
-            self,
+            page,
             text="Dashboard",
         ).pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
 
         self._header_intro_label = AkmSubLabel(
-            self,
+            page,
             text="Schneller Blick auf Status, Vollständigkeit und den aktuellen Arbeitsstand.",
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, min_height=118)
+        status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -80,7 +85,7 @@ class DashboardTab(AkmPanel):
         )
 
         # Status Chips
-        chip_row = AkmPanel(self)
+        chip_row = AkmPanel(page)
         chip_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         self._chip_row = chip_row
 
@@ -112,7 +117,7 @@ class DashboardTab(AkmPanel):
             self.app.dashboard_status_chips[status] = chip
 
         # Stats Grid
-        stats_grid = AkmPanel(self)
+        stats_grid = AkmPanel(page)
         stats_grid.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         self._stats_grid = stats_grid
 
@@ -145,7 +150,7 @@ class DashboardTab(AkmPanel):
             self.app.dashboard_labels[key] = val
             self._stat_cards.append(card)
 
-        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)
