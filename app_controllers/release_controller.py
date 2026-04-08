@@ -19,6 +19,29 @@ class ReleaseController(BaseController):
             return self.app.get_built_tab("release")
         return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("release")
 
+    def _get_release_form_value(self, key):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "get_form_value"):
+            return release_view.get_form_value(key)
+        cache = getattr(self.app, "release_state_cache", {}) or {}
+        return (cache.get(key) or "").strip()
+
+    def _set_release_form_value(self, key, value):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "set_form_value"):
+            release_view.set_form_value(key, value)
+        if hasattr(self.app, "release_state_cache"):
+            self.app.release_state_cache[key] = value
+
+    def _get_release_form_state(self):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "get_form_state"):
+            form_state = release_view.get_form_state()
+            if hasattr(self.app, "release_state_cache"):
+                self.app.release_state_cache = dict(form_state)
+            return form_state
+        return dict(getattr(self.app, "release_state_cache", {}) or {})
+
     def _has_release_track_list(self):
         release_view = self._get_release_view()
         if release_view and hasattr(release_view, "has_track_list"):
@@ -63,13 +86,8 @@ class ReleaseController(BaseController):
             self.app.release_track_listbox.selection_set(index)
 
     def _build_view_signature(self):
-        cover_path = ""
-        export_dir = ""
-        if hasattr(self.app, "release_vars"):
-            cover_var = self.app.release_vars.get("cover_path")
-            export_var = self.app.release_vars.get("export_dir")
-            cover_path = cover_var.get().strip() if cover_var else ""
-            export_dir = export_var.get().strip() if export_var else ""
+        cover_path = self._get_release_form_value("cover_path")
+        export_dir = self._get_release_form_value("export_dir")
         track_signature = tuple(
             (track.get("audio_path") or "", track.get("title") or "", track.get("source") or "")
             for track in self.state.release_tracks
@@ -144,21 +162,21 @@ class ReleaseController(BaseController):
     def choose_cover(self): 
         p = filedialog.askopenfilename(filetypes=[("Image", "*.jpg *.png")])
         if p:
-            self.app.release_vars["cover_path"].set(p)
+            self._set_release_form_value("cover_path", p)
             self.refresh_view(force=True)
 
     def choose_export_dir(self): 
         p = filedialog.askdirectory()
         if p:
-            self.app.release_vars["export_dir"].set(p)
+            self._set_release_form_value("export_dir", p)
             self.refresh_view(force=True)
 
     def open_cover_in_finder(self): 
-        p = self.app.release_vars["cover_path"].get()
+        p = self._get_release_form_value("cover_path")
         if p and os.path.exists(p): ui_patterns.open_in_finder(p)
 
     def open_cover_dialog(self): 
-        p = self.app.release_vars["cover_path"].get()
+        p = self._get_release_form_value("cover_path")
         if p and os.path.exists(p):
             from app_ui.ui_patterns import AkmImagePreviewDialog
             AkmImagePreviewDialog(self.app, p, "Cover Vorschau")
@@ -166,7 +184,7 @@ class ReleaseController(BaseController):
             self.toast("KEIN COVER GEWÄHLT", color=ui_patterns.FLAVOR_ERROR)
 
     def build_export(self):
-        m = {k: v.get().strip() for k, v in self.app.release_vars.items()}
+        m = {k: (v or "").strip() for k, v in self._get_release_form_state().items()}
         if m.get("title") and self.state.release_tracks: 
             self.tasks.run(lambda: release_workflows.start_distro_export(m, self.state.release_tracks), 
                            lambda r: self.log(r[1]), busy_text="Exportiere...")

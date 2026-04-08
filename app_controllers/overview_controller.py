@@ -170,7 +170,8 @@ class OverviewController(BaseController):
             _ = self.app.details_tab
             details_view = self.app.get_built_tab("details") if hasattr(self.app, "get_built_tab") else None
             self.app.detail_original_title = it.get("title")
-            for k, v in self.app.detail_vars.items(): 
+            detail_vars = self.app.get_detail_form_vars() if hasattr(self.app, "get_detail_form_vars") else getattr(self.app, "detail_vars", {})
+            for k, v in detail_vars.items():
                 v.set(str(it.get(k, "")))
             if details_view and hasattr(details_view, "set_notes_text"):
                 details_view.set_notes_text(it.get("notes", ""))
@@ -205,7 +206,7 @@ class OverviewController(BaseController):
                 def _upd(dur):
                     if dur:
                         mins, secs = int(dur // 60), int(dur % 60)
-                        self.app.detail_vars["duration"].set(f"{mins}:{secs:02d}")
+                        detail_vars["duration"].set(f"{mins}:{secs:02d}")
                         self.log(f"Dauer automatisch nacherfasst: {mins}:{secs:02d}")
                 self.tasks.run(_ext, _upd, busy_text="Aktualisiere Dauer...")
 

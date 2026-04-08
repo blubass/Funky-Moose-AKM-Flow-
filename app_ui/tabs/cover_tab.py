@@ -595,9 +595,11 @@ class CoverTab(AkmPanel):
         self._update_cover_dashboard()
 
     def _load_artwork_from_release(self):
-        release_vars = getattr(self.app, "release_vars", {}) or {}
-        cover_var = release_vars.get("cover_path")
-        path = cover_var.get().strip() if cover_var and hasattr(cover_var, "get") else ""
+        release_tab = self.app.get_built_tab("release") if hasattr(self.app, "get_built_tab") else None
+        if release_tab is not None and hasattr(release_tab, "get_form_value"):
+            path = release_tab.get_form_value("cover_path")
+        else:
+            path = (getattr(self.app, "release_state_cache", {}) or {}).get("cover_path", "").strip()
         if not path:
             AkmToast(self, "RELEASE HAT NOCH KEIN COVER", color=ui_patterns.FLAVOR_ERROR)
             return
@@ -1181,8 +1183,9 @@ class CoverTab(AkmPanel):
 
         if hasattr(self.app, "release_state_cache"):
             self.app.release_state_cache["cover_path"] = path
-        if hasattr(self.app, "release_vars") and "cover_path" in self.app.release_vars:
-            self.app.release_vars["cover_path"].set(path)
+        release_tab = self.app.get_built_tab("release") if hasattr(self.app, "get_built_tab") else None
+        if release_tab is not None and hasattr(release_tab, "set_form_value"):
+            release_tab.set_form_value("cover_path", path)
         if hasattr(self.app, "release_ctrl"):
             self.app.release_ctrl.refresh_view(force=True)
         self.app.select_tab_by_id("release")

@@ -16,6 +16,7 @@ class ReleaseTab(AkmPanel):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.release_vars = {}
         self._release_layout_mode = None
         self._release_action_mode = None
         self._status_action_mode = None
@@ -186,7 +187,7 @@ class ReleaseTab(AkmPanel):
         cache = getattr(self.app, "release_state_cache", {}) or {}
         initial_value = cache.get(key, default_value)
         var = tk.StringVar(value=initial_value)
-        self.app.release_vars[key] = var
+        self.release_vars[key] = var
 
         if hasattr(self.app, "release_state_cache"):
             self.app.release_state_cache[key] = initial_value
@@ -241,6 +242,25 @@ class ReleaseTab(AkmPanel):
             self.release_track_listbox.insert(tk.END, *track_labels)
         self.release_action_hint_label.config(text=action_hint)
         self.release_status_label.config(text=status_text)
+
+    def get_form_vars(self):
+        return self.release_vars
+
+    def get_form_state(self):
+        return {key: var.get() for key, var in self.release_vars.items()}
+
+    def set_form_state(self, values):
+        for key, value in (values or {}).items():
+            if key in self.release_vars:
+                self.release_vars[key].set(value)
+
+    def get_form_value(self, key):
+        var = self.release_vars.get(key)
+        return var.get().strip() if var else ""
+
+    def set_form_value(self, key, value):
+        if key in self.release_vars:
+            self.release_vars[key].set(value)
 
     def get_selected_track_indices(self):
         return tuple(self.release_track_listbox.curselection())

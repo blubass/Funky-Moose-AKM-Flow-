@@ -152,9 +152,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.dashboard_status_chips = {}
         
         # Detail & Metadata Registry
-        self.detail_vars = {}
         self.cover_state_cache = {}
-        self.release_vars = {}
         self.release_state_cache = {}
         self.detail_original_title = None
         self.current_detail_status = "in_progress"
@@ -237,6 +235,18 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def get_built_tab(self, tab_id):
         """Returns an already instantiated tab without triggering lazy construction."""
         return getattr(self.tab_system, "_instances", {}).get(tab_id)
+
+    def get_detail_form_vars(self):
+        details_tab = self.get_built_tab("details")
+        if details_tab is not None and hasattr(details_tab, "get_form_vars"):
+            return details_tab.get_form_vars()
+        return {}
+
+    def get_release_form_vars(self):
+        release_tab = self.get_built_tab("release")
+        if release_tab is not None and hasattr(release_tab, "get_form_vars"):
+            return release_tab.get_form_vars()
+        return {}
 
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""

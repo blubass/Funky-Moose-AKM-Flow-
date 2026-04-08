@@ -18,6 +18,7 @@ class DetailsTab(AkmPanel):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.detail_vars = {}
         self._detail_layout_mode = None
         self._status_action_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
@@ -130,7 +131,7 @@ class DetailsTab(AkmPanel):
 
         for key, label in detail_tools.DETAIL_FIELD_LABELS:
             var = tk.StringVar()
-            self.app.detail_vars[key] = var
+            self.detail_vars[key] = var
             
             if key == "title":
                 # Special Case: Title is a Combobox for quick selection/search
@@ -247,8 +248,8 @@ class DetailsTab(AkmPanel):
     def _setup_state_traces(self):
         tracked = []
         for key in ("title", "audio_path", "composer", "duration", "year"):
-            if key in self.app.detail_vars:
-                tracked.append(self.app.detail_vars[key])
+            if key in self.detail_vars:
+                tracked.append(self.detail_vars[key])
         tracked.append(self.detail_instrumental_var)
         tracked.append(self.detail_status_var)
 
@@ -256,10 +257,13 @@ class DetailsTab(AkmPanel):
             var.trace_add("write", lambda *args: self._update_detail_radar())
 
     def _detail_value(self, key):
-        var = self.app.detail_vars.get(key)
+        var = self.detail_vars.get(key)
         if not var:
             return ""
         return (var.get() or "").strip()
+
+    def get_form_vars(self):
+        return self.detail_vars
 
     def set_title_options(self, titles):
         self.detail_title_combo.config(values=titles)

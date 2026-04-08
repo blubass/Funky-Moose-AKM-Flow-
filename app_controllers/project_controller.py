@@ -29,8 +29,9 @@ class ProjectController(BaseController):
     def _collect_release_vars(self):
         """Collect release metadata even if the release tab has not been built yet."""
         release_vars = dict(getattr(self.app, "release_state_cache", {}) or {})
-        for key, var in getattr(self.app, "release_vars", {}).items():
-            release_vars[key] = var.get()
+        release_tab = self._get_built_tab("release")
+        if release_tab is not None and hasattr(release_tab, "get_form_state"):
+            release_vars.update(release_tab.get_form_state())
         if hasattr(self.app, "release_state_cache"):
             self.app.release_state_cache = dict(release_vars)
         return release_vars
@@ -114,9 +115,9 @@ class ProjectController(BaseController):
             release_vars = dict(r_data.get("vars", {}))
             if hasattr(self.app, "release_state_cache"):
                 self.app.release_state_cache = dict(release_vars)
-            for k, v in release_vars.items():
-                if k in self.app.release_vars:
-                    self.app.release_vars[k].set(v)
+            release_tab = self._get_built_tab("release")
+            if release_tab is not None and hasattr(release_tab, "set_form_state"):
+                release_tab.set_form_state(release_vars)
             self.app.release_ctrl.refresh_view(force=True)
             
         self.log(f"Projekt geladen: {os.path.basename(path)}")

@@ -154,12 +154,21 @@ class FakeReleaseListbox:
 
 
 class FakeReleaseView:
-    def __init__(self, selection=()):
+    def __init__(self, selection=(), form_state=None):
         self.selection = tuple(selection)
         self.selected_index = None
         self.track_labels = []
         self.action_hint = None
         self.status_text = None
+        self.form_state = {
+            "title": "",
+            "artist": "",
+            "type": "",
+            "cover_path": "",
+            "export_dir": "",
+        }
+        if form_state:
+            self.form_state.update(form_state)
 
     def has_track_list(self):
         return True
@@ -174,6 +183,18 @@ class FakeReleaseView:
 
     def select_track_index(self, index):
         self.selected_index = index
+
+    def get_form_state(self):
+        return dict(self.form_state)
+
+    def set_form_state(self, values):
+        self.form_state.update(values or {})
+
+    def get_form_value(self, key):
+        return (self.form_state.get(key) or "").strip()
+
+    def set_form_value(self, key, value):
+        self.form_state[key] = value
 
 
 class FakeOverviewView:
@@ -209,8 +230,9 @@ class FakeOverviewView:
 
 
 class FakeDetailsView:
-    def __init__(self):
+    def __init__(self, form_vars=None):
         self.title_values = []
+        self.form_vars = dict(form_vars or {})
         self.notes_text = ""
         self.tags_text = ""
         self.instrumental = False
@@ -220,6 +242,9 @@ class FakeDetailsView:
 
     def refresh_view(self):
         self.refresh_calls += 1
+
+    def get_form_vars(self):
+        return self.form_vars
 
     def set_title_options(self, titles):
         self.title_values = list(titles)
@@ -1066,6 +1091,18 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.append_log = app.logs.append
         app.select_tab_by_id = lambda tab_id: setattr(app, "selected_tab", tab_id)
         app.status_text = lambda status: status
+        app.get_detail_form_vars = lambda: (
+            app.tab_system._instances["details"].get_form_vars()
+            if "details" in app.tab_system._instances
+            and hasattr(app.tab_system._instances["details"], "get_form_vars")
+            else getattr(app, "detail_vars", {})
+        )
+        app.get_release_form_vars = lambda: (
+            app.tab_system._instances["release"].get_form_state()
+            if "release" in app.tab_system._instances
+            and hasattr(app.tab_system._instances["release"], "get_form_state")
+            else dict(app.release_state_cache)
+        )
         return app
 
     def test_batch_controller_update_flow_applies_meta_progress_and_copy_label(self):
@@ -1148,7 +1185,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
     def test_project_controller_save_project_returns_false_when_dialog_cancelled(self):
         app = self.make_app_stub()
-        app.release_vars = {}
         app.cover_tab = SimpleNamespace(get_state=lambda: {})
         controller = ProjectController(app)
         controller.log = app.logs.append
@@ -1173,7 +1209,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
             "type": "EP",
             "cover_path": "/tmp/cover.png",
         }
-        app.release_vars = {}
         app.cover_tab = SimpleNamespace(get_state=lambda: {})
         controller = ProjectController(app)
         controller.log = app.logs.append
@@ -1205,7 +1240,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
             "layout": "center",
             "accent_color": "#ffaa00",
         }
-        app.release_vars = {}
         controller = ProjectController(app)
         controller.log = app.logs.append
         controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
@@ -1234,7 +1268,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.tab_system._instances["cover"] = SimpleNamespace(
             get_state=lambda: {"title": "Live Cover Title", "layout": "manual"}
         )
-        app.release_vars = {}
         controller = ProjectController(app)
         controller.log = app.logs.append
         controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
@@ -1260,7 +1293,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
     def test_project_controller_load_project_caches_cover_state_without_built_cover_tab(self):
         app = self.make_app_stub()
-        app.release_vars = {}
         app.overview_ctrl = SimpleNamespace(
             refresh_list=lambda: setattr(app, "overview_refreshed", True)
         )
@@ -1295,7 +1327,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
     def test_project_controller_load_project_updates_built_cover_tab_state(self):
         app = self.make_app_stub()
-        app.release_vars = {}
         app.overview_ctrl = SimpleNamespace(
             refresh_list=lambda: setattr(app, "overview_refreshed", True)
         )
@@ -1333,7 +1364,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
     def test_project_controller_load_project_caches_release_state_without_built_release_tab(self):
         app = self.make_app_stub()
-        app.release_vars = {}
         app.overview_ctrl = SimpleNamespace(
             refresh_list=lambda: setattr(app, "overview_refreshed", True)
         )
@@ -1520,15 +1550,16 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app = self.make_app_stub()
         app.detail_original_title = "Song A"
         app.current_detail_status = "ready"
-        app.detail_vars = {
+        details_view = FakeDetailsView(
+            form_vars={
             "title": FakeVar("Song A"),
             "duration": FakeVar(""),
             "composer": FakeVar(""),
             "production": FakeVar(""),
             "year": FakeVar(""),
             "audio_path": FakeVar(""),
-        }
-        details_view = FakeDetailsView()
+            }
+        )
         details_view.set_notes_text("updated A")
         details_view.set_tags_text("")
         details_view.set_instrumental(False)
@@ -1605,7 +1636,6 @@ class AppRegressionTests(TemporaryStorageTestCase):
         )
         release_view = FakeReleaseView()
         app.tab_system._instances["release"] = release_view
-        app.release_vars = {"cover_path": FakeVar(""), "export_dir": FakeVar("")}
         app.tasks.parse_dnd_files = lambda _data: [matched_path, matched_path]
 
         controller = ReleaseController(app)

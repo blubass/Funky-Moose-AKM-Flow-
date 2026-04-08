@@ -23,6 +23,14 @@ class DetailsController(BaseController):
         details_view = self._get_details_view()
         if details_view is not None and hasattr(details_view, "refresh_view"):
             details_view.refresh_view()
+
+    def _get_detail_form_vars(self):
+        details_view = self._get_details_view()
+        if details_view is not None and hasattr(details_view, "get_form_vars"):
+            return details_view.get_form_vars()
+        if hasattr(self.app, "get_detail_form_vars"):
+            return self.app.get_detail_form_vars()
+        return getattr(self.app, "detail_vars", {})
     
     def save_details(self):
         orig = self.app.detail_original_title
@@ -40,7 +48,7 @@ class DetailsController(BaseController):
                 instrumental = details_view.get_instrumental()
             else:
                 instrumental = self.app.detail_instrumental_var.get() if hasattr(self.app, 'detail_instrumental_var') else False
-            detail_values = {k: v.get().strip() for k, v in self.app.detail_vars.items()}
+            detail_values = {k: v.get().strip() for k, v in self._get_detail_form_vars().items()}
             
             from app_logic import detail_tools
             upd = detail_tools.build_detail_updates(
@@ -53,7 +61,7 @@ class DetailsController(BaseController):
 
     def clear_details_form(self):
         self.app.detail_original_title = None
-        for v in self.app.detail_vars.values(): v.set("")
+        for v in self._get_detail_form_vars().values(): v.set("")
         details_view = self._get_details_view()
         if details_view and hasattr(details_view, "clear_tags"):
             details_view.clear_tags()
@@ -87,12 +95,13 @@ class DetailsController(BaseController):
 
     def load_selected_title(self):
         """Loads data for a title chosen from the combobox."""
-        title = self.app.detail_vars["title"].get().strip()
+        detail_vars = self._get_detail_form_vars()
+        title = detail_vars["title"].get().strip()
         recs = self.state.get_all_records(False)
         match = next((r for r in recs if r.get("title") == title), None)
         if match:
             self.app.detail_original_title = title
-            for k, v in self.app.detail_vars.items():
+            for k, v in detail_vars.items():
                 v.set(str(match.get(k, "")))
             details_view = self._get_details_view()
             if details_view and hasattr(details_view, "set_notes_text"):
@@ -129,14 +138,15 @@ class DetailsController(BaseController):
 
     def _process_audio_path(self, p):
         """Internal logic to extract title/duration and match with existing database entries."""
-        self.app.detail_vars["audio_path"].set(p)
+        detail_vars = self._get_detail_form_vars()
+        detail_vars["audio_path"].set(p)
         filename = os.path.basename(p)
         title_guess = os.path.splitext(filename)[0].replace("_", " ").title()
         
         # Smart logic: If title is empty, use guess. If guess exists in DB, load it!
-        current_title = self.app.detail_vars["title"].get().strip()
+        current_title = detail_vars["title"].get().strip()
         if not current_title or current_title == title_guess:
-            self.app.detail_vars["title"].set(title_guess)
+            detail_vars["title"].set(title_guess)
             recs = self.state.get_all_records(False)
             match = next((r for r in recs if r.get("title") == title_guess), None)
             if match:
@@ -151,7 +161,7 @@ class DetailsController(BaseController):
         def _done(dur):
             if dur:
                 mins, secs = int(dur // 60), int(dur % 60)
-                self.app.detail_vars["duration"].set(f"{mins}:{secs:02d}")
+                detail_vars["duration"].set(f"{mins}:{secs:02d}")
                 self.log(f"Audio-Info erfasst: {title_guess} ({mins}:{secs:02d})")
             else:
                 self.log(f"Dauer konnte nicht gelesen werden: {filename}")
@@ -159,7 +169,8 @@ class DetailsController(BaseController):
         self.tasks.run(_extract, _done, busy_text="Metadaten-Analyse...")
 
     def open_audio_path_in_finder(self): 
-        p = self.app.detail_vars["audio_path"].get()
+        detail_vars = self._get_detail_form_vars()
+        p = detail_vars["audio_path"].get()
         if p and os.path.exists(p): ui_patterns.open_in_finder(p)
 
     def set_status_chip(self, s):
