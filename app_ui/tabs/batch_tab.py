@@ -21,8 +21,7 @@ class BatchTab(AkmPanel):
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
         self._setup_dnd()
-        self.app._set_batch_buttons_enabled = self._set_batch_buttons_enabled
-        self._set_batch_buttons_enabled(False)
+        self.set_batch_buttons_enabled(False)
 
     def build_ui(self):
         scroll_root = AkmScrollablePanel(self)
@@ -47,7 +46,7 @@ class BatchTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Flow Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        self.app.batch_status_label = AkmLabel(
+        self.batch_status_label = AkmLabel(
             status_left,
             text="Keine offenen Batch-Werke",
             fg=TEXT,
@@ -55,8 +54,8 @@ class BatchTab(AkmPanel):
             font=FONT_BOLD,
             anchor="w",
         )
-        self.app.batch_status_label.pack(fill="x", pady=(2, 2))
-        self.app.batch_hint_label = AkmSubLabel(
+        self.batch_status_label.pack(fill="x", pady=(2, 2))
+        self.batch_hint_label = AkmSubLabel(
             status_left,
             text="Importiere Excel oder lege neue Werke an, dann füllt sich die Queue automatisch.",
             bg=PANEL_2,
@@ -64,14 +63,14 @@ class BatchTab(AkmPanel):
             justify="left",
             wraplength=560,
         )
-        self.app.batch_hint_label.pack(fill="x")
-        self.app.batch_meta_label = AkmSubLabel(
+        self.batch_hint_label.pack(fill="x")
+        self.batch_meta_label = AkmSubLabel(
             status_left,
             text="In Arbeit: 0   •   Bereit: 0   •   Queue: 0",
             bg=PANEL_2,
             anchor="w",
         )
-        self.app.batch_meta_label.pack(fill="x", pady=(2, 0))
+        self.batch_meta_label.pack(fill="x", pady=(2, 0))
 
         self._reload_status_button = self.app.btn(status_right, "Neu laden", self.app.batch_ctrl.reload_flow_data, primary=True, width=118)
         self._reload_status_button.pack(anchor="e", pady=(0, SPACE_XS))
@@ -80,7 +79,7 @@ class BatchTab(AkmPanel):
         self._status_action_bar = status_actions
         self._status_action_buttons = (
             self.app.btn(status_actions, "Excel importieren", self.app.import_excel, quiet=True, width=132),
-            self.app.btn(status_actions, "Werk anlegen", lambda: self.app.add(self.app.batch_entry.get().strip()), quiet=True, width=126),
+            self.app.btn(status_actions, "Werk anlegen", lambda: self.app.add(self.get_quick_add_title()), quiet=True, width=126),
         )
 
         # --- FOCUS CARD ---
@@ -91,27 +90,27 @@ class BatchTab(AkmPanel):
             anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 0)
         )
 
-        self.app.flow_title = AkmHeader(focus_card.inner, text="Lade Werk...", fg=ACCENT, bg=PANEL_2)
-        self.app.flow_title.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
+        self.flow_title = AkmHeader(focus_card.inner, text="Lade Werk...", fg=ACCENT, bg=PANEL_2)
+        self.flow_title.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
 
         meta_row = tk.Frame(focus_card.inner, bg=PANEL_2)
         meta_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_MD))
-        self.app.flow_meta = AkmSubLabel(meta_row, text="", bg=PANEL_2)
-        self.app.flow_meta.pack(side="left")
+        self.flow_meta = AkmSubLabel(meta_row, text="", bg=PANEL_2)
+        self.flow_meta.pack(side="left")
 
         btn_row = AkmPanel(focus_card.inner, bg=PANEL_2)
         btn_row.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._focus_action_bar = btn_row
 
-        self.app.copy_button = self.app.btn(btn_row, "Titel kopieren", self.app.batch_ctrl.flow_copy, primary=True)
-        self._batch_action_buttons.append(self.app.copy_button)
+        self.copy_button = self.app.btn(btn_row, "Titel kopieren", self.app.batch_ctrl.flow_copy, primary=True)
+        self._batch_action_buttons.append(self.copy_button)
         submit_button = self.app.btn(btn_row, "Als gemeldet", self.app.batch_ctrl.flow_submit, primary=True)
         self._batch_action_buttons.append(submit_button)
         next_button = self.app.btn(btn_row, "Weiter →", self.app.batch_ctrl.flow_next, primary=True)
         self._batch_action_buttons.append(next_button)
         reload_button = self.app.btn(btn_row, "Neu laden", self.app.batch_ctrl.reload_flow_data, quiet=True)
         self._focus_action_buttons = (
-            self.app.copy_button,
+            self.copy_button,
             submit_button,
             next_button,
             reload_button,
@@ -125,11 +124,11 @@ class BatchTab(AkmPanel):
             anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS)
         )
 
-        self.app.progress_label = AkmLabel(progress_card.inner, text="0 / 0", fg=TEXT, bg=PANEL_2, font=FONT_BOLD)
-        self.app.progress_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
+        self.progress_label = AkmLabel(progress_card.inner, text="0 / 0", fg=TEXT, bg=PANEL_2, font=FONT_BOLD)
+        self.progress_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
 
-        self.app.progress = ttk.Progressbar(progress_card.inner, length=420)
-        self.app.progress.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        self.progress = ttk.Progressbar(progress_card.inner, length=420)
+        self.progress.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         # --- QUICK-ADD CARD ---
         add_card = AkmCard(page)
@@ -150,9 +149,9 @@ class BatchTab(AkmPanel):
         add_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._quick_add_bar = add_row
 
-        self.app.batch_entry = AkmEntry(add_row, width=40)
-        self.app.batch_entry.bind("<Return>", lambda _event: self.app.add(self.app.batch_entry.get().strip()))
-        self._quick_add_button = self.app.btn(add_row, "+ Werk anlegen", lambda: self.app.add(self.app.batch_entry.get().strip()), primary=True)
+        self.batch_entry = AkmEntry(add_row, width=40)
+        self.batch_entry.bind("<Return>", lambda _event: self.app.add(self.get_quick_add_title()))
+        self._quick_add_button = self.app.btn(add_row, "+ Werk anlegen", lambda: self.app.add(self.get_quick_add_title()), primary=True)
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
@@ -184,19 +183,42 @@ class BatchTab(AkmPanel):
         if target_mode == self._quick_add_mode:
             return
         self._quick_add_mode = target_mode
-        self.app.batch_entry.pack_forget()
+        self.batch_entry.pack_forget()
         self._quick_add_button.pack_forget()
         if target_mode == "stack":
-            self.app.batch_entry.pack(fill="x", expand=True, pady=(0, SPACE_XS), ipady=2)
+            self.batch_entry.pack(fill="x", expand=True, pady=(0, SPACE_XS), ipady=2)
             self._quick_add_button.pack(fill="x")
             return
-        self.app.batch_entry.pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
+        self.batch_entry.pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
         self._quick_add_button.pack(side="left")
 
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=300, maximum=840)
-        fit_wraplength(self.app.batch_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self.batch_hint_label, width, padding=260, minimum=260, maximum=620)
         fit_wraplength(self._quick_add_intro_label, width, padding=120, minimum=280, maximum=620)
+
+    def get_quick_add_title(self):
+        return self.batch_entry.get().strip()
+
+    def render_flow_state(self, *, title_text, meta_text, progress_value, progress_text, copy_button_label, status_text, hint_text, meta_summary, enabled):
+        self.flow_title.config(text=title_text)
+        self.flow_meta.config(text=meta_text)
+        self.progress["value"] = progress_value
+        self.progress_label.config(text=progress_text)
+        self.copy_button.config(text=copy_button_label)
+        self.batch_status_label.config(text=status_text)
+        self.batch_hint_label.config(text=hint_text)
+        self.batch_meta_label.config(text=meta_summary)
+        self.set_batch_buttons_enabled(enabled)
+
+    def render_empty_state(self):
+        self.flow_title.config(text="Alle Werke erledigt ✓")
+        self.flow_meta.config(text="Keine offenen Einträge in der Queue.")
+        self.progress["value"] = 100
+        self.progress_label.config(text="0 / 0")
+
+    def set_copy_button_label(self, text):
+        self.copy_button.config(text=text)
 
     def _setup_dnd(self):
         try:
@@ -220,10 +242,13 @@ class BatchTab(AkmPanel):
         except Exception as e:
             self.app.append_log(f"Batch DnD Fehler: {e}")
 
-    def _set_batch_buttons_enabled(self, enabled):
+    def set_batch_buttons_enabled(self, enabled):
         state = "normal" if enabled else "disabled"
         for button in self._batch_action_buttons:
             try:
                 button.config(state=state)
             except Exception:
                 pass
+
+    def _set_batch_buttons_enabled(self, enabled):
+        self.set_batch_buttons_enabled(enabled)

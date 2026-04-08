@@ -43,15 +43,15 @@ class AssistantTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Quick Launch Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        self.app.assistant_status_label = AkmLabel(
+        self.assistant_status_label = AkmLabel(
             status_left,
             text="Schnellstart bereit",
             bg=PANEL_2,
             anchor="w",
             font=FONT_LG,
         )
-        self.app.assistant_status_label.pack(fill="x", pady=(2, 2))
-        self.app.assistant_hint_label = AkmSubLabel(
+        self.assistant_status_label.pack(fill="x", pady=(2, 2))
+        self.assistant_hint_label = AkmSubLabel(
             status_left,
             text="Gib einen Titel ein, importiere Excel oder nutze die Status-Aktionen mit deiner Auswahl aus der Übersicht.",
             bg=PANEL_2,
@@ -59,16 +59,16 @@ class AssistantTab(AkmPanel):
             justify="left",
             wraplength=560,
         )
-        self.app.assistant_hint_label.pack(fill="x")
-        self.app.assistant_context_label = AkmSubLabel(
+        self.assistant_hint_label.pack(fill="x")
+        self.assistant_context_label = AkmSubLabel(
             status_left,
             text="Keine Eingabe aktiv | Excel-Import und Statuswechsel stehen bereit",
             bg=PANEL_2,
             anchor="w",
         )
-        self.app.assistant_context_label.pack(fill="x", pady=(2, 0))
+        self.assistant_context_label.pack(fill="x", pady=(2, 0))
 
-        self._create_button = self.app.btn(status_right, "Werk anlegen", lambda: self.app.add(self.app.assistant_entry.get().strip()), primary=True, width=136)
+        self._create_button = self.app.btn(status_right, "Werk anlegen", lambda: self.app.add(self.get_entry_title()), primary=True, width=136)
         self._create_button.pack(anchor="e", pady=(0, SPACE_XS))
         status_actions = tk.Frame(status_right, bg=PANEL_2)
         status_actions.pack(anchor="e")
@@ -90,16 +90,16 @@ class AssistantTab(AkmPanel):
         )
         self._intake_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
-        self.app.assistant_entry_var = tk.StringVar()
-        self.app.assistant_entry = AkmEntry(intake_card.inner, textvariable=self.app.assistant_entry_var, width=50, font=FONT_MD)
-        self.app.assistant_entry.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM), ipady=5)
-        self.app.assistant_entry.bind("<Return>", lambda _event: self.app.add(self.app.assistant_entry.get().strip()))
+        self.assistant_entry_var = tk.StringVar()
+        self.assistant_entry = AkmEntry(intake_card.inner, textvariable=self.assistant_entry_var, width=50, font=FONT_MD)
+        self.assistant_entry.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM), ipady=5)
+        self.assistant_entry.bind("<Return>", lambda _event: self.app.add(self.get_entry_title()))
 
         btn_row = AkmPanel(intake_card.inner, bg=PANEL_2)
         btn_row.pack(padx=CARD_PAD_X, pady=(0, SPACE_XS), anchor="w")
         self._quick_action_bar = btn_row
         self._quick_action_buttons = [
-            self.app.btn(btn_row, "Werk anlegen", lambda: self.app.add(self.app.assistant_entry.get().strip()), primary=True)
+            self.app.btn(btn_row, "Werk anlegen", lambda: self.app.add(self.get_entry_title()), primary=True)
         ]
         for label, status in assistant_tools.ASSISTANT_STATUS_ACTIONS:
             self._quick_action_buttons.append(self.app.btn(btn_row, label, lambda v=status: self.app.set_status(v)))
@@ -123,8 +123,9 @@ class AssistantTab(AkmPanel):
         )
         self._log_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         
-        self.app.log = AkmText(log_card.inner, height=10, bg=LOG_BG, fg=LOG_FG, insertbackground=LOG_FG)
-        self.app.log.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        self.log_widget = AkmText(log_card.inner, height=10, bg=LOG_BG, fg=LOG_FG, insertbackground=LOG_FG)
+        self.log_widget.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        self.app.log = self.log_widget
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
@@ -153,18 +154,18 @@ class AssistantTab(AkmPanel):
 
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=300, maximum=820)
-        fit_wraplength(self.app.assistant_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self.assistant_hint_label, width, padding=260, minimum=260, maximum=620)
         fit_wraplength(self._intake_intro_label, width, padding=120, minimum=280, maximum=620)
         fit_wraplength(self._log_intro_label, width, padding=120, minimum=280, maximum=760)
 
+    def get_entry_title(self):
+        return self.assistant_entry.get().strip()
+
     def _setup_entry_trace(self):
-        if hasattr(self.app, "assistant_entry_var"):
-            self.app.assistant_entry_var.trace_add("write", lambda *_args: self._update_assistant_radar())
+        self.assistant_entry_var.trace_add("write", lambda *_args: self._update_assistant_radar())
 
     def _update_assistant_radar(self):
-        if not hasattr(self.app, "assistant_entry"):
-            return
-        state = assistant_tools.build_assistant_radar_state(self.app.assistant_entry.get())
-        self.app.assistant_status_label.config(text=state["status_text"])
-        self.app.assistant_hint_label.config(text=state["hint_text"])
-        self.app.assistant_context_label.config(text=state["meta_text"])
+        state = assistant_tools.build_assistant_radar_state(self.get_entry_title())
+        self.assistant_status_label.config(text=state["status_text"])
+        self.assistant_hint_label.config(text=state["hint_text"])
+        self.assistant_context_label.config(text=state["meta_text"])

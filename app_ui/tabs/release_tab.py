@@ -40,7 +40,7 @@ class ReleaseTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Release Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        self.app.release_status_label = AkmLabel(
+        self.release_status_label = AkmLabel(
             status_left,
             text="0 Tracks im Release | Cover: Nein | Export-Ordner: Nein | Drag&Drop aktiv",
             bg=PANEL_2,
@@ -48,15 +48,15 @@ class ReleaseTab(AkmPanel):
             font=FONT_MD_BOLD,
             justify="left",
         )
-        self.app.release_status_label.pack(fill="x", pady=(2, 2))
-        self.app.release_action_hint_label = AkmSubLabel(
+        self.release_status_label.pack(fill="x", pady=(2, 2))
+        self.release_action_hint_label = AkmSubLabel(
             status_left,
             text="Werk 0  •  Datei→Werk 0  •  Datei 0",
             bg=PANEL_2,
             anchor="w",
             justify="left",
         )
-        self.app.release_action_hint_label.pack(fill="x")
+        self.release_action_hint_label.pack(fill="x")
 
         self._status_primary_button = self.app.btn(
             status_right,
@@ -161,15 +161,15 @@ class ReleaseTab(AkmPanel):
         list_frame = AkmPanel(right_card.inner, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
-        self.app.release_track_listbox = tk.Listbox(
+        self.release_track_listbox = tk.Listbox(
             list_frame, bg=FIELD_BG, fg=FIELD_FG, relief="flat", exportselection=False,
             font=FONT_SM, selectbackground=ACCENT, selectforeground="black",
             highlightthickness=0, activestyle="none", selectmode="extended"
         )
-        self.app.release_track_listbox.pack(side="left", fill="both", expand=True)
-        sb = tk.Scrollbar(list_frame, command=self.app.release_track_listbox.yview)
+        self.release_track_listbox.pack(side="left", fill="both", expand=True)
+        sb = tk.Scrollbar(list_frame, command=self.release_track_listbox.yview)
         sb.pack(side="right", fill="y")
-        self.app.release_track_listbox.config(yscrollcommand=sb.set)
+        self.release_track_listbox.config(yscrollcommand=sb.set)
 
         tk_actions = AkmPanel(right_card.inner, bg=PANEL_2)
         tk_actions.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
@@ -226,11 +226,27 @@ class ReleaseTab(AkmPanel):
     def _update_wraplengths(self, width):
         column_width = width if self._release_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=820)
-        fit_wraplength(self.app.release_status_label, width, padding=280, minimum=260, maximum=620)
-        fit_wraplength(self.app.release_action_hint_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.release_status_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.release_action_hint_label, width, padding=280, minimum=260, maximum=620)
         fit_wraplength(self._left_intro_label, column_width, padding=80, minimum=260, maximum=460)
         fit_wraplength(self._right_intro_label, column_width, padding=80, minimum=260, maximum=480)
         fit_wraplength(self._drop_zone_hint_label, column_width, padding=120, minimum=240, maximum=420)
+
+    def has_track_list(self):
+        return True
+
+    def render_release_state(self, track_labels, action_hint, status_text):
+        self.release_track_listbox.delete(0, tk.END)
+        if track_labels:
+            self.release_track_listbox.insert(tk.END, *track_labels)
+        self.release_action_hint_label.config(text=action_hint)
+        self.release_status_label.config(text=status_text)
+
+    def get_selected_track_indices(self):
+        return tuple(self.release_track_listbox.curselection())
+
+    def select_track_index(self, index):
+        self.release_track_listbox.selection_set(index)
 
     def _on_action_bar_resize(self, event):
         self._apply_release_action_layout(event.width)
@@ -282,7 +298,7 @@ class ReleaseTab(AkmPanel):
     def _setup_dnd(self):
         try:
             from tkinterdnd2 import DND_FILES
-            self.app.release_track_listbox.drop_target_register(DND_FILES)
-            self.app.release_track_listbox.dnd_bind('<<Drop>>', self.app.release_ctrl.handle_drop)
+            self.release_track_listbox.drop_target_register(DND_FILES)
+            self.release_track_listbox.dnd_bind('<<Drop>>', self.app.release_ctrl.handle_drop)
             self.app.append_log("Release DnD bereit.")
         except: pass

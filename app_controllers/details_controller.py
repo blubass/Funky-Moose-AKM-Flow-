@@ -12,20 +12,34 @@ class DetailsController(BaseController):
         super().__init__(app)
         self._title_signature = None
 
+    def _get_details_view(self):
+        if hasattr(self.app, "get_built_tab"):
+            return self.app.get_built_tab("details")
+        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("details")
+
     def refresh_view(self):
         """Refresh detail-tab chrome without overwriting unsaved form edits."""
         self.refresh_titles()
-        tab_system = getattr(self.app, "tab_system", None)
-        details_tab = getattr(tab_system, "_instances", {}).get("details") if tab_system else None
-        if details_tab is not None and hasattr(details_tab, "refresh_view"):
-            details_tab.refresh_view()
+        details_view = self._get_details_view()
+        if details_view is not None and hasattr(details_view, "refresh_view"):
+            details_view.refresh_view()
     
     def save_details(self):
         orig = self.app.detail_original_title
         if orig:
-            tags_text = self.app.detail_tags.get("1.0", "end-1c").strip() if hasattr(self.app, 'detail_tags') else ""
-            notes_text = self.app.detail_notes.get("1.0", "end-1c").strip() if hasattr(self.app, 'detail_notes') else ""
-            instrumental = self.app.detail_instrumental_var.get() if hasattr(self.app, 'detail_instrumental_var') else False
+            details_view = self._get_details_view()
+            if details_view and hasattr(details_view, "get_tags_text"):
+                tags_text = details_view.get_tags_text()
+            else:
+                tags_text = self.app.detail_tags.get("1.0", "end-1c").strip() if hasattr(self.app, 'detail_tags') else ""
+            if details_view and hasattr(details_view, "get_notes_text"):
+                notes_text = details_view.get_notes_text()
+            else:
+                notes_text = self.app.detail_notes.get("1.0", "end-1c").strip() if hasattr(self.app, 'detail_notes') else ""
+            if details_view and hasattr(details_view, "get_instrumental"):
+                instrumental = details_view.get_instrumental()
+            else:
+                instrumental = self.app.detail_instrumental_var.get() if hasattr(self.app, 'detail_instrumental_var') else False
             detail_values = {k: v.get().strip() for k, v in self.app.detail_vars.items()}
             
             from app_logic import detail_tools
@@ -40,11 +54,18 @@ class DetailsController(BaseController):
     def clear_details_form(self):
         self.app.detail_original_title = None
         for v in self.app.detail_vars.values(): v.set("")
-        if hasattr(self.app, 'detail_tags'):
+        details_view = self._get_details_view()
+        if details_view and hasattr(details_view, "clear_tags"):
+            details_view.clear_tags()
+        elif hasattr(self.app, 'detail_tags'):
             self.app.detail_tags.delete("1.0", tk.END)
-        if hasattr(self.app, 'detail_notes'):
+        if details_view and hasattr(details_view, "clear_notes"):
+            details_view.clear_notes()
+        elif hasattr(self.app, 'detail_notes'):
             self.app.detail_notes.delete("1.0", tk.END)
-        if hasattr(self.app, 'detail_instrumental_var'):
+        if details_view and hasattr(details_view, "set_instrumental"):
+            details_view.set_instrumental(False)
+        elif hasattr(self.app, 'detail_instrumental_var'):
             self.app.detail_instrumental_var.set(False)
         self.set_status_chip("in_progress")
 
@@ -52,10 +73,15 @@ class DetailsController(BaseController):
         """Updates the Title combobox with current records."""
         recs = self.state.get_all_records(False)
         signature = (self.state._get_data_mtime(), len(recs))
-        if signature == self._title_signature and hasattr(self.app, 'detail_title_combo'):
+        details_view = self._get_details_view()
+        if signature == self._title_signature and (
+            (details_view and hasattr(details_view, "set_title_options")) or hasattr(self.app, 'detail_title_combo')
+        ):
             return
         titles = sorted([r.get("title", "") for r in recs if r.get("title")])
-        if hasattr(self.app, 'detail_title_combo'):
+        if details_view and hasattr(details_view, "set_title_options"):
+            details_view.set_title_options(titles)
+        elif hasattr(self.app, 'detail_title_combo'):
             self.app.detail_title_combo.config(values=titles)
         self._title_signature = signature
 
@@ -68,17 +94,24 @@ class DetailsController(BaseController):
             self.app.detail_original_title = title
             for k, v in self.app.detail_vars.items():
                 v.set(str(match.get(k, "")))
-            if hasattr(self.app, 'detail_notes'):
+            details_view = self._get_details_view()
+            if details_view and hasattr(details_view, "set_notes_text"):
+                details_view.set_notes_text(match.get("notes", ""))
+            elif hasattr(self.app, 'detail_notes'):
                 self.app.detail_notes.delete("1.0", tk.END)
                 self.app.detail_notes.insert("1.0", match.get("notes", ""))
             # Load Tags
-            if hasattr(self.app, 'detail_tags'):
-                raw_tags = match.get("tags", [])
-                tags_text = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+            raw_tags = match.get("tags", [])
+            tags_text = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+            if details_view and hasattr(details_view, "set_tags_text"):
+                details_view.set_tags_text(tags_text)
+            elif hasattr(self.app, 'detail_tags'):
                 self.app.detail_tags.delete("1.0", tk.END)
                 self.app.detail_tags.insert("1.0", tags_text)
             # Load Instrumental flag
-            if hasattr(self.app, 'detail_instrumental_var'):
+            if details_view and hasattr(details_view, "set_instrumental"):
+                details_view.set_instrumental(bool(match.get("instrumental", False)))
+            elif hasattr(self.app, 'detail_instrumental_var'):
                 self.app.detail_instrumental_var.set(bool(match.get("instrumental", False)))
             self.set_status_chip(match.get("status", "in_progress"))
             self.log(f"Werk geladen: {title}")
@@ -131,7 +164,12 @@ class DetailsController(BaseController):
 
     def set_status_chip(self, s):
         self.app.current_detail_status = s or "in_progress"
+        status_label = self.app.status_text(s)
+        details_view = self._get_details_view()
+        if details_view and hasattr(details_view, "set_status_chip_display"):
+            details_view.set_status_chip_display(s, status_label)
+            return
         if hasattr(self.app, 'detail_status_var') and self.app.detail_status_var: 
-            self.app.detail_status_var.set(self.app.status_text(s))
+            self.app.detail_status_var.set(status_label)
         if hasattr(self.app, 'detail_status_chip') and self.app.detail_status_chip: 
-            ui_patterns.style_chip_label(self.app.detail_status_chip, s, self.app.status_text(s))
+            ui_patterns.style_chip_label(self.app.detail_status_chip, s, status_label)

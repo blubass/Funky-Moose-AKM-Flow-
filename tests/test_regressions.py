@@ -110,6 +110,22 @@ class FakeLabel:
         self.options.update(kwargs)
 
 
+class FakeBatchView:
+    def __init__(self):
+        self.flow_state = None
+        self.empty_rendered = False
+        self.copy_button_text = None
+
+    def render_flow_state(self, **kwargs):
+        self.flow_state = kwargs
+
+    def render_empty_state(self):
+        self.empty_rendered = True
+
+    def set_copy_button_label(self, text):
+        self.copy_button_text = text
+
+
 class FakeMessagebox:
     def __init__(self, response):
         self.response = response
@@ -135,6 +151,106 @@ class FakeReleaseListbox:
 
     def insert(self, _index, value):
         self.items.append(value)
+
+
+class FakeReleaseView:
+    def __init__(self, selection=()):
+        self.selection = tuple(selection)
+        self.selected_index = None
+        self.track_labels = []
+        self.action_hint = None
+        self.status_text = None
+
+    def has_track_list(self):
+        return True
+
+    def render_release_state(self, track_labels, action_hint, status_text):
+        self.track_labels = list(track_labels)
+        self.action_hint = action_hint
+        self.status_text = status_text
+
+    def get_selected_track_indices(self):
+        return self.selection
+
+    def select_track_index(self, index):
+        self.selected_index = index
+
+
+class FakeOverviewView:
+    def __init__(self, selection=()):
+        self.selection = tuple(selection)
+        self.list_items = []
+        self.row_statuses = []
+        self.summary_text = None
+        self.status_text = None
+        self.hint_text = None
+        self.empty_text = None
+        self.empty_visible = None
+        self.filter_chip_texts = {}
+        self.filter_chip_selected = {}
+
+    def render_overview_records(self, labels, row_statuses):
+        self.list_items = list(labels)
+        self.row_statuses = list(row_statuses)
+
+    def render_overview_meta(self, *, summary_text, status_text, hint_text, empty_text, show_empty):
+        self.summary_text = summary_text
+        self.status_text = status_text
+        self.hint_text = hint_text
+        self.empty_text = empty_text
+        self.empty_visible = show_empty
+
+    def update_filter_chip(self, status_key, text, selected=False):
+        self.filter_chip_texts[status_key] = text
+        self.filter_chip_selected[status_key] = selected
+
+    def get_selected_indices(self):
+        return self.selection
+
+
+class FakeDetailsView:
+    def __init__(self):
+        self.title_values = []
+        self.notes_text = ""
+        self.tags_text = ""
+        self.instrumental = False
+        self.status_key = None
+        self.status_text = None
+        self.refresh_calls = 0
+
+    def refresh_view(self):
+        self.refresh_calls += 1
+
+    def set_title_options(self, titles):
+        self.title_values = list(titles)
+
+    def get_notes_text(self):
+        return self.notes_text
+
+    def set_notes_text(self, text):
+        self.notes_text = text or ""
+
+    def clear_notes(self):
+        self.notes_text = ""
+
+    def get_tags_text(self):
+        return self.tags_text
+
+    def set_tags_text(self, text):
+        self.tags_text = text or ""
+
+    def clear_tags(self):
+        self.tags_text = ""
+
+    def get_instrumental(self):
+        return self.instrumental
+
+    def set_instrumental(self, value):
+        self.instrumental = bool(value)
+
+    def set_status_chip_display(self, status_key, status_label):
+        self.status_key = status_key
+        self.status_text = status_label
 
 
 class FakeListbox:
@@ -944,6 +1060,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.state = FakeState(records=records, mtime=mtime)
         app.tasks = ImmediateTaskRunner()
         app.tab_system = SimpleNamespace(_instances={})
+        app.get_built_tab = lambda tab_id: app.tab_system._instances.get(tab_id)
         app.cover_state_cache = {}
         app.release_state_cache = {}
         app.append_log = app.logs.append
@@ -963,26 +1080,22 @@ class AppRegressionTests(TemporaryStorageTestCase):
             }
         ]
         app.copy_stage = "duration"
-        app.flow_title = FakeLabel()
-        app.flow_meta = FakeLabel()
-        app.progress_label = FakeLabel()
-        app.progress = FakeProgress()
-        app.copy_button = FakeLabel()
-        app._set_batch_buttons_enabled = lambda enabled: setattr(app, "batch_enabled", enabled)
+        batch_view = FakeBatchView()
+        app.tab_system._instances["batch"] = batch_view
 
         controller = BatchController(app)
         controller.update_flow()
 
         self.assertEqual("Song A", app.current_title)
-        self.assertEqual("Song A", app.flow_title.options["text"])
+        self.assertEqual("Song A", batch_view.flow_state["title_text"])
         self.assertEqual(
             "Komponist: Uwe   Dauer: 3:11   Produktion: FM   Jahr: 2026",
-            app.flow_meta.options["text"],
+            batch_view.flow_state["meta_text"],
         )
-        self.assertEqual("1 / 1", app.progress_label.options["text"])
-        self.assertEqual(100.0, app.progress["value"])
-        self.assertEqual("Dauer kopieren", app.copy_button.options["text"])
-        self.assertTrue(app.batch_enabled)
+        self.assertEqual("1 / 1", batch_view.flow_state["progress_text"])
+        self.assertEqual(100.0, batch_view.flow_state["progress_value"])
+        self.assertEqual("Dauer kopieren", batch_view.flow_state["copy_button_label"])
+        self.assertTrue(batch_view.flow_state["enabled"])
 
     def test_project_controller_import_done_logs_summary_and_refreshes_overview(self):
         app = self.make_app_stub()
@@ -1354,24 +1467,21 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.status_filter_var = FakeVar("all")
         app.sort_key_var = FakeVar("title")
         app.sort_desc_var = FakeVar(False)
-        app.listbox = FakeListbox()
-        app.listbox.items = ["Stale Row"]
-        app.overview_summary_label = FakeLabel()
-        app.overview_filter_chips = {
-            key: FakeLabel()
-            for key in ["all", "open", "in_progress", "ready", "submitted", "confirmed"]
-        }
+        overview_view = FakeOverviewView()
+        overview_view.list_items = ["Stale Row"]
+        app.tab_system._instances["overview"] = overview_view
 
         controller = OverviewController(app)
         controller.refresh_list()
 
         self.assertEqual([], app.state.filtered_records)
-        self.assertEqual([], app.listbox.items)
+        self.assertEqual([], overview_view.list_items)
         self.assertEqual(
             "0 Treffer   •   Sortierung: Titel aufsteigend",
-            app.overview_summary_label.options["text"],
+            overview_view.summary_text,
         )
-        self.assertEqual("all  0", app.overview_filter_chips["all"].options["text"])
+        self.assertEqual("all  0", overview_view.filter_chip_texts["all"])
+        self.assertTrue(overview_view.filter_chip_selected["all"])
 
     def test_details_controller_save_details_updates_loaded_record(self):
         self.save_entries(
@@ -1418,9 +1528,11 @@ class AppRegressionTests(TemporaryStorageTestCase):
             "year": FakeVar(""),
             "audio_path": FakeVar(""),
         }
-        app.detail_tags = FakeText("")
-        app.detail_notes = FakeText("updated A")
-        app.detail_instrumental_var = FakeVar(False)
+        details_view = FakeDetailsView()
+        details_view.set_notes_text("updated A")
+        details_view.set_tags_text("")
+        details_view.set_instrumental(False)
+        app.tab_system._instances["details"] = details_view
         app.overview_ctrl = SimpleNamespace(
             _on_g_done=lambda result, message: setattr(app, "saved_payload", (result, message))
         )
@@ -1437,16 +1549,16 @@ class AppRegressionTests(TemporaryStorageTestCase):
     def test_details_controller_set_status_chip_updates_public_state(self):
         app = self.make_app_stub()
         app.current_detail_status = "in_progress"
-        app.detail_status_var = FakeVar("")
-        app.detail_status_chip = FakeLabel()
+        details_view = FakeDetailsView()
+        app.tab_system._instances["details"] = details_view
         app.status_text = lambda status: f"label:{status}"
 
         controller = DetailsController(app)
         controller.set_status_chip("ready")
 
         self.assertEqual("ready", app.current_detail_status)
-        self.assertEqual("label:ready", app.detail_status_var.get())
-        self.assertEqual("label:ready", app.detail_status_chip.options["text"])
+        self.assertEqual("ready", details_view.status_key)
+        self.assertEqual("label:ready", details_view.status_text)
 
     def test_loudness_controller_import_filtered_works_updates_state_and_labels(self):
         app = self.make_app_stub()
@@ -1491,9 +1603,8 @@ class AppRegressionTests(TemporaryStorageTestCase):
                 }
             ]
         )
-        app.release_track_listbox = FakeReleaseListbox()
-        app.release_action_hint_label = FakeLabel()
-        app.release_status_label = FakeLabel()
+        release_view = FakeReleaseView()
+        app.tab_system._instances["release"] = release_view
         app.release_vars = {"cover_path": FakeVar(""), "export_dir": FakeVar("")}
         app.tasks.parse_dnd_files = lambda _data: [matched_path, matched_path]
 
@@ -1505,7 +1616,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
         self.assertEqual(1, len(app.state.release_tracks))
         self.assertEqual("Datei→Werk", app.state.release_tracks[0]["source"])
-        self.assertEqual("01. Intro | 1:11 | Prod | 2026 | Datei→Werk", app.release_track_listbox.items[0])
+        self.assertEqual("01. Intro | 1:11 | Prod | 2026 | Datei→Werk", release_view.track_labels[0])
         self.assertIn("Release DnD: 1 Tracks hinzugefügt.", app.logs)
         self.assertEqual("1 TRACKS HINZUGEFÜGT", app.toasts[0])
 

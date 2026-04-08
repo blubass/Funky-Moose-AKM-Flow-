@@ -234,6 +234,10 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         if tab_id in self.tab_system.map:
             self.tab_system.notebook.select(self.tab_system.map[tab_id])
 
+    def get_built_tab(self, tab_id):
+        """Returns an already instantiated tab without triggering lazy construction."""
+        return getattr(self.tab_system, "_instances", {}).get(tab_id)
+
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""
         self.select_tab_by_id("loudness")

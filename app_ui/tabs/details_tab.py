@@ -1,5 +1,6 @@
 import os
 import tkinter as tk
+import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm,
     AkmEntry, AkmText, AkmCheckbutton, AkmScrollablePanel,
@@ -64,7 +65,7 @@ class DetailsTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Werk Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        self.app.details_status_label = AkmLabel(
+        self.details_status_label = AkmLabel(
             status_left,
             text="Noch kein Werk geladen",
             bg=PANEL_2,
@@ -72,8 +73,8 @@ class DetailsTab(AkmPanel):
             font=FONT_MD_BOLD,
             justify="left",
         )
-        self.app.details_status_label.pack(fill="x", pady=(2, 2))
-        self.app.details_hint_label = AkmSubLabel(
+        self.details_status_label.pack(fill="x", pady=(2, 2))
+        self.details_hint_label = AkmSubLabel(
             status_left,
             text="Wähle ein bestehendes Werk, lege einen Titel an oder ziehe eine Audiodatei direkt auf den Tab.",
             bg=PANEL_2,
@@ -81,15 +82,15 @@ class DetailsTab(AkmPanel):
             justify="left",
             wraplength=560,
         )
-        self.app.details_hint_label.pack(fill="x")
-        self.app.details_context_label = AkmSubLabel(
+        self.details_hint_label.pack(fill="x")
+        self.details_context_label = AkmSubLabel(
             status_left,
             text="Audio: keines   •   Status: —   •   Instrumental: Nein",
             bg=PANEL_2,
             anchor="w",
             justify="left",
         )
-        self.app.details_context_label.pack(fill="x", pady=(2, 0))
+        self.details_context_label.pack(fill="x", pady=(2, 0))
 
         self.app.btn(status_right, "Speichern", self.app.details_ctrl.save_details, primary=True, width=126).pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(status_right, bg=PANEL_2)
@@ -133,8 +134,8 @@ class DetailsTab(AkmPanel):
             
             if key == "title":
                 # Special Case: Title is a Combobox for quick selection/search
-                self.app.detail_title_combo = left_form.add_combobox(label, var, [])
-                self.app.detail_title_combo.bind("<<ComboboxSelected>>", lambda e: self.app.details_ctrl.load_selected_title())
+                self.detail_title_combo = left_form.add_combobox(label, var, [])
+                self.detail_title_combo.bind("<<ComboboxSelected>>", lambda e: self.app.details_ctrl.load_selected_title())
             elif key == "audio_path":
                 def _create_audio_field(parent):
                     wrap = tk.Frame(parent, bg=PANEL_2)
@@ -147,19 +148,19 @@ class DetailsTab(AkmPanel):
             else:
                 left_form.add_entry(label, var)
 
-        self.app.detail_instrumental_var = tk.BooleanVar(value=False)
-        left_form.add_checkbox("Instrumental", self.app.detail_instrumental_var)
+        self.detail_instrumental_var = tk.BooleanVar(value=False)
+        left_form.add_checkbox("Instrumental", self.detail_instrumental_var)
 
         # Status Chip Row (Custom row in form)
         def _create_status_row(parent):
             wrap = tk.Frame(parent, bg=PANEL_2)
-            self.app.detail_status_var = tk.StringVar(value="—")
-            self.app.detail_status_chip = tk.Label(
-                wrap, textvariable=self.app.detail_status_var,
+            self.detail_status_var = tk.StringVar(value="—")
+            self.detail_status_chip = tk.Label(
+                wrap, textvariable=self.detail_status_var,
                 fg=TEXT, bg=PANEL, font=FONT_BOLD,
                 padx=12, pady=5, bd=1, relief="solid"
             )
-            self.app.detail_status_chip.pack(anchor="w", pady=(0, SPACE_SM))
+            self.detail_status_chip.pack(anchor="w", pady=(0, SPACE_SM))
             
             btn_row = tk.Frame(wrap, bg=PANEL_2)
             btn_row.pack(anchor="w")
@@ -182,8 +183,8 @@ class DetailsTab(AkmPanel):
         self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         right_form = AkmForm(right_card.inner, padx=CARD_PAD_X, pady=0)
         right_form.pack(fill="both", expand=True)
-        self.app.detail_tags = right_form.add_text("Tags (Kommata)", height=4)
-        self.app.detail_notes = right_form.add_text("Notizen", height=12)
+        self.detail_tags = right_form.add_text("Tags (Kommata)", height=4)
+        self.detail_notes = right_form.add_text("Notizen", height=12)
 
         # GLOBAL ACTIONS
         actions = AkmPanel(self)
@@ -237,9 +238,9 @@ class DetailsTab(AkmPanel):
     def _update_wraplengths(self, width):
         column_width = width if self._detail_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=780)
-        fit_wraplength(self.app.details_status_label, width, padding=280, minimum=260, maximum=620)
-        fit_wraplength(self.app.details_hint_label, width, padding=260, minimum=260, maximum=620)
-        fit_wraplength(self.app.details_context_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.details_status_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.details_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self.details_context_label, width, padding=280, minimum=260, maximum=620)
         fit_wraplength(self._left_intro_label, column_width, padding=80, minimum=260, maximum=460)
         fit_wraplength(self._right_intro_label, column_width, padding=80, minimum=260, maximum=460)
 
@@ -248,10 +249,8 @@ class DetailsTab(AkmPanel):
         for key in ("title", "audio_path", "composer", "duration", "year"):
             if key in self.app.detail_vars:
                 tracked.append(self.app.detail_vars[key])
-        if hasattr(self.app, "detail_instrumental_var"):
-            tracked.append(self.app.detail_instrumental_var)
-        if hasattr(self.app, "detail_status_var"):
-            tracked.append(self.app.detail_status_var)
+        tracked.append(self.detail_instrumental_var)
+        tracked.append(self.detail_status_var)
 
         for var in tracked:
             var.trace_add("write", lambda *args: self._update_detail_radar())
@@ -262,23 +261,53 @@ class DetailsTab(AkmPanel):
             return ""
         return (var.get() or "").strip()
 
+    def set_title_options(self, titles):
+        self.detail_title_combo.config(values=titles)
+
+    def get_notes_text(self):
+        return self.detail_notes.get("1.0", "end-1c").strip()
+
+    def set_notes_text(self, text):
+        self.detail_notes.delete("1.0", tk.END)
+        self.detail_notes.insert("1.0", text or "")
+
+    def clear_notes(self):
+        self.detail_notes.delete("1.0", tk.END)
+
+    def get_tags_text(self):
+        return self.detail_tags.get("1.0", "end-1c").strip()
+
+    def set_tags_text(self, text):
+        self.detail_tags.delete("1.0", tk.END)
+        self.detail_tags.insert("1.0", text or "")
+
+    def clear_tags(self):
+        self.detail_tags.delete("1.0", tk.END)
+
+    def get_instrumental(self):
+        return bool(self.detail_instrumental_var.get())
+
+    def set_instrumental(self, value):
+        self.detail_instrumental_var.set(bool(value))
+
+    def set_status_chip_display(self, status_key, status_label):
+        self.detail_status_var.set(status_label)
+        ui_patterns.style_chip_label(self.detail_status_chip, status_key, status_label)
+
     def _update_detail_radar(self):
         title = self._detail_value("title")
         audio_path = self._detail_value("audio_path")
         composer = self._detail_value("composer")
         duration = self._detail_value("duration")
         year = self._detail_value("year")
-        instrumental = bool(self.app.detail_instrumental_var.get()) if hasattr(self.app, "detail_instrumental_var") else False
-        status_text = self.app.detail_status_var.get().strip() if hasattr(self.app, "detail_status_var") and self.app.detail_status_var.get() else "—"
-
-        if not hasattr(self.app, "details_status_label"):
-            return
+        instrumental = bool(self.detail_instrumental_var.get())
+        status_text = self.detail_status_var.get().strip() if self.detail_status_var.get() else "—"
 
         if title:
             headline = f"{title} | Status: {status_text}"
         else:
             headline = f"Noch kein Werk geladen | Status: {status_text}"
-        self.app.details_status_label.config(text=headline)
+        self.details_status_label.config(text=headline)
 
         context_parts = []
         if composer:
@@ -298,7 +327,7 @@ class DetailsTab(AkmPanel):
         else:
             context_parts.insert(0, "Audio: keines")
 
-        self.app.details_context_label.config(text="   •   ".join(context_parts))
+        self.details_context_label.config(text="   •   ".join(context_parts))
 
         if not title and not audio_path:
             hint = "Wähle ein bestehendes Werk oder ziehe eine Audiodatei hier hinein, damit Titel und Dauer schneller zusammenfinden."
@@ -311,4 +340,4 @@ class DetailsTab(AkmPanel):
         else:
             hint = "Werk und Audio sind verbunden. Jetzt noch Notizen, Tags oder Status nachziehen und sauber speichern."
 
-        self.app.details_hint_label.config(text=hint)
+        self.details_hint_label.config(text=hint)

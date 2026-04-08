@@ -14,6 +14,54 @@ class ReleaseController(BaseController):
         super().__init__(app)
         self._last_view_signature = None
 
+    def _get_release_view(self):
+        if hasattr(self.app, "get_built_tab"):
+            return self.app.get_built_tab("release")
+        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("release")
+
+    def _has_release_track_list(self):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "has_track_list"):
+            return bool(release_view.has_track_list())
+        return hasattr(self.app, "release_track_listbox")
+
+    def _render_legacy_release_view(self, signature):
+        if hasattr(self.app, 'release_track_listbox'):
+            self.app.release_track_listbox.delete(0, tk.END)
+            for i, t in enumerate(self.state.release_tracks):
+                label = release_view_tools.build_release_track_row_label(i + 1, t)
+                self.app.release_track_listbox.insert(tk.END, label)
+        if hasattr(self.app, "release_action_hint_label"):
+            counts = release_view_tools.build_release_source_counts(self.state.release_tracks)
+            self.app.release_action_hint_label.config(
+                text=release_view_tools.build_release_action_hint(counts)
+            )
+        if hasattr(self.app, "release_status_label") and self.app.release_status_label:
+            _track_signature, cover_path, export_dir, _has_listbox = signature
+            self.app.release_status_label.config(
+                text=release_view_tools.build_release_status_text(
+                    len(self.state.release_tracks),
+                    bool(cover_path),
+                    bool(export_dir),
+                    self._has_release_track_list(),
+                )
+            )
+
+    def _get_selected_track_indices(self):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "get_selected_track_indices"):
+            return tuple(release_view.get_selected_track_indices())
+        if hasattr(self.app, "release_track_listbox"):
+            return tuple(self.app.release_track_listbox.curselection())
+        return ()
+
+    def _select_track_index(self, index):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "select_track_index"):
+            release_view.select_track_index(index)
+        elif hasattr(self.app, "release_track_listbox"):
+            self.app.release_track_listbox.selection_set(index)
+
     def _build_view_signature(self):
         cover_path = ""
         export_dir = ""
@@ -26,7 +74,7 @@ class ReleaseController(BaseController):
             (track.get("audio_path") or "", track.get("title") or "", track.get("source") or "")
             for track in self.state.release_tracks
         )
-        return (track_signature, cover_path, export_dir, hasattr(self.app, "release_track_listbox"))
+        return (track_signature, cover_path, export_dir, self._has_release_track_list())
     
     def handle_drop(self, event):
         data = event.data
@@ -71,26 +119,26 @@ class ReleaseController(BaseController):
         signature = self._build_view_signature()
         if not force and signature == self._last_view_signature:
             return
-        if hasattr(self.app, 'release_track_listbox'):
-            self.app.release_track_listbox.delete(0, tk.END)
-            for i, t in enumerate(self.state.release_tracks): 
-                label = release_view_tools.build_release_track_row_label(i + 1, t)
-                self.app.release_track_listbox.insert(tk.END, label)
-        if hasattr(self.app, "release_action_hint_label"):
+        release_view = self._get_release_view()
+        if release_view and hasattr(release_view, "render_release_state"):
             counts = release_view_tools.build_release_source_counts(self.state.release_tracks)
-            self.app.release_action_hint_label.config(
-                text=release_view_tools.build_release_action_hint(counts)
-            )
-        if hasattr(self.app, "release_status_label") and self.app.release_status_label:
+            track_labels = [
+                release_view_tools.build_release_track_row_label(i + 1, track)
+                for i, track in enumerate(self.state.release_tracks)
+            ]
             _track_signature, cover_path, export_dir, _has_listbox = signature
-            self.app.release_status_label.config(
-                text=release_view_tools.build_release_status_text(
+            release_view.render_release_state(
+                track_labels=track_labels,
+                action_hint=release_view_tools.build_release_action_hint(counts),
+                status_text=release_view_tools.build_release_status_text(
                     len(self.state.release_tracks),
                     bool(cover_path),
                     bool(export_dir),
-                    hasattr(self.app, "release_track_listbox"),
-                )
+                    self._has_release_track_list(),
+                ),
             )
+        else:
+            self._render_legacy_release_view(signature)
         self._last_view_signature = signature
 
     def choose_cover(self): 
@@ -124,7 +172,7 @@ class ReleaseController(BaseController):
                            lambda r: self.log(r[1]), busy_text="Exportiere...")
 
     def move_track_up(self):
-        selection = self.app.release_track_listbox.curselection()
+        selection = self._get_selected_track_indices()
         if not selection:
             return
             
@@ -132,10 +180,10 @@ class ReleaseController(BaseController):
         if index > 0:
             self.state.release_tracks[index], self.state.release_tracks[index-1] = self.state.release_tracks[index-1], self.state.release_tracks[index]
             self.refresh_view()
-            self.app.release_track_listbox.selection_set(index-1)
+            self._select_track_index(index-1)
 
     def move_track_down(self):
-        selection = self.app.release_track_listbox.curselection()
+        selection = self._get_selected_track_indices()
         if not selection:
             return
             
@@ -143,10 +191,10 @@ class ReleaseController(BaseController):
         if index < len(self.state.release_tracks) - 1:
             self.state.release_tracks[index], self.state.release_tracks[index+1] = self.state.release_tracks[index+1], self.state.release_tracks[index]
             self.refresh_view()
-            self.app.release_track_listbox.selection_set(index+1)
+            self._select_track_index(index+1)
 
     def remove_track(self): 
-        selection = sorted(self.app.release_track_listbox.curselection(), reverse=True)
+        selection = sorted(self._get_selected_track_indices(), reverse=True)
         if selection:
             for idx in selection:
                 if 0 <= idx < len(self.state.release_tracks):

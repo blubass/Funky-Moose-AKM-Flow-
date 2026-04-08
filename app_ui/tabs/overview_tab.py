@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG,
@@ -15,6 +16,7 @@ class OverviewTab(AkmPanel):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.filter_chips = {}
         self._filter_layout_mode = None
         self._status_action_mode = None
         self._bottom_action_mode = None
@@ -44,15 +46,15 @@ class OverviewTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Catalog Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        self.app.overview_status_label = AkmLabel(
+        self.overview_status_label = AkmLabel(
             status_left,
             text="Noch keine Werke im Katalog",
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
         )
-        self.app.overview_status_label.pack(fill="x", pady=(2, 2))
-        self.app.overview_hint_label = AkmSubLabel(
+        self.overview_status_label.pack(fill="x", pady=(2, 2))
+        self.overview_hint_label = AkmSubLabel(
             status_left,
             text="Lege neue Werke an oder importiere eine Excel-Datei, damit sich die Übersicht füllt.",
             bg=PANEL_2,
@@ -60,7 +62,7 @@ class OverviewTab(AkmPanel):
             justify="left",
             wraplength=560,
         )
-        self.app.overview_hint_label.pack(fill="x")
+        self.overview_hint_label.pack(fill="x")
 
         self._refresh_button = self.app.btn(status_right, "Aktualisieren", self.app.refresh_list, primary=True, width=126)
         self._refresh_button.pack(anchor="e", pady=(0, SPACE_XS))
@@ -103,7 +105,7 @@ class OverviewTab(AkmPanel):
             )
             chip.pack(side="left", padx=(0, 4))
             chip.bind("<Button-1>", lambda _e, v=value: self.app._set_overview_status_filter(v))
-            self.app.overview_filter_chips[value] = chip
+            self.filter_chips[value] = chip
 
         sort_row = AkmPanel(controls_card.inner, bg=PANEL_2)
         sort_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_XS))
@@ -119,8 +121,8 @@ class OverviewTab(AkmPanel):
         self.app.sort_desc_var = tk.BooleanVar(value=False)
         AkmCheckbutton(sort_row, text="Absteigend", variable=self.app.sort_desc_var, command=self.app.refresh_list, bg=PANEL_2).pack(side="left")
 
-        self.app.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
-        self.app.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        self.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
+        self.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         list_card = AkmCard(page)
         list_card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -137,20 +139,20 @@ class OverviewTab(AkmPanel):
         list_frame = AkmPanel(list_card.inner, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_XS))
 
-        self.app.listbox = tk.Listbox(
+        self.listbox = tk.Listbox(
             list_frame, bg=FIELD_BG, fg=FIELD_FG, relief="flat", exportselection=False,
             font=FONT_SM, selectbackground=ACCENT, selectforeground="black",
             highlightthickness=0, activestyle="none", selectmode="extended"
         )
-        self.app.listbox.pack(side="left", fill="both", expand=True)
-        self.app.listbox.bind("<Double-1>", self.app.on_listbox_activate)
-        self.app.listbox.bind("<Return>", lambda _event: self.app.load_selected_into_details())
+        self.listbox.pack(side="left", fill="both", expand=True)
+        self.listbox.bind("<Double-1>", self.app.on_listbox_activate)
+        self.listbox.bind("<Return>", lambda _event: self.app.load_selected_into_details())
 
-        sb = tk.Scrollbar(list_frame, command=self.app.listbox.yview)
+        sb = tk.Scrollbar(list_frame, command=self.listbox.yview)
         sb.pack(side="right", fill="y")
-        self.app.listbox.config(yscrollcommand=sb.set)
+        self.listbox.config(yscrollcommand=sb.set)
 
-        self.app.overview_empty_label = AkmSubLabel(
+        self.overview_empty_label = AkmSubLabel(
             list_card.inner,
             text="Noch keine sichtbaren Werke.",
             bg=PANEL_2,
@@ -159,7 +161,7 @@ class OverviewTab(AkmPanel):
         )
 
         bottom_actions = AkmPanel(list_card.inner, bg=PANEL_2)
-        self.app.overview_bottom_actions = bottom_actions
+        self.overview_bottom_actions = bottom_actions
         bottom_actions.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._bottom_action_bar = bottom_actions
         self._bottom_action_buttons = (
@@ -234,6 +236,33 @@ class OverviewTab(AkmPanel):
 
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=320, maximum=880)
-        fit_wraplength(self.app.overview_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self.overview_hint_label, width, padding=260, minimum=260, maximum=620)
         fit_wraplength(self._list_intro_label, width, padding=120, minimum=320, maximum=820)
-        fit_wraplength(self.app.overview_empty_label, width, padding=120, minimum=320, maximum=820)
+        fit_wraplength(self.overview_empty_label, width, padding=120, minimum=320, maximum=820)
+
+    def render_overview_records(self, labels, row_statuses):
+        self.listbox.delete(0, tk.END)
+        if labels:
+            self.listbox.insert(tk.END, *labels)
+        for idx, row_status in enumerate(row_statuses):
+            if row_status in ui_patterns.STATUS_PALETTES:
+                bg_col = ui_patterns.get_row_color(row_status, 0.16)
+                self.listbox.itemconfig(idx, bg=bg_col, fg=ui_patterns.FIELD_FG)
+
+    def render_overview_meta(self, *, summary_text, status_text, hint_text, empty_text, show_empty):
+        self.overview_summary_label.config(text=summary_text)
+        self.overview_status_label.config(text=status_text)
+        self.overview_hint_label.config(text=hint_text)
+        self.overview_empty_label.config(text=empty_text)
+        if show_empty:
+            self.overview_empty_label.pack(fill="x", padx=12, pady=12, before=self.overview_bottom_actions)
+        else:
+            self.overview_empty_label.pack_forget()
+
+    def update_filter_chip(self, status_key, text, selected=False):
+        widget = self.filter_chips.get(status_key)
+        if widget:
+            ui_patterns.style_chip_label(widget, status_key, text, selected)
+
+    def get_selected_indices(self):
+        return tuple(self.listbox.curselection())
