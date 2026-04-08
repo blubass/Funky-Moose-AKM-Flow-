@@ -11,6 +11,14 @@ class DetailsController(BaseController):
     def __init__(self, app):
         super().__init__(app)
         self._title_signature = None
+
+    def refresh_view(self):
+        """Refresh detail-tab chrome without overwriting unsaved form edits."""
+        self.refresh_titles()
+        tab_system = getattr(self.app, "tab_system", None)
+        details_tab = getattr(tab_system, "_instances", {}).get("details") if tab_system else None
+        if details_tab is not None and hasattr(details_tab, "refresh_view"):
+            details_tab.refresh_view()
     
     def save_details(self):
         orig = self.app.detail_original_title
@@ -38,7 +46,7 @@ class DetailsController(BaseController):
             self.app.detail_notes.delete("1.0", tk.END)
         if hasattr(self.app, 'detail_instrumental_var'):
             self.app.detail_instrumental_var.set(False)
-        self._set_detail_status_chip("in_progress")
+        self.set_status_chip("in_progress")
 
     def refresh_titles(self):
         """Updates the Title combobox with current records."""
@@ -72,7 +80,7 @@ class DetailsController(BaseController):
             # Load Instrumental flag
             if hasattr(self.app, 'detail_instrumental_var'):
                 self.app.detail_instrumental_var.set(bool(match.get("instrumental", False)))
-            self._set_detail_status_chip(match.get("status", "in_progress"))
+            self.set_status_chip(match.get("status", "in_progress"))
             self.log(f"Werk geladen: {title}")
 
     def choose_audio_path(self):
@@ -119,7 +127,7 @@ class DetailsController(BaseController):
         p = self.app.detail_vars["audio_path"].get()
         if p and os.path.exists(p): ui_patterns.open_in_finder(p)
 
-    def _set_detail_status_chip(self, s):
+    def set_status_chip(self, s):
         self.app.current_detail_status = s or "in_progress"
         if hasattr(self.app, 'detail_status_var') and self.app.detail_status_var: 
             self.app.detail_status_var.set(self.app.status_text(s))

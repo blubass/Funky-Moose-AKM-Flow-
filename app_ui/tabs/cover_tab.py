@@ -24,6 +24,42 @@ IMAGE_FILETYPES = [
     ("Alle Dateien", "*.*"),
 ]
 _SYSTEM_FONTS = None
+COVER_STATE_SPECS = (
+    ("artwork_path", tk.StringVar, ""),
+    ("artist", tk.StringVar, "MARIO MUSTERMANN"),
+    ("title", tk.StringVar, "DER GROSSE WURF"),
+    ("subtitle", tk.StringVar, "Digital Deluxe Edition"),
+    ("artist_font", tk.StringVar, "Helvetica Neue"),
+    ("artist_color", tk.StringVar, "#FFFFFF"),
+    ("artist_bold", tk.BooleanVar, False),
+    ("artist_case", tk.StringVar, "uppercase"),
+    ("title_font", tk.StringVar, "Helvetica Neue"),
+    ("title_color", tk.StringVar, "#FFFFFF"),
+    ("title_bold", tk.BooleanVar, True),
+    ("title_case", tk.StringVar, "uppercase"),
+    ("subtitle_font", tk.StringVar, "Inter Mono"),
+    ("subtitle_color", tk.StringVar, "#D2D2D2"),
+    ("subtitle_bold", tk.BooleanVar, False),
+    ("subtitle_case", tk.StringVar, "normal"),
+    ("artist_size", tk.StringVar, "60"),
+    ("artist_x", tk.StringVar, "900"),
+    ("artist_y", tk.StringVar, "1400"),
+    ("title_size", tk.StringVar, "140"),
+    ("title_x", tk.StringVar, "900"),
+    ("title_y", tk.StringVar, "1500"),
+    ("subtitle_size", tk.StringVar, "40"),
+    ("subtitle_x", tk.StringVar, "900"),
+    ("subtitle_y", tk.StringVar, "1650"),
+    ("layout", tk.StringVar, "manual"),
+    ("style", tk.StringVar, "bold"),
+    ("size_mode", tk.StringVar, "medium"),
+    ("overlay", tk.StringVar, "medium"),
+    ("offset", tk.StringVar, "normal"),
+    ("zoom", tk.DoubleVar, 1.0),
+    ("ui_preview_zoom", tk.IntVar, 260),
+    ("bg_color", tk.StringVar, "#181818"),
+    ("accent_color", tk.StringVar, "#ff9a3c"),
+)
 
 
 def _friendly_layout_name(layout_key):
@@ -61,56 +97,7 @@ class CoverTab(AkmPanel):
         self._last_preview_error = ""
         self._artwork_meta_path = None
         self._artwork_meta = None
-        
-        # State Variables
-        self.artwork_path_var = tk.StringVar()
-        self.artist_var = tk.StringVar(value="MARIO MUSTERMANN")
-        self.title_var = tk.StringVar(value="DER GROSSE WURF")
-        self.subtitle_var = tk.StringVar(value="Digital Deluxe Edition")
-        
-        # Font Configuration (One per layer)
-        self.artist_font_var = tk.StringVar(value="Helvetica Neue")
-        self.artist_color_var = tk.StringVar(value="#FFFFFF")
-        self.artist_bold_var = tk.BooleanVar(value=False)
-        self.artist_case_var = tk.StringVar(value="uppercase")
-        
-        self.title_font_var = tk.StringVar(value="Helvetica Neue")
-        self.title_color_var = tk.StringVar(value="#FFFFFF")
-        self.title_bold_var = tk.BooleanVar(value=True)
-        self.title_case_var = tk.StringVar(value="uppercase")
-        
-        self.subtitle_font_var = tk.StringVar(value="Inter Mono")
-        self.subtitle_color_var = tk.StringVar(value="#D2D2D2")
-        self.subtitle_bold_var = tk.BooleanVar(value=False)
-        self.subtitle_case_var = tk.StringVar(value="normal")
-        
-        # Font Sizes & Positions
-        self.artist_size_var = tk.StringVar(value="60")
-        self.artist_x_var = tk.StringVar(value="900")
-        self.artist_y_var = tk.StringVar(value="1400")
-        
-        self.title_size_var = tk.StringVar(value="140")
-        self.title_x_var = tk.StringVar(value="900")
-        self.title_y_var = tk.StringVar(value="1500")
-        
-        self.subtitle_size_var = tk.StringVar(value="40")
-        self.subtitle_x_var = tk.StringVar(value="900")
-        self.subtitle_y_var = tk.StringVar(value="1650")
-        
-        # Layout Defaults
-        self.layout_var = tk.StringVar(value="manual")
-        self.style_var = tk.StringVar(value="bold")
-        self.size_mode_var = tk.StringVar(value="medium")
-        self.overlay_var = tk.StringVar(value="medium")
-        self.offset_var = tk.StringVar(value="normal")
-        
-        # Image & UI Transformation
-        self.zoom_var = tk.DoubleVar(value=1.0)
-        self.ui_preview_zoom_var = tk.IntVar(value=260) # Default UI height
-        
-        # General Colors
-        self.bg_color_var = tk.StringVar(value="#181818")
-        self.accent_color_var = tk.StringVar(value="#ff9a3c")
+        self._init_state_vars()
         self._preview_refresh_after = None
         self._preview_dimensions = None
         
@@ -118,6 +105,36 @@ class CoverTab(AkmPanel):
         self.build_ui()
         self._setup_dnd()
         self._setup_traces()
+
+    def refresh_view(self):
+        """Refresh cover status UI and lazily recover preview rendering when needed."""
+        self._update_cover_dashboard()
+        artwork_path = self.artwork_path_var.get().strip()
+        if (
+            artwork_path
+            and os.path.exists(artwork_path)
+            and self._current_image is None
+            and not self._is_rendering
+            and self._preview_refresh_after is None
+        ):
+            self._schedule_preview_refresh(delay_ms=40)
+
+    def _init_state_vars(self):
+        cache = getattr(self.app, "cover_state_cache", {}) or {}
+        self._cover_state_vars = {}
+        for key, var_cls, default in COVER_STATE_SPECS:
+            var = var_cls(value=cache.get(key, default))
+            self._cover_state_vars[key] = var
+            setattr(self, f"{key}_var", var)
+        self._sync_cover_state_cache()
+
+    def _sync_cover_state_cache(self):
+        if hasattr(self.app, "cover_state_cache"):
+            self.app.cover_state_cache = self.get_state()
+
+    def _on_cover_state_changed(self, *_args):
+        self._sync_cover_state_cache()
+        self._schedule_preview_refresh()
 
     def build_ui(self):
         sys_fonts = _get_system_fonts()
@@ -940,88 +957,16 @@ class CoverTab(AkmPanel):
 
     def get_state(self):
         """Returns the current state of all cover configuration variables."""
-        return {
-            "artwork_path": self.artwork_path_var.get(),
-            "artist": self.artist_var.get(),
-            "title": self.title_var.get(),
-            "subtitle": self.subtitle_var.get(),
-            "artist_font": self.artist_font_var.get(),
-            "artist_color": self.artist_color_var.get(),
-            "artist_size": self.artist_size_var.get(),
-            "artist_x": self.artist_x_var.get(),
-            "artist_y": self.artist_y_var.get(),
-            "title_font": self.title_font_var.get(),
-            "title_color": self.title_color_var.get(),
-            "title_size": self.title_size_var.get(),
-            "title_x": self.title_x_var.get(),
-            "title_y": self.title_y_var.get(),
-            "subtitle_font": self.subtitle_font_var.get(),
-            "subtitle_color": self.subtitle_color_var.get(),
-            "subtitle_size": self.subtitle_size_var.get(),
-            "subtitle_x": self.subtitle_x_var.get(),
-            "subtitle_y": self.subtitle_y_var.get(),
-            "layout": self.layout_var.get(),
-            "style": self.style_var.get(),
-            "size_mode": self.size_mode_var.get(),
-            "overlay": self.overlay_var.get(),
-            "offset": self.offset_var.get(),
-            "zoom": self.zoom_var.get(),
-            "ui_preview_zoom": self.ui_preview_zoom_var.get(),
-            "artist_case": self.artist_case_var.get(),
-            "artist_bold": self.artist_bold_var.get(),
-            "title_case": self.title_case_var.get(),
-            "title_bold": self.title_bold_var.get(),
-            "subtitle_case": self.subtitle_case_var.get(),
-            "subtitle_bold": self.subtitle_bold_var.get(),
-            "bg_color": self.bg_color_var.get(),
-            "accent_color": self.accent_color_var.get(),
-        }
+        return {key: var.get() for key, var in self._cover_state_vars.items()}
 
     def set_state(self, state):
         """Restores the UI state from a dictionary."""
         if not state: return
-        
-        lookup = {
-            "artwork_path": self.artwork_path_var,
-            "artist": self.artist_var,
-            "title": self.title_var,
-            "subtitle": self.subtitle_var,
-            "artist_font": self.artist_font_var,
-            "artist_color": self.artist_color_var,
-            "artist_size": self.artist_size_var,
-            "artist_x": self.artist_x_var,
-            "artist_y": self.artist_y_var,
-            "title_font": self.title_font_var,
-            "title_color": self.title_color_var,
-            "title_size": self.title_size_var,
-            "title_x": self.title_x_var,
-            "title_y": self.title_y_var,
-            "subtitle_font": self.subtitle_font_var,
-            "subtitle_color": self.subtitle_color_var,
-            "subtitle_size": self.subtitle_size_var,
-            "subtitle_x": self.subtitle_x_var,
-            "subtitle_y": self.subtitle_y_var,
-            "layout": self.layout_var,
-            "style": self.style_var,
-            "size_mode": self.size_mode_var,
-            "overlay": self.overlay_var,
-            "offset": self.offset_var,
-            "zoom": self.zoom_var,
-            "ui_preview_zoom": self.ui_preview_zoom_var,
-            "artist_case": self.artist_case_var,
-            "artist_bold": self.artist_bold_var,
-            "title_case": self.title_case_var,
-            "title_bold": self.title_bold_var,
-            "subtitle_case": self.subtitle_case_var,
-            "subtitle_bold": self.subtitle_bold_var,
-            "bg_color": self.bg_color_var,
-            "accent_color": self.accent_color_var,
-        }
-        
         for key, value in state.items():
-            if key in lookup:
-                lookup[key].set(value)
+            if key in self._cover_state_vars:
+                self._cover_state_vars[key].set(value)
 
+        self._sync_cover_state_cache()
         self._schedule_preview_refresh(delay_ms=160)
 
     def save_project_locally(self):
@@ -1111,23 +1056,8 @@ class CoverTab(AkmPanel):
 
     def _setup_traces(self):
         """Triggers preview refresh on variable changes."""
-        vars_to_trace = [
-            self.artwork_path_var,
-            self.title_var, self.artist_var, self.subtitle_var,
-            self.artist_font_var, self.title_font_var, self.subtitle_font_var,
-            self.artist_color_var, self.title_color_var, self.subtitle_color_var,
-            self.artist_bold_var, self.title_bold_var, self.subtitle_bold_var,
-            self.artist_case_var, self.title_case_var, self.subtitle_case_var,
-            self.artist_size_var, self.title_size_var, self.subtitle_size_var,
-            self.artist_x_var, self.artist_y_var, 
-            self.title_x_var, self.title_y_var,
-            self.subtitle_x_var, self.subtitle_y_var,
-            self.zoom_var, self.ui_preview_zoom_var, self.layout_var, self.style_var,
-            self.size_mode_var, self.overlay_var, self.offset_var,
-            self.bg_color_var, self.accent_color_var
-        ]
-        for var in vars_to_trace:
-            var.trace_add("write", lambda *a: self._schedule_preview_refresh())
+        for var in self._cover_state_vars.values():
+            var.trace_add("write", self._on_cover_state_changed)
 
     def refresh_preview(self):
         """Renders the current text onto the cover image for preview."""
@@ -1191,13 +1121,15 @@ class CoverTab(AkmPanel):
         if not path or not os.path.exists(path):
             AkmToast(self, "KEIN ARTWORK ZUM ZUWEISEN", color="#FF3B30")
             return
-            
+
+        if hasattr(self.app, "release_state_cache"):
+            self.app.release_state_cache["cover_path"] = path
         if hasattr(self.app, "release_vars") and "cover_path" in self.app.release_vars:
             self.app.release_vars["cover_path"].set(path)
-            self.app.select_tab_by_id("release")
-            AkmToast(self.app, "COVER IN RELEASE ÜBERNOMMEN", color=ACCENT)
-        else:
-            AkmToast(self, "RELEASE-TAB NICHT BEREIT", color="#FF3B30")
+        if hasattr(self.app, "release_ctrl"):
+            self.app.release_ctrl.refresh_view(force=True)
+        self.app.select_tab_by_id("release")
+        AkmToast(self.app, "COVER IN RELEASE ÜBERNOMMEN", color=ACCENT)
 
     def export_cover(self):
         """Final high-quality render and save to file."""

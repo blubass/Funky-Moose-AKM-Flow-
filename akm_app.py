@@ -3,14 +3,10 @@ Funky Moose Release Forge - Main Application Orchestrator
 Modular, State-Driven, and Industrial-Themed Backend Manager for Music Release Workflows.
 """
 
-import copy
 import os
-import sys
-import time
 import tkinter as tk
 import logging
-import traceback
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 from app_logic.config import cfg
 from app_logic import logger_config
 
@@ -24,24 +20,14 @@ except Exception:
 
 # Core Logic & Infrastructure
 from app_logic import (
-    akm_core, assistant_tools, cover_tools, detail_tools, 
-    flow_tools, overview_tools, release_tools, app_state, task_runner,
+    akm_core, assistant_tools, flow_tools, app_state, task_runner,
     loudness_tools
 )
-from app_ui import ui_patterns, path_ui_tools, release_view_tools
-from app_ui.ui_patterns import * 
-from app_workflows import loudness_workflows, release_workflows
+from app_ui import ui_patterns
 
 # Audio Engine & Player
 from app_logic.audio_player_engine import AudioPlayerEngine
 from app_ui.audio_player_ui import AkmAudioPlayer
-
-# Design Tokens & Themed Widgets
-from app_ui.ui_patterns import (
-    SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL,
-    FONT_SM, FONT_MD, FONT_BOLD, FONT_MD_BOLD, FONT_LG, FONT_XXXL,
-    PulseLabel, AkmPanel, AkmLabel, AkmSubLabel, AkmToast
-)
 
 # Controllers
 from app_controllers.project_controller import ProjectController
@@ -97,8 +83,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
             self.header.task_detail_label.config(text=f"Workspace bereit | Drag & Drop: {dnd_status}")
         
-        self.refresh_list()
-        self.reload_flow_data(preferred_index=0)
+        self.overview_ctrl.refresh_list()
+        self.batch_ctrl.reload_flow_data(preferred_index=0)
         
         # --- MAC FOCUS FIX (Forcing bundle visibility) ---
         self.update_idletasks()
@@ -130,6 +116,33 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.release_ctrl = ReleaseController(self)
         self.batch_ctrl = BatchController(self)
         self.details_ctrl = DetailsController(self)
+        self._bind_controller_delegates()
+
+    def _bind_controller_delegates(self):
+        """Expose only the shared controller actions that multiple app surfaces need."""
+        delegate_map = {
+            self.project_ctrl: (
+                "save_project",
+                "load_project_dialog",
+                "import_excel",
+                "import_excel_path",
+            ),
+            self.overview_ctrl: (
+                "refresh_list",
+                "refresh_dashboard",
+                "load_selected_into_details",
+                "set_status",
+                "on_listbox_activate",
+                "jump_to_last_open",
+            ),
+        }
+        for controller, bindings in delegate_map.items():
+            for binding in bindings:
+                if isinstance(binding, tuple):
+                    app_name, controller_name = binding
+                else:
+                    app_name = controller_name = binding
+                setattr(self, app_name, getattr(controller, controller_name))
 
     def _init_ui_vars(self):
         """Prepare tracker variables and registries used across multiple tabs."""
@@ -140,7 +153,9 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         # Detail & Metadata Registry
         self.detail_vars = {}
+        self.cover_state_cache = {}
         self.release_vars = {}
+        self.release_state_cache = {}
         self.detail_original_title = None
         self.current_detail_status = "in_progress"
         
@@ -177,7 +192,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
         # Initial Boot Info Logger (Branding Trace)
         self.append_log("-" * 30)
-        self.append_log("OBSIDIAN MASTER v1.0.1 INITIALIZED")
+        self.append_log(f"{cfg.APP_NAME} v{cfg.VERSION} INITIALIZED")
         self.append_log("System: Core architecture decoupled.")
         self.append_log("-" * 30)
 
@@ -253,45 +268,81 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         mtime = self.state._get_data_mtime()
         
-        # 4. Perspective-Specific Logic (Only if data changed or filters mismatched)
+        # 4. Perspective-Specific Logic
+        self._handle_tab_refresh(active_tab_id, mtime)
+
+    def _handle_tab_refresh(self, active_tab_id, mtime):
+        """Runs only the refresh logic needed for the currently active tab."""
         if active_tab_id == "dashboard":
             if self._last_dashboard_refresh["mtime"] != mtime:
-                self.refresh_dashboard()
+                self.overview_ctrl.refresh_dashboard()
                 self._last_dashboard_refresh["mtime"] = mtime
-                
-        elif active_tab_id == "overview":
+            return
+
+        if active_tab_id == "overview":
             search = (self.search_var.get() or "").lower() if self.search_var else ""
             filt = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
-            # We skip sort/desc for the immediate "back-and-forth" check to stay fast
-            if self._last_overview_refresh["mtime"] != mtime or self._last_overview_refresh["filter"] != filt:
-                self.refresh_list()
-                self._last_overview_refresh.update({"search": search, "filter": filt, "mtime": mtime})
-                
-        elif active_tab_id == "batch":
+            sort_key = self.sort_key_var.get() if self.sort_key_var else "title"
+            sort_desc = bool(self.sort_desc_var.get()) if self.sort_desc_var else False
+
+            if (
+                self._last_overview_refresh["mtime"] != mtime
+                or self._last_overview_refresh["search"] != search
+                or self._last_overview_refresh["filter"] != filt
+                or self._last_overview_refresh["sort"] != sort_key
+                or self._last_overview_refresh["desc"] != sort_desc
+            ):
+                self.overview_ctrl.refresh_list()
+                self._last_overview_refresh.update({
+                    "search": search,
+                    "filter": filt,
+                    "sort": sort_key,
+                    "desc": sort_desc,
+                    "mtime": mtime,
+                })
+            return
+
+        if active_tab_id == "batch":
             if self._last_batch_refresh["mtime"] != mtime:
-                self.update_flow()
+                self.batch_ctrl.update_flow()
                 self._last_batch_refresh["mtime"] = mtime
+            return
 
-        elif active_tab_id == "details":
+        if active_tab_id == "details":
             self.details_ctrl.refresh_titles()
+            return
 
-        elif active_tab_id == "release":
+        if active_tab_id == "release":
             self.release_ctrl.refresh_view()
 
     def refresh_all_tabs(self):
         """Standardized orchestrator to update all modular components and reset trackers."""
+        current_search = (self.search_var.get() or "").lower() if self.search_var else ""
+        current_filter = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
+        current_sort = self.sort_key_var.get() if self.sort_key_var else "title"
+        current_desc = bool(self.sort_desc_var.get()) if self.sort_desc_var else False
+        current_mtime = self.state._get_data_mtime()
+
         self.overview_ctrl.refresh_list()
         self.overview_ctrl.refresh_dashboard()
+        self.details_ctrl.refresh_view()
         self.batch_ctrl.reload_flow_data()
         self.release_ctrl.refresh_view()
-        # Reset trackers to ensure next tab switch catches up if needed
-        self._last_overview_refresh["mtime"] = None
-        self._last_dashboard_refresh["mtime"] = None
-        self._last_batch_refresh["mtime"] = None
+        cover_tab = getattr(getattr(self, "tab_system", None), "_instances", {}).get("cover")
+        if cover_tab is not None and hasattr(cover_tab, "refresh_view"):
+            cover_tab.refresh_view()
+        self._last_overview_refresh.update({
+            "search": current_search,
+            "filter": current_filter,
+            "sort": current_sort,
+            "desc": current_desc,
+            "mtime": current_mtime,
+        })
+        self._last_dashboard_refresh["mtime"] = current_mtime
+        self._last_batch_refresh["mtime"] = current_mtime
 
     def on_closing(self):
         """Asks for confirmation before exiting."""
-        from tkinter import messagebox
         res = messagebox.askyesnocancel(
             "Beenden", 
             "Möchten Sie vor dem Beenden speichern? \nNur das Speichern als Projekt (.akm) erhält alle aktuellen Einstellungen.",
@@ -299,12 +350,10 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             default='yes'
         )
         if res is True:
-            self.save_project()
-            self.destroy()
+            if self.save_project():
+                self.destroy()
         elif res is False:
             self.destroy()
-        else:
-            pass
 
     def _schedule_refresh_list(self):
         """Debounced list refresh for search input."""
@@ -312,20 +361,6 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             self.after_cancel(self._refresh_timer)
         self._refresh_timer = self.after(300, self.refresh_list)
 
-    # --- SHARED DELEGATES (Called by Tabs) ---
-    # --- DELEGATES: PROJECT & PERSISTENCE ---
-    def save_project(self): 
-        self.project_ctrl.save_project()
-        
-    def load_project_dialog(self): 
-        self.project_ctrl.load_project_dialog()
-        
-    def import_excel(self): 
-        self.project_ctrl.import_excel()
-        
-    def import_excel_path(self, path): 
-        self.project_ctrl.import_excel_path(path)
-        
     def add(self, title=None): 
         if title is None:
             title = ""
@@ -333,127 +368,11 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
                 title = self.entry.get().strip()
         self.project_ctrl.add_entry(title)
 
-    # --- DELEGATES: OVERVIEW & DASHBOARD ---
-    def refresh_list(self): 
-        self.overview_ctrl.refresh_list()
-        
-    def refresh_dashboard(self): 
-        self.overview_ctrl.refresh_dashboard()
-
-    def load_selected_into_details(self): 
-        self.overview_ctrl.load_selected_into_details()
-        
-    def set_status(self, s): 
-        self.overview_ctrl.set_status(s)
-        
-    def on_listbox_activate(self, e): 
-        self.overview_ctrl.on_listbox_activate(e)
-        
-    def jump_to_last_open(self): 
-        self.overview_ctrl.jump_to_last_open()
-        
     def _set_overview_status_filter(self, s): 
         self.overview_ctrl.set_status_filter(s)
 
     def _open_overview_with_filter(self, s): 
         self.overview_ctrl.open_with_filter(s)
-
-    # --- DELEGATES: DETAILS & METADATA ---
-    def save_details(self): 
-        self.details_ctrl.save_details()
-        
-    def clear_details_form(self): 
-        self.details_ctrl.clear_details_form()
-
-    def set_detail_status(self, s): 
-        self.details_ctrl._set_detail_status_chip(s)
-
-    def choose_audio_path_for_details(self): 
-        self.details_ctrl.choose_audio_path()
-
-    def open_audio_path_in_finder(self): 
-        self.details_ctrl.open_audio_path_in_finder()
-
-    # --- DELEGATES: BATCH & FLOW ---
-    def reload_flow_data(self, preferred_index=None): 
-        self.batch_ctrl.reload_flow_data(preferred_index)
-        
-    def update_flow(self): 
-        self.batch_ctrl.update_flow()
-
-    def process_batch(self): 
-        self.batch_ctrl.process_selected_flow()
-
-    def flow_copy(self): 
-        self.batch_ctrl.flow_copy()
-
-    def flow_submit(self): 
-        self.batch_ctrl.flow_submit()
-
-    def flow_next(self): 
-        self.batch_ctrl.flow_next()
-
-    def open_track_in_batch(self, it): 
-        self.batch_ctrl.open_track_in_batch(it)
-
-    # --- DELEGATES: LOUDNESS ---
-    def loudness_choose_files(self): 
-        self.loudness_ctrl.choose_files()
-        
-    def loudness_handle_drop(self, event): 
-        self.loudness_ctrl.handle_drop(event)
-
-    def loudness_delete_files(self): 
-        self.loudness_ctrl.delete_files()
-        
-    def loudness_analyze_files(self): 
-        self.loudness_ctrl.analyze_files()
-        
-    def loudness_export_files(self): 
-        self.loudness_ctrl.export_files()
-        
-    def loudness_choose_output_dir(self): 
-        self.loudness_ctrl.choose_output_dir()
-        
-    def loudness_import_selected_work(self): 
-        self.loudness_ctrl.import_selected_work()
-        
-    def loudness_import_filtered_works(self): 
-        self.loudness_ctrl.import_filtered_works()
-        
-    def on_loudness_tree_activate(self, event): 
-        self.loudness_ctrl.on_tree_activate(event)
-
-    # --- DELEGATES: RELEASE ---
-    def open_release_cover_dialog(self): 
-        self.release_ctrl.open_cover_dialog()
-
-    def release_handle_drop(self, event): 
-        self.release_ctrl.handle_drop(event)
-        
-    def refresh_release_view(self): 
-        self.release_ctrl.refresh_view()
-        
-    def choose_release_cover(self): 
-        self.release_ctrl.choose_cover()
-        
-    def choose_release_export_dir(self): 
-        self.release_ctrl.choose_export_dir()
-        
-    def open_release_cover_in_finder(self): 
-        self.release_ctrl.open_cover_in_finder()
-        
-    def build_distro_export(self): 
-        self.release_ctrl.build_export()
-        
-    def release_move_track_up(self): 
-        self.release_ctrl.move_track_up()
-        
-    def release_move_track_down(self): 
-        self.release_ctrl.move_track_down()
-        
-    def release_remove_track(self): 
-        self.release_ctrl.remove_track()
 
     # --- UTILITIES ---
     def btn(self, parent, text, cmd, primary=False, quiet=False, width=None, accent_color=None): 
@@ -461,9 +380,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         return ui_patterns.create_btn(parent, text, cmd, primary=primary, quiet=quiet, width=width, accent_color=accent_color)
 
     def append_log(self, message): 
-        """Safely appends activity to the global log via the central logging engine."""
-        # This is now a wrapper around logging to keep compatibility
-        logging.info(message)
+        """Central app logging entrypoint mirrored to the UI by the logger handler."""
+        logging.info(str(message))
 
     def resource_path(self, relative_path):
         return cfg.get_resource_path(relative_path)
@@ -494,7 +412,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     # --- AUDIO HELPERS ---
     def open_audio_player_for_selected(self):
         """Opens the premium mini-player for the selected work's audio file."""
-        it = self.overview_ctrl._get_selected_overview_item()
+        it = self.overview_ctrl.get_selected_item()
         if it and it.get("audio_path") and os.path.exists(it["audio_path"]):
             AkmAudioPlayer(self, self.audio, it["audio_path"], it.get("title", "Preview"))
         else:

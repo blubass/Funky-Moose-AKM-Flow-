@@ -110,6 +110,14 @@ class FakeLabel:
         self.options.update(kwargs)
 
 
+class FakeMessagebox:
+    def __init__(self, response):
+        self.response = response
+
+    def askyesnocancel(self, *_args, **_kwargs):
+        return self.response
+
+
 class FakeReleaseListbox:
     def __init__(self, selection=()):
         self.selection = tuple(selection)
@@ -935,6 +943,9 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.toasts = []
         app.state = FakeState(records=records, mtime=mtime)
         app.tasks = ImmediateTaskRunner()
+        app.tab_system = SimpleNamespace(_instances={})
+        app.cover_state_cache = {}
+        app.release_state_cache = {}
         app.append_log = app.logs.append
         app.select_tab_by_id = lambda tab_id: setattr(app, "selected_tab", tab_id)
         app.status_text = lambda status: status
@@ -1006,7 +1017,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertTrue(app.state.invalidated)
         self.assertTrue(app.overview_refreshed)
 
-    def test_project_controller_add_entry_uses_current_language(self):
+    def test_project_controller_add_entry_calls_core_without_legacy_language_arg(self):
         app = self.make_app_stub()
         app.overview_ctrl = SimpleNamespace(
             _on_g_done=lambda result, message: setattr(app, "done_payload", (result, message))
@@ -1014,16 +1025,327 @@ class AppRegressionTests(TemporaryStorageTestCase):
         controller = ProjectController(app)
 
         with mock.patch(
-            "app_controllers.project_controller.akm_core.get_lang",
-            return_value="de",
-        ), mock.patch(
             "app_controllers.project_controller.akm_core.add_entry",
             return_value=(True, {"title": "Song A"}),
         ) as add_entry:
             controller.add_entry("Song A")
 
-        add_entry.assert_called_once_with("Song A", "de")
+        add_entry.assert_called_once_with("Song A")
         self.assertEqual("'Song A' angelegt", app.done_payload[1])
+
+    def test_project_controller_save_project_returns_false_when_dialog_cancelled(self):
+        app = self.make_app_stub()
+        app.release_vars = {}
+        app.cover_tab = SimpleNamespace(get_state=lambda: {})
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=None)
+        app.wait_window = lambda dialog: None
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmSaveDialog",
+            return_value=fake_dialog,
+        ):
+            saved = controller.save_project()
+
+        self.assertFalse(saved)
+        self.assertIn("Speichervorgang abgebrochen.", app.logs)
+
+    def test_project_controller_save_project_uses_cached_release_state_without_built_release_tab(self):
+        app = self.make_app_stub()
+        app.release_state_cache = {
+            "artist": "Loaded Artist",
+            "type": "EP",
+            "cover_path": "/tmp/cover.png",
+        }
+        app.release_vars = {}
+        app.cover_tab = SimpleNamespace(get_state=lambda: {})
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmSaveDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.save_project",
+        ) as save_project:
+            saved = controller.save_project()
+
+        self.assertTrue(saved)
+        release_state = save_project.call_args.args[3]
+        self.assertEqual(app.release_state_cache, release_state["vars"])
+        self.assertEqual([], release_state["tracks"])
+
+    def test_project_controller_save_project_uses_cached_cover_state_without_built_cover_tab(self):
+        app = self.make_app_stub()
+        app.cover_state_cache = {
+            "title": "Loaded Cover Title",
+            "layout": "center",
+            "accent_color": "#ffaa00",
+        }
+        app.release_vars = {}
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmSaveDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.save_project",
+        ) as save_project:
+            saved = controller.save_project()
+
+        self.assertTrue(saved)
+        cover_state = save_project.call_args.args[2]
+        self.assertEqual(app.cover_state_cache, cover_state)
+
+    def test_project_controller_save_project_prefers_built_cover_tab_state_over_cache(self):
+        app = self.make_app_stub()
+        app.cover_state_cache = {"title": "Stale Cached Title"}
+        app.tab_system._instances["cover"] = SimpleNamespace(
+            get_state=lambda: {"title": "Live Cover Title", "layout": "manual"}
+        )
+        app.release_vars = {}
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmSaveDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.save_project",
+        ) as save_project:
+            saved = controller.save_project()
+
+        self.assertTrue(saved)
+        cover_state = save_project.call_args.args[2]
+        self.assertEqual({"title": "Live Cover Title", "layout": "manual"}, cover_state)
+        self.assertEqual(cover_state, app.cover_state_cache)
+
+    def test_project_controller_load_project_caches_cover_state_without_built_cover_tab(self):
+        app = self.make_app_stub()
+        app.release_vars = {}
+        app.overview_ctrl = SimpleNamespace(
+            refresh_list=lambda: setattr(app, "overview_refreshed", True)
+        )
+        app.release_ctrl = SimpleNamespace(
+            refresh_view=lambda force=False: setattr(app, "release_refresh_force", force)
+        )
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+        bundle = {
+            "data": [{"title": "Song A"}],
+            "cover": {"title": "Loaded Cover Title", "layout": "center"},
+        }
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmLoadDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.load_project",
+            return_value=bundle,
+        ):
+            controller.load_project_dialog()
+
+        self.assertEqual(bundle["cover"], app.cover_state_cache)
+        self.assertTrue(app.overview_refreshed)
+
+    def test_project_controller_load_project_updates_built_cover_tab_state(self):
+        app = self.make_app_stub()
+        app.release_vars = {}
+        app.overview_ctrl = SimpleNamespace(
+            refresh_list=lambda: setattr(app, "overview_refreshed", True)
+        )
+        app.release_ctrl = SimpleNamespace(
+            refresh_view=lambda force=False: setattr(app, "release_refresh_force", force)
+        )
+        app.tab_system._instances["cover"] = SimpleNamespace(
+            set_state=lambda state: setattr(app, "loaded_cover_state", state)
+        )
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+        bundle = {
+            "data": [{"title": "Song A"}],
+            "cover": {"title": "Loaded Cover Title", "layout": "center"},
+        }
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmLoadDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.load_project",
+            return_value=bundle,
+        ):
+            controller.load_project_dialog()
+
+        self.assertEqual(bundle["cover"], app.cover_state_cache)
+        self.assertEqual(bundle["cover"], app.loaded_cover_state)
+
+    def test_project_controller_load_project_caches_release_state_without_built_release_tab(self):
+        app = self.make_app_stub()
+        app.release_vars = {}
+        app.overview_ctrl = SimpleNamespace(
+            refresh_list=lambda: setattr(app, "overview_refreshed", True)
+        )
+        app.release_ctrl = SimpleNamespace(
+            refresh_view=lambda force=False: setattr(app, "release_refresh_force", force)
+        )
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+        bundle = {
+            "data": [{"title": "Song A"}],
+            "release": {
+                "vars": {"artist": "Loaded Artist", "cover_path": "/tmp/cover.png"},
+                "tracks": [{"title": "Song A", "audio_path": "/tmp/song.wav"}],
+            },
+        }
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmLoadDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.load_project",
+            return_value=bundle,
+        ):
+            controller.load_project_dialog()
+
+        self.assertEqual(bundle["release"]["vars"], app.release_state_cache)
+        self.assertEqual(bundle["release"]["tracks"], app.state.release_tracks)
+        self.assertTrue(app.overview_refreshed)
+        self.assertTrue(app.release_refresh_force)
+
+    def test_on_closing_keeps_window_open_when_save_is_cancelled(self):
+        app = SimpleNamespace(
+            save_project=lambda: False,
+            destroy=lambda: setattr(app, "destroyed", True),
+        )
+        app.destroyed = False
+
+        with mock.patch.object(akm_app, "messagebox", FakeMessagebox(True)):
+            akm_app.AKMApp.on_closing(app)
+
+        self.assertFalse(app.destroyed)
+
+    def test_on_closing_destroys_window_after_successful_save(self):
+        app = SimpleNamespace(
+            save_project=lambda: True,
+            destroy=lambda: setattr(app, "destroyed", True),
+        )
+        app.destroyed = False
+
+        with mock.patch.object(akm_app, "messagebox", FakeMessagebox(True)):
+            akm_app.AKMApp.on_closing(app)
+
+        self.assertTrue(app.destroyed)
+
+    def test_refresh_all_tabs_includes_details_and_built_cover_refresh(self):
+        app = SimpleNamespace(
+            search_var=FakeVar("Song"),
+            status_filter_var=FakeVar("ready"),
+            sort_key_var=FakeVar("year"),
+            sort_desc_var=FakeVar(True),
+            state=FakeState(mtime=42),
+            overview_ctrl=SimpleNamespace(
+                refresh_list=lambda: setattr(app, "overview_refreshed", True),
+                refresh_dashboard=lambda: setattr(app, "dashboard_refreshed", True),
+            ),
+            details_ctrl=SimpleNamespace(
+                refresh_view=lambda: setattr(app, "details_refreshed", True)
+            ),
+            batch_ctrl=SimpleNamespace(
+                reload_flow_data=lambda: setattr(app, "batch_refreshed", True)
+            ),
+            release_ctrl=SimpleNamespace(
+                refresh_view=lambda: setattr(app, "release_refreshed", True)
+            ),
+            tab_system=SimpleNamespace(
+                _instances={
+                    "cover": SimpleNamespace(
+                        refresh_view=lambda: setattr(app, "cover_refreshed", True)
+                    )
+                }
+            ),
+            _last_overview_refresh={
+                "search": None,
+                "filter": None,
+                "sort": None,
+                "desc": None,
+                "mtime": None,
+            },
+            _last_dashboard_refresh={"mtime": None},
+            _last_batch_refresh={"mtime": None},
+        )
+        app.overview_refreshed = False
+        app.dashboard_refreshed = False
+        app.details_refreshed = False
+        app.batch_refreshed = False
+        app.release_refreshed = False
+        app.cover_refreshed = False
+
+        akm_app.AKMApp.refresh_all_tabs(app)
+
+        self.assertTrue(app.overview_refreshed)
+        self.assertTrue(app.dashboard_refreshed)
+        self.assertTrue(app.details_refreshed)
+        self.assertTrue(app.batch_refreshed)
+        self.assertTrue(app.release_refreshed)
+        self.assertTrue(app.cover_refreshed)
+        self.assertEqual(
+            {
+                "search": "song",
+                "filter": "ready",
+                "sort": "year",
+                "desc": True,
+                "mtime": 42,
+            },
+            app._last_overview_refresh,
+        )
+        self.assertEqual(42, app._last_dashboard_refresh["mtime"])
+        self.assertEqual(42, app._last_batch_refresh["mtime"])
 
     def test_overview_controller_refresh_list_clears_stale_ui_when_no_records(self):
         app = self.make_app_stub(records=[], mtime=None)
@@ -1112,6 +1434,20 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertTrue(app.saved_payload[0][0])
         self.assertEqual("Gespeichert", app.saved_payload[1])
 
+    def test_details_controller_set_status_chip_updates_public_state(self):
+        app = self.make_app_stub()
+        app.current_detail_status = "in_progress"
+        app.detail_status_var = FakeVar("")
+        app.detail_status_chip = FakeLabel()
+        app.status_text = lambda status: f"label:{status}"
+
+        controller = DetailsController(app)
+        controller.set_status_chip("ready")
+
+        self.assertEqual("ready", app.current_detail_status)
+        self.assertEqual("label:ready", app.detail_status_var.get())
+        self.assertEqual("label:ready", app.detail_status_chip.options["text"])
+
     def test_loudness_controller_import_filtered_works_updates_state_and_labels(self):
         app = self.make_app_stub()
         app.state.filtered_records = [
@@ -1155,13 +1491,11 @@ class AppRegressionTests(TemporaryStorageTestCase):
                 }
             ]
         )
-        app.tk = SimpleNamespace(
-            splitlist=lambda _data: (f"{{{matched_path}}}", matched_path)
-        )
         app.release_track_listbox = FakeReleaseListbox()
         app.release_action_hint_label = FakeLabel()
         app.release_status_label = FakeLabel()
         app.release_vars = {"cover_path": FakeVar(""), "export_dir": FakeVar("")}
+        app.tasks.parse_dnd_files = lambda _data: [matched_path, matched_path]
 
         controller = ReleaseController(app)
         controller.log = app.logs.append
@@ -1174,6 +1508,29 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("01. Intro | 1:11 | Prod | 2026 | Datei→Werk", app.release_track_listbox.items[0])
         self.assertIn("Release DnD: 1 Tracks hinzugefügt.", app.logs)
         self.assertEqual("1 TRACKS HINZUGEFÜGT", app.toasts[0])
+
+    def test_loudness_controller_handle_drop_uses_shared_parser_and_skips_duplicates(self):
+        first_path = os.path.join(self.tempdir.name, "first.wav")
+        second_path = os.path.join(self.tempdir.name, "second.mp3")
+        with open(first_path, "wb") as handle:
+            handle.write(b"audio")
+        with open(second_path, "wb") as handle:
+            handle.write(b"audio")
+
+        app = self.make_app_stub()
+        app.state.loudness_files = [first_path]
+        app.tasks.parse_dnd_files = lambda _data: [first_path, second_path, "/tmp/missing.flac"]
+        controller = LoudnessController(app)
+        controller._pop_l_tree = lambda: setattr(app, "loudness_tree_reloaded", True)
+        controller._apply_workflow_state = lambda state: setattr(app, "workflow_state", state)
+        controller.log = app.logs.append
+        controller.toast = app.toasts.append
+
+        controller.handle_drop(SimpleNamespace(data="ignored"))
+
+        self.assertEqual([first_path, second_path], app.state.loudness_files)
+        self.assertTrue(app.loudness_tree_reloaded)
+        self.assertEqual("1 DATEIEN HINZUGEFÜGT", app.toasts[0])
 
     def test_release_title_matching_requires_exact_normalized_match(self):
         source_path = os.path.join(self.tempdir.name, "Intro.wav")

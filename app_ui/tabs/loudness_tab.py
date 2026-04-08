@@ -74,9 +74,9 @@ class LoudnessTab(AkmPanel):
         controls = AkmPanel(action_card.inner, bg=PANEL_2)
         controls.pack(fill="x", padx=CARD_PAD_X, pady=(2, 4))
         self._workflow_action_bar = controls
-        self.app.loudness_choose_btn = self.app.btn(controls, "Dateien", self.app.loudness_choose_files, primary=True, width=96)
-        self.app.loudness_analyze_btn = self.app.btn(controls, "Analyse", self.app.loudness_analyze_files, primary=True, width=96)
-        self.app.loudness_export_btn = self.app.btn(controls, "Export", self.app.loudness_export_files, primary=True, width=96)
+        self.app.loudness_choose_btn = self.app.btn(controls, "Dateien", self.app.loudness_ctrl.choose_files, primary=True, width=96)
+        self.app.loudness_analyze_btn = self.app.btn(controls, "Analyse", self.app.loudness_ctrl.analyze_files, primary=True, width=96)
+        self.app.loudness_export_btn = self.app.btn(controls, "Export", self.app.loudness_ctrl.export_files, primary=True, width=96)
         self._workflow_action_buttons = (
             self.app.loudness_choose_btn,
             self.app.loudness_analyze_btn,
@@ -87,9 +87,9 @@ class LoudnessTab(AkmPanel):
         aux_controls.pack(fill="x", padx=CARD_PAD_X, pady=(0, 6))
         self._workflow_aux_bar = aux_controls
         self._workflow_aux_buttons = (
-            self.app.btn(aux_controls, "Aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=96),
-            self.app.btn(aux_controls, "Aus Filter", self.app.loudness_import_filtered_works, quiet=True, width=96),
-            self.app.btn(aux_controls, "Löschen", self.app.loudness_delete_files, quiet=True, width=96),
+            self.app.btn(aux_controls, "Aus Auswahl", self.app.loudness_ctrl.import_selected_work, quiet=True, width=96),
+            self.app.btn(aux_controls, "Aus Filter", self.app.loudness_ctrl.import_filtered_works, quiet=True, width=96),
+            self.app.btn(aux_controls, "Löschen", self.app.loudness_ctrl.delete_files, quiet=True, width=96),
         )
 
         # Status / Log (Side-by-side with Workflow)
@@ -194,7 +194,7 @@ class LoudnessTab(AkmPanel):
         sb.pack(side="right", fill="y")
         self.app.loudness_tree.config(yscrollcommand=sb.set)
         self.app.loudness_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
-        self.app.loudness_tree.bind("<Double-1>", self.app.on_loudness_tree_activate)
+        self.app.loudness_tree.bind("<Double-1>", self.app.loudness_ctrl.on_tree_activate)
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
@@ -298,7 +298,7 @@ class LoudnessTab(AkmPanel):
     def _create_dir_row(self, parent, var):
         frame = tk.Frame(parent, bg=PANEL_2)
         AkmEntry(frame, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
-        self.app.btn(frame, "Wählen", self.app.loudness_choose_output_dir, quiet=True, width=86).pack(side="right")
+        self.app.btn(frame, "Wählen", self.app.loudness_ctrl.choose_output_dir, quiet=True, width=86).pack(side="right")
         return frame
 
     def _setup_dnd(self):
@@ -307,4 +307,4 @@ class LoudnessTab(AkmPanel):
             self.dnd_bind('<<Drop>>', self._on_dnd_drop)
 
     def _on_dnd_drop(self, event):
-        self.app.loudness_handle_drop(event)
+        self.app.loudness_ctrl.handle_drop(event)

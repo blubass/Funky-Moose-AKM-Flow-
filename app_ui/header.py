@@ -48,7 +48,7 @@ class MainHeader:
 
         tk.Label(
             brand_copy,
-            text=f"OBSIDIAN MASTER v{cfg.VERSION}",
+            text=f"{cfg.APP_NAME} v{cfg.VERSION}",
             bg=inlay_bg,
             fg=ui_patterns.ACCENT,
             font=FONT_ITALIC,

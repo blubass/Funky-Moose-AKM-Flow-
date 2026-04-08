@@ -70,7 +70,7 @@ class OverviewTab(AkmPanel):
         self._status_action_buttons = (
             self.app.btn(action_row, "Details öffnen", self.app.load_selected_into_details, quiet=True, width=126),
             self.app.btn(action_row, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
-            self.app.btn(action_row, "Lautheit", self.app.loudness_import_selected_work, quiet=True, width=96),
+            self.app.btn(action_row, "Lautheit", self.app.loudness_ctrl.import_selected_work, quiet=True, width=96),
         )
 
         controls_card = AkmCard(page)
@@ -165,7 +165,7 @@ class OverviewTab(AkmPanel):
         self._bottom_action_buttons = (
             self.app.btn(bottom_actions, "Details öffnen", self.app.load_selected_into_details, primary=True, width=138),
             self.app.btn(bottom_actions, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
-            self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=164),
+            self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_ctrl.import_selected_work, quiet=True, width=164),
         )
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 

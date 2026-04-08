@@ -25,10 +25,9 @@ class LoudnessController(BaseController):
         data = event.data
         if not data: return
         try:
-            raw_files = self.app.tk.splitlist(data)
+            raw_files = self.tasks.parse_dnd_files(data)
             valid_files = []
             for f in raw_files:
-                f = f.strip('"\'')
                 if os.path.exists(f) and os.path.isfile(f):
                     ext = os.path.splitext(f.lower())[1]
                     if ext in ['.wav', '.aiff', '.aif', '.mp3', '.flac', '.m4a']:

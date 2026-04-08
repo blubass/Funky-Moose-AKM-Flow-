@@ -73,7 +73,7 @@ class BatchTab(AkmPanel):
         )
         self.app.batch_meta_label.pack(fill="x", pady=(2, 0))
 
-        self._reload_status_button = self.app.btn(status_right, "Neu laden", self.app.reload_flow_data, primary=True, width=118)
+        self._reload_status_button = self.app.btn(status_right, "Neu laden", self.app.batch_ctrl.reload_flow_data, primary=True, width=118)
         self._reload_status_button.pack(anchor="e", pady=(0, SPACE_XS))
         status_actions = tk.Frame(status_right, bg=PANEL_2)
         status_actions.pack(anchor="e")
@@ -103,13 +103,13 @@ class BatchTab(AkmPanel):
         btn_row.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._focus_action_bar = btn_row
 
-        self.app.copy_button = self.app.btn(btn_row, "Titel kopieren", self.app.flow_copy, primary=True)
+        self.app.copy_button = self.app.btn(btn_row, "Titel kopieren", self.app.batch_ctrl.flow_copy, primary=True)
         self._batch_action_buttons.append(self.app.copy_button)
-        submit_button = self.app.btn(btn_row, "Als gemeldet", self.app.flow_submit, primary=True)
+        submit_button = self.app.btn(btn_row, "Als gemeldet", self.app.batch_ctrl.flow_submit, primary=True)
         self._batch_action_buttons.append(submit_button)
-        next_button = self.app.btn(btn_row, "Weiter →", self.app.flow_next, primary=True)
+        next_button = self.app.btn(btn_row, "Weiter →", self.app.batch_ctrl.flow_next, primary=True)
         self._batch_action_buttons.append(next_button)
-        reload_button = self.app.btn(btn_row, "Neu laden", self.app.reload_flow_data, quiet=True)
+        reload_button = self.app.btn(btn_row, "Neu laden", self.app.batch_ctrl.reload_flow_data, quiet=True)
         self._focus_action_buttons = (
             self.app.copy_button,
             submit_button,
@@ -213,8 +213,8 @@ class BatchTab(AkmPanel):
         if not data:
             return
         try:
-            files = self.tk.splitlist(data)
-            excel_files = [f.strip("\"'") for f in files if f.lower().endswith((".xlsx", ".xls"))]
+            files = self.app.tasks.parse_dnd_files(data)
+            excel_files = [f for f in files if f.lower().endswith((".xlsx", ".xls"))]
             if excel_files:
                 self.app.import_excel_path(excel_files[0])
             else:

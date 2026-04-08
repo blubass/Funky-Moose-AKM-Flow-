@@ -25,6 +25,10 @@ class DetailsTab(AkmPanel):
         self._setup_state_traces()
         self._update_detail_radar()
 
+    def refresh_view(self):
+        """Refresh summary UI that depends on the current form state."""
+        self._update_detail_radar()
+
     def _setup_dnd(self):
         try:
             from tkinterdnd2 import DND_FILES
@@ -36,9 +40,9 @@ class DetailsTab(AkmPanel):
         data = event.data
         if not data: return
         try:
-            files = self.tk.splitlist(data)
+            files = self.app.tasks.parse_dnd_files(data)
             if files:
-                f = files[0].strip('"\'')
+                f = files[0]
                 # Trigger the controller's logic with the dropped path
                 self.app.details_ctrl.handle_audio_drop(f)
         except Exception: pass
@@ -87,14 +91,14 @@ class DetailsTab(AkmPanel):
         )
         self.app.details_context_label.pack(fill="x", pady=(2, 0))
 
-        self.app.btn(status_right, "Speichern", self.app.save_details, primary=True, width=126).pack(anchor="e", pady=(0, SPACE_XS))
+        self.app.btn(status_right, "Speichern", self.app.details_ctrl.save_details, primary=True, width=126).pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(status_right, bg=PANEL_2)
         action_row.pack(anchor="e")
         self._status_action_bar = action_row
         self._status_action_buttons = (
-            self.app.btn(action_row, "Audio wählen", self.app.choose_audio_path_for_details, quiet=True, width=118),
-            self.app.btn(action_row, "Finder", self.app.open_audio_path_in_finder, quiet=True, width=84),
-            self.app.btn(action_row, "Zurück", self.app.clear_details_form, quiet=True, width=84),
+            self.app.btn(action_row, "Audio wählen", self.app.details_ctrl.choose_audio_path, quiet=True, width=118),
+            self.app.btn(action_row, "Finder", self.app.details_ctrl.open_audio_path_in_finder, quiet=True, width=84),
+            self.app.btn(action_row, "Zurück", self.app.details_ctrl.clear_details_form, quiet=True, width=84),
         )
 
         scroll_root = AkmScrollablePanel(self)
@@ -136,8 +140,8 @@ class DetailsTab(AkmPanel):
                     wrap = tk.Frame(parent, bg=PANEL_2)
                     entry = AkmEntry(wrap, textvariable=var)
                     entry.pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.choose_audio_path_for_details, primary=True).pack(side="left", padx=(SPACE_XS, 0))
-                    self.app.btn(wrap, "Finder", self.app.open_audio_path_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
+                    self.app.btn(wrap, "Wählen", self.app.details_ctrl.choose_audio_path, primary=True).pack(side="left", padx=(SPACE_XS, 0))
+                    self.app.btn(wrap, "Finder", self.app.details_ctrl.open_audio_path_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
                     return wrap
                 left_form.add_row(label, _create_audio_field)
             else:
@@ -159,9 +163,9 @@ class DetailsTab(AkmPanel):
             
             btn_row = tk.Frame(wrap, bg=PANEL_2)
             btn_row.pack(anchor="w")
-            self.app.btn(btn_row, "In Arbeit", lambda: self.app.set_detail_status("in_progress"), quiet=True).pack(side="left", padx=(0, SPACE_XS))
-            self.app.btn(btn_row, "Bereit", lambda: self.app.set_detail_status("ready")).pack(side="left", padx=SPACE_XS)
-            self.app.btn(btn_row, "Bestätigt", lambda: self.app.set_detail_status("confirmed")).pack(side="left", padx=SPACE_XS)
+            self.app.btn(btn_row, "In Arbeit", lambda: self.app.details_ctrl.set_status_chip("in_progress"), quiet=True).pack(side="left", padx=(0, SPACE_XS))
+            self.app.btn(btn_row, "Bereit", lambda: self.app.details_ctrl.set_status_chip("ready")).pack(side="left", padx=SPACE_XS)
+            self.app.btn(btn_row, "Bestätigt", lambda: self.app.details_ctrl.set_status_chip("confirmed")).pack(side="left", padx=SPACE_XS)
             return wrap
         
         left_form.add_row("Status", _create_status_row)
@@ -184,8 +188,8 @@ class DetailsTab(AkmPanel):
         # GLOBAL ACTIONS
         actions = AkmPanel(self)
         actions.pack(anchor="w", padx=SPACE_MD, pady=SPACE_SM)
-        self.app.btn(actions, "Speichern", self.app.save_details, primary=True, width=118).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(actions, "Zurücksetzen", self.app.clear_details_form, quiet=True, width=118).pack(side="left", padx=SPACE_XS)
+        self.app.btn(actions, "Speichern", self.app.details_ctrl.save_details, primary=True, width=118).pack(side="left", padx=(0, SPACE_XS))
+        self.app.btn(actions, "Zurücksetzen", self.app.details_ctrl.clear_details_form, quiet=True, width=118).pack(side="left", padx=SPACE_XS)
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)

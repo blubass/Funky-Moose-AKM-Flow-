@@ -76,6 +76,16 @@ class TaskRunner:
         import re
         if not data:
             return []
-        # Handles macOS space-wrapped paths in curly braces
-        files = re.findall(r'\{.*?\}|\S+', str(data))
-        return [f.strip("{}") for f in files if f.strip("{}")]
+        try:
+            files = self.app.tk.splitlist(data)
+        except Exception:
+            files = re.findall(r'\{.*?\}|\S+', str(data))
+
+        cleaned = []
+        for item in files:
+            path = str(item).strip().strip("\"'")
+            if path.startswith("{") and path.endswith("}"):
+                path = path[1:-1]
+            if path:
+                cleaned.append(path)
+        return cleaned

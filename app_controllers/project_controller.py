@@ -8,6 +8,32 @@ from app_ui import ui_patterns
 
 class ProjectController(BaseController):
     """Manages project persistence, exports, and data imports."""
+
+    def _get_built_tab(self, tab_id):
+        tab_system = getattr(self.app, "tab_system", None)
+        instances = getattr(tab_system, "_instances", None)
+        if not instances:
+            return None
+        return instances.get(tab_id)
+
+    def _collect_cover_state(self):
+        """Collect cover metadata without forcing the cover tab to build."""
+        cover_state = dict(getattr(self.app, "cover_state_cache", {}) or {})
+        cover_tab = self._get_built_tab("cover")
+        if cover_tab is not None:
+            cover_state = cover_tab.get_state()
+        if hasattr(self.app, "cover_state_cache"):
+            self.app.cover_state_cache = dict(cover_state)
+        return cover_state
+
+    def _collect_release_vars(self):
+        """Collect release metadata even if the release tab has not been built yet."""
+        release_vars = dict(getattr(self.app, "release_state_cache", {}) or {})
+        for key, var in getattr(self.app, "release_vars", {}).items():
+            release_vars[key] = var.get()
+        if hasattr(self.app, "release_state_cache"):
+            self.app.release_state_cache = dict(release_vars)
+        return release_vars
     
     def save_project(self):
         """Saves current state and cover settings using the custom Moose Save Dialog."""
@@ -19,14 +45,14 @@ class ProjectController(BaseController):
             path = dialog.result
             if not path:
                 self.log("Speichervorgang abgebrochen.")
-                return
+                return False
             
             self.log(f"Speichere Projekt nach: {path}...")
             data = self.state.get_all_records()
-            cover_state = self.app.cover_tab.get_state() if hasattr(self.app, "cover_tab") else {}
+            cover_state = self._collect_cover_state()
             
             # Collect Release State
-            release_vars = {k: v.get() for k, v in self.app.release_vars.items()}
+            release_vars = self._collect_release_vars()
             release_state = {
                 "vars": release_vars,
                 "tracks": self.state.release_tracks
@@ -36,12 +62,14 @@ class ProjectController(BaseController):
             
             self.log(f"Projekt erfolgreich gespeichert: {os.path.basename(path)}")
             self.toast("PROJEKT GESPEICHERT", color=ui_patterns.FLAVOR_SUCCESS)
+            return True
             
         except Exception as e:
             err_msg = f"FEHLER beim Speichern: {str(e)}"
             self.log(err_msg)
             print(traceback.format_exc())
             messagebox.showerror("Fehler", f"Speichern fehlgeschlagen:\n{e}")
+            return False
 
     def load_project_dialog(self):
         """Loads a project file using the custom Moose Load Dialog."""
@@ -62,16 +90,24 @@ class ProjectController(BaseController):
         self.state.invalidate_cache()
         self.app.overview_ctrl.refresh_list()
         
-        if "cover" in bundle and hasattr(self.app, "cover_tab"):
-            self.app.cover_tab.set_state(bundle["cover"])
+        if "cover" in bundle:
+            cover_state = dict(bundle.get("cover") or {})
+            if hasattr(self.app, "cover_state_cache"):
+                self.app.cover_state_cache = dict(cover_state)
+            cover_tab = self._get_built_tab("cover")
+            if cover_tab is not None:
+                cover_tab.set_state(cover_state)
             
         if "release" in bundle:
             r_data = bundle["release"]
             self.state.release_tracks = r_data.get("tracks", [])
-            for k, v in r_data.get("vars", {}).items():
+            release_vars = dict(r_data.get("vars", {}))
+            if hasattr(self.app, "release_state_cache"):
+                self.app.release_state_cache = dict(release_vars)
+            for k, v in release_vars.items():
                 if k in self.app.release_vars:
                     self.app.release_vars[k].set(v)
-            self.app.release_ctrl.refresh_view()
+            self.app.release_ctrl.refresh_view(force=True)
             
         self.log(f"Projekt geladen: {os.path.basename(path)}")
         self.toast("PROJEKT GELADEN", color=ui_patterns.FLAVOR_SUCCESS)
@@ -93,7 +129,6 @@ class ProjectController(BaseController):
 
     def add_entry(self, title):
         if not title: return
-        lang = akm_core.get_lang()
-        self.tasks.run(lambda: akm_core.add_entry(title, lang), 
+        self.tasks.run(lambda: akm_core.add_entry(title),
                        lambda r: self.app.overview_ctrl._on_g_done(r, f"'{title}' angelegt"), 
                        busy_text=f"Lege '{title}' an...")

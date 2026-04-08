@@ -32,7 +32,7 @@ class ReleaseController(BaseController):
         data = event.data
         if not data: return
         try:
-            raw_files = self.app.tk.splitlist(data)
+            raw_files = self.tasks.parse_dnd_files(data)
             clean_paths = release_workflows.clean_release_drop_paths(raw_files)
             records = self.state.get_all_records(copy_data=False)
             candidate_tracks = []

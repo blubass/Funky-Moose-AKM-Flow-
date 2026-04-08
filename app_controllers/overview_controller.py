@@ -146,7 +146,7 @@ class OverviewController(BaseController):
             if hasattr(self.app, 'detail_instrumental_var'):
                 self.app.detail_instrumental_var.set(bool(it.get("instrumental", False)))
             
-            self.app.details_ctrl._set_detail_status_chip(it.get("status", "in_progress"))
+            self.app.details_ctrl.set_status_chip(it.get("status", "in_progress"))
             self.app.select_tab_by_id("details")
 
             # NEW: Extraction if duration is missing but audio path exists
@@ -201,6 +201,10 @@ class OverviewController(BaseController):
             return self.state.filtered_records[sel[0]]
         except:
             return None
+
+    def get_selected_item(self):
+        """Public accessor for the currently selected overview item."""
+        return self._get_selected_overview_item()
 
     def _get_selected_overview_items(self):
         try:

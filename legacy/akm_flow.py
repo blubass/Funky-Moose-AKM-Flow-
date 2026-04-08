@@ -170,9 +170,8 @@ class AKMApp:
         title = simpledialog.askstring("Neues Werk", "Titel:")
         if not title:
             return
-        lang = akm_core.get_lang()
         try:
-            ok, res = akm_core.add_entry(title, lang)
+            ok, res = akm_core.add_entry(title)
         except akm_core.DataFileError as exc:
             self.assist_box.insert(tk.END, f"❌ Anlegen blockiert: {exc}\n")
             return

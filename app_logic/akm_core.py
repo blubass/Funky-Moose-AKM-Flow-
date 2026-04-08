@@ -366,7 +366,6 @@ def get_last_open():
 
 def add_entry(
     title,
-    lang,
     duration="",
     composer="",
     production="",
@@ -377,8 +376,6 @@ def add_entry(
     tags=None,
     status="in_progress",
 ):
-    del lang
-
     title = _clean_text(title)
     if not title:
         return False, "empty_title"
@@ -419,18 +416,8 @@ def add_entry(
 
 
 def update_status(title, status, lang):
-    data = load_data(strict=True)
-    entry = find_entry(data, title)
-    if not entry:
-        return False, "not_found"
-    status_keys = LANGUAGES.get(lang, LANGUAGES["de"])["status_keys"]
-    if status not in status_keys:
-        return False, "invalid_status"
-
-    entry["status"] = status
-    entry["last_change"] = _today()
-    save_data(data)
-    return True, entry
+    del lang
+    return update_entry(title, {"status": status})
 
 
 def import_excel(file_path):
@@ -654,27 +641,9 @@ def update_entry(title, updates):
 
 
 def get_dashboard_stats():
-    entries = load_data(strict=True)
-    total = len(entries)
-    confirmed = sum(1 for item in entries if item.get("status") == "confirmed")
-    ready = sum(1 for item in entries if item.get("status") == "ready")
-    submitted = sum(1 for item in entries if item.get("status") == "submitted")
-    in_progress = sum(1 for item in entries if item.get("status") == "in_progress")
-    instrumental = sum(1 for item in entries if item.get("instrumental"))
-    with_production = sum(1 for item in entries if item.get("production"))
-    with_notes = sum(1 for item in entries if item.get("notes"))
+    from app_logic import overview_tools
 
-    return {
-        "total": total,
-        "open": total - confirmed,
-        "ready": ready,
-        "submitted": submitted,
-        "in_progress": in_progress,
-        "confirmed": confirmed,
-        "instrumental": instrumental,
-        "with_production": with_production,
-        "with_notes": with_notes,
-    }
+    return overview_tools.build_dashboard_stats(load_data(strict=True))
 
 def save_project(path, data, cover_state=None, release_state=None, settings=None):
     """

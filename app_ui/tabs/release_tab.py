@@ -61,7 +61,7 @@ class ReleaseTab(AkmPanel):
         self._status_primary_button = self.app.btn(
             status_right,
             "Distro-Export starten",
-            self.app.build_distro_export,
+            self.app.release_ctrl.build_export,
             primary=True,
             width=190,
         )
@@ -70,8 +70,8 @@ class ReleaseTab(AkmPanel):
         action_row.pack(anchor="e")
         self._status_action_bar = action_row
         self._status_action_buttons = (
-            self.app.btn(action_row, "Cover-Preview", self.app.open_release_cover_dialog, quiet=True, width=122),
-            self.app.btn(action_row, "Finder", self.app.open_release_cover_in_finder, quiet=True, width=84),
+            self.app.btn(action_row, "Cover-Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=122),
+            self.app.btn(action_row, "Finder", self.app.release_ctrl.open_cover_in_finder, quiet=True, width=84),
         )
 
         scroll_root = AkmScrollablePanel(self)
@@ -109,22 +109,21 @@ class ReleaseTab(AkmPanel):
         defaults = {"artist": akm_core.get_release_default_artist(), "type": "Single"}
 
         for key, label in fields:
-            var = tk.StringVar(value=defaults.get(key, ""))
-            self.app.release_vars[key] = var
+            var = self._create_release_var(key, defaults.get(key, ""))
             
             if key == "cover_path":
                 def _create_cover_field(parent, v=var):
                     wrap = tk.Frame(parent, bg=PANEL_2)
                     AkmEntry(wrap, textvariable=v, font=FONT_SM).pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.choose_release_cover, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
-                    self.app.btn(wrap, "Preview", self.app.open_release_cover_dialog, quiet=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+                    self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_cover, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+                    self.app.btn(wrap, "Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
                     return wrap
                 left_form.add_row(label, _create_cover_field)
             elif key == "export_dir":
                 def _create_export_field(parent, v=var):
                     wrap = tk.Frame(parent, bg=PANEL_2)
                     AkmEntry(wrap, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.choose_release_export_dir, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+                    self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_export_dir, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
                     return wrap
                 left_form.add_row(label, _create_export_field)
             else:
@@ -176,12 +175,29 @@ class ReleaseTab(AkmPanel):
         tk_actions.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._release_action_bar = tk_actions
         self._release_action_buttons = (
-            self.app.btn(tk_actions, "Nach oben", self.app.release_move_track_up, quiet=True, width=108),
-            self.app.btn(tk_actions, "Nach unten", self.app.release_move_track_down, quiet=True, width=108),
-            self.app.btn(tk_actions, "Entfernen", self.app.release_remove_track, quiet=True, width=108),
+            self.app.btn(tk_actions, "Nach oben", self.app.release_ctrl.move_track_up, quiet=True, width=108),
+            self.app.btn(tk_actions, "Nach unten", self.app.release_ctrl.move_track_down, quiet=True, width=108),
+            self.app.btn(tk_actions, "Entfernen", self.app.release_ctrl.remove_track, quiet=True, width=108),
         )
         right_card.bind("<Configure>", self._on_action_bar_resize, add="+")
         self.after_idle(lambda: self._apply_release_action_layout(right_card.winfo_width()))
+
+    def _create_release_var(self, key, default_value=""):
+        cache = getattr(self.app, "release_state_cache", {}) or {}
+        initial_value = cache.get(key, default_value)
+        var = tk.StringVar(value=initial_value)
+        self.app.release_vars[key] = var
+
+        if hasattr(self.app, "release_state_cache"):
+            self.app.release_state_cache[key] = initial_value
+            var.trace_add(
+                "write",
+                lambda *_args, cache_key=key, cache_var=var: self.app.release_state_cache.__setitem__(
+                    cache_key,
+                    cache_var.get(),
+                ),
+            )
+        return var
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)
@@ -267,6 +283,6 @@ class ReleaseTab(AkmPanel):
         try:
             from tkinterdnd2 import DND_FILES
             self.app.release_track_listbox.drop_target_register(DND_FILES)
-            self.app.release_track_listbox.dnd_bind('<<Drop>>', self.app.release_handle_drop)
+            self.app.release_track_listbox.dnd_bind('<<Drop>>', self.app.release_ctrl.handle_drop)
             self.app.append_log("Release DnD bereit.")
         except: pass
