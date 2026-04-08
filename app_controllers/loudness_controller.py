@@ -9,6 +9,88 @@ from app_workflows import loudness_workflows
 
 class LoudnessController(BaseController):
     """Manages audio analysis, loudness normalization, and matching workflows."""
+
+    def _get_loudness_view(self):
+        if hasattr(self.app, "get_built_tab"):
+            return self.app.get_built_tab("loudness")
+        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("loudness")
+
+    def _ensure_loudness_view(self):
+        try:
+            loudness_tab = getattr(self.app, "loudness_tab", None)
+        except Exception:
+            loudness_tab = None
+        return loudness_tab or self._get_loudness_view()
+
+    def _has_loudness_tree(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "has_tree"):
+            return bool(loudness_view.has_tree())
+        return hasattr(self.app, "loudness_tree")
+
+    def _get_selected_paths(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_selected_paths"):
+            return tuple(loudness_view.get_selected_paths())
+        if hasattr(self.app, "loudness_tree"):
+            return tuple(self.app.loudness_tree.selection())
+        return ()
+
+    def _clear_tree(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "clear_tree"):
+            loudness_view.clear_tree()
+            return
+        if hasattr(self.app, "loudness_tree"):
+            self.app.loudness_tree.delete(*self.app.loudness_tree.get_children())
+
+    def _insert_tree_row(self, path, values, tags=()):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "insert_tree_row"):
+            loudness_view.insert_tree_row(path, values, tags=tags)
+            return
+        if hasattr(self.app, "loudness_tree"):
+            self.app.loudness_tree.insert("", tk.END, iid=path, values=values, tags=tags)
+
+    def _get_target_text(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_target_text"):
+            return loudness_view.get_target_text()
+        if hasattr(self.app, "loudness_target_var"):
+            return self.app.loudness_target_var.get()
+        return "-14.0"
+
+    def _get_peak_text(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_peak_text"):
+            return loudness_view.get_peak_text()
+        if hasattr(self.app, "loudness_peak_var"):
+            return self.app.loudness_peak_var.get()
+        return "-1.0"
+
+    def _get_output_dir(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_output_dir"):
+            return loudness_view.get_output_dir()
+        if hasattr(self.app, "loudness_output_dir_var"):
+            return (self.app.loudness_output_dir_var.get() or "").strip()
+        return ""
+
+    def _set_output_dir(self, path):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "set_output_dir"):
+            loudness_view.set_output_dir(path)
+            return
+        if hasattr(self.app, "loudness_output_dir_var"):
+            self.app.loudness_output_dir_var.set(path)
+
+    def _get_use_limiter(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_use_limiter"):
+            return loudness_view.get_use_limiter()
+        if hasattr(self.app, "loudness_use_limiter_var"):
+            return self.app.loudness_use_limiter_var.get()
+        return True
     
     def choose_files(self):
         p = filedialog.askopenfilenames(filetypes=path_ui_tools.AUDIO_FILETYPES)
@@ -45,8 +127,9 @@ class LoudnessController(BaseController):
             self.log(f"Loudness DnD Parse Fehler: {e}")
 
     def delete_files(self):
-        if not hasattr(self.app, 'loudness_tree'): return
-        selected = self.app.loudness_tree.selection()
+        if not self._has_loudness_tree():
+            return
+        selected = self._get_selected_paths()
         if not selected:
             self.toast("KEINE AUSWAHL", color=ui_patterns.FLAVOR_ERROR)
             return
@@ -65,8 +148,8 @@ class LoudnessController(BaseController):
             self.toast("KEINE DATEIEN GELADEN", color=ui_patterns.FLAVOR_ERROR)
             return
         try:
-            t_str = self.app.loudness_target_var.get().replace(",", ".")
-            p_str = self.app.loudness_peak_var.get().replace(",", ".")
+            t_str = self._get_target_text().replace(",", ".")
+            p_str = self._get_peak_text().replace(",", ".")
             t = float(t_str or -14.0)
             pk = float(p_str or -1.0)
         except ValueError:
@@ -93,8 +176,9 @@ class LoudnessController(BaseController):
         self.log(f"Analyse abgeschlossen: {len(r)} Dateien.")
 
     def _pop_l_tree(self):
-        if not hasattr(self.app, 'loudness_tree'): return
-        self.app.loudness_tree.delete(*self.app.loudness_tree.get_children())
+        if not self._has_loudness_tree():
+            return
+        self._clear_tree()
         results_map = {it.get("path"): it for it in self.state.loudness_results} if self.state.loudness_results else {}
         if self.state.loudness_files:
             for f in self.state.loudness_files:
@@ -106,10 +190,10 @@ class LoudnessController(BaseController):
                     "match_status": "Neu geladen", "export_info": "Bereit für Analyse"
                 }
                 row = loudness_workflows.build_tree_row(it)
-                self.app.loudness_tree.insert("", tk.END, iid=f, values=row["values"], tags=row["tags"])
+                self._insert_tree_row(f, row["values"], tags=row["tags"])
 
     def on_tree_activate(self, event):
-        selected = self.app.loudness_tree.selection()
+        selected = self._get_selected_paths()
         if selected:
             path = selected[0]
             if os.path.exists(path):
@@ -120,7 +204,7 @@ class LoudnessController(BaseController):
     def import_selected_work(self):
         it = self.app.overview_ctrl._get_selected_overview_item()
         if it and it.get("audio_path"):
-            _ = getattr(self.app, "loudness_tab", None)
+            self._ensure_loudness_view()
             self.state.loudness_files = [it["audio_path"]]
             self.state.loudness_results = []
             self._pop_l_tree()
@@ -136,7 +220,7 @@ class LoudnessController(BaseController):
         items = loudness_workflows.collect_importable_overview_audio(
             self.state.filtered_records
         )
-        _ = getattr(self.app, "loudness_tab", None)
+        self._ensure_loudness_view()
         self.state.loudness_files = [item["path"] for item in items]
         self.state.loudness_results = []
         self._pop_l_tree()
@@ -148,17 +232,20 @@ class LoudnessController(BaseController):
 
     def choose_output_dir(self):
         p = filedialog.askdirectory()
-        if p: self.app.loudness_output_dir_var.set(p)
+        if p:
+            self._set_output_dir(p)
 
     def export_files(self):
-        out = self.app.loudness_output_dir_var.get()
+        out = self._get_output_dir()
         if not out:
             out = filedialog.askdirectory(title="Wähle Zielordner für Match-Export")
-            if out: self.app.loudness_output_dir_var.set(out)
-            else: return
+            if out:
+                self._set_output_dir(out)
+            else:
+                return
 
-        pk = float(self.app.loudness_peak_var.get() or -1.0)
-        lim = self.app.loudness_use_limiter_var.get() if hasattr(self.app, 'loudness_use_limiter_var') else True
+        pk = float(self._get_peak_text() or -1.0)
+        lim = self._get_use_limiter()
         if not self.state.loudness_results:
             self.toast("ANALYSE FEHLT", color=ui_patterns.FLAVOR_ERROR)
             return
@@ -181,14 +268,18 @@ class LoudnessController(BaseController):
         hint_text = workflow_state.get("hint_text")
         log_lines = workflow_state.get("log_lines", [])
 
-        if hasattr(self.app, "loudness_status_label"):
-            self.app.loudness_status_label.config(text=status_text or "")
-        if hasattr(self.app, "loudness_hint_label"):
-            self.app.loudness_hint_label.config(text=hint_text or "")
-        if hasattr(self.app, "loudness_log"):
-            self.app.loudness_log.delete("1.0", tk.END)
-            if log_lines:
-                self.app.loudness_log.insert("1.0", "\n".join(log_lines))
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "apply_workflow_state"):
+            loudness_view.apply_workflow_state(status_text, hint_text, log_lines)
+        else:
+            if hasattr(self.app, "loudness_status_label"):
+                self.app.loudness_status_label.config(text=status_text or "")
+            if hasattr(self.app, "loudness_hint_label"):
+                self.app.loudness_hint_label.config(text=hint_text or "")
+            if hasattr(self.app, "loudness_log"):
+                self.app.loudness_log.delete("1.0", tk.END)
+                if log_lines:
+                    self.app.loudness_log.insert("1.0", "\n".join(log_lines))
 
         for line in log_lines:
             self.log(line)

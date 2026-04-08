@@ -278,6 +278,63 @@ class FakeDetailsView:
         self.status_text = status_label
 
 
+class FakeLoudnessView:
+    def __init__(
+        self,
+        *,
+        target_text="-14.0",
+        peak_text="-1.0",
+        output_dir="",
+        use_limiter=True,
+        selection=(),
+    ):
+        self.target_text = target_text
+        self.peak_text = peak_text
+        self.output_dir = output_dir
+        self.use_limiter = use_limiter
+        self.selection = tuple(selection)
+        self.status_text = None
+        self.hint_text = None
+        self.log_text = ""
+        self.rows = []
+
+    def has_tree(self):
+        return True
+
+    def get_target_text(self):
+        return self.target_text
+
+    def get_peak_text(self):
+        return self.peak_text
+
+    def get_output_dir(self):
+        return self.output_dir
+
+    def set_output_dir(self, path):
+        self.output_dir = path or ""
+
+    def get_use_limiter(self):
+        return self.use_limiter
+
+    def get_selected_paths(self):
+        return self.selection
+
+    def clear_tree(self):
+        self.rows = []
+
+    def insert_tree_row(self, path, values, tags=()):
+        self.rows.append({"path": path, "values": tuple(values), "tags": tuple(tags)})
+
+    def apply_workflow_state(self, status_text="", hint_text="", log_lines=None):
+        self.status_text = status_text or ""
+        self.hint_text = hint_text or ""
+        self.log_text = "\n".join(log_lines or [])
+
+    def set_open_state(self, status_text="", hint_text=""):
+        self.status_text = status_text or ""
+        self.hint_text = hint_text or ""
+
+
 class FakeListbox:
     def __init__(self, selection=()):
         self.selection = tuple(selection)
@@ -1490,6 +1547,26 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual(42, app._last_dashboard_refresh["mtime"])
         self.assertEqual(42, app._last_batch_refresh["mtime"])
 
+    def test_open_loudness_tab_updates_built_loudness_view(self):
+        app = self.make_app_stub()
+        loudness_view = FakeLoudnessView()
+        app.loudness_tab = loudness_view
+
+        with mock.patch(
+            "akm_app.assistant_tools.build_loudness_tab_open_state",
+            return_value={
+                "status_text": "Lautheit bereit",
+                "hint_text": "Ziehe Dateien hier hinein.",
+                "log_message": "Lautheit geöffnet",
+            },
+        ):
+            akm_app.AKMApp.open_loudness_tab(app)
+
+        self.assertEqual("loudness", app.selected_tab)
+        self.assertEqual("Lautheit bereit", loudness_view.status_text)
+        self.assertEqual("Ziehe Dateien hier hinein.", loudness_view.hint_text)
+        self.assertIn("Lautheit geöffnet", app.logs)
+
     def test_overview_controller_refresh_list_clears_stale_ui_when_no_records(self):
         app = self.make_app_stub(records=[], mtime=None)
         app.state.filtered_records = [{"title": "Veraltet"}]
@@ -1597,9 +1674,8 @@ class AppRegressionTests(TemporaryStorageTestCase):
             {"title": "Song A", "audio_path": "/tmp/a.wav"},
             {"title": "Song B", "audio_path": "/tmp/missing.wav"},
         ]
-        app.loudness_hint_label = FakeLabel()
-        app.loudness_status_label = FakeLabel()
-        app.loudness_log = FakeText("")
+        loudness_view = FakeLoudnessView()
+        app.tab_system._instances["loudness"] = loudness_view
 
         controller = LoudnessController(app)
         controller._pop_l_tree = lambda: setattr(app, "loudness_tree_cleared", True)
@@ -1614,9 +1690,38 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual(["/tmp/a.wav"], app.state.loudness_files)
         self.assertEqual([], app.state.loudness_results)
         self.assertTrue(app.loudness_tree_cleared)
-        self.assertEqual("1 Werke in Lautheit übernommen.", app.loudness_status_label.options["text"])
+        self.assertEqual("1 Werke in Lautheit übernommen.", loudness_view.status_text)
         self.assertEqual("loudness", app.selected_tab)
         self.assertIn("Aus Werken übernommen: 1 Dateien", app.logs)
+
+    def test_loudness_controller_analyze_files_reads_settings_from_loudness_view(self):
+        app = self.make_app_stub()
+        app.state.loudness_files = ["/tmp/song.wav"]
+        loudness_view = FakeLoudnessView(target_text="-12,5", peak_text="-0.5")
+        app.tab_system._instances["loudness"] = loudness_view
+
+        controller = LoudnessController(app)
+        controller._pop_l_tree = lambda: setattr(app, "loudness_tree_reloaded", True)
+        controller.log = app.logs.append
+
+        with mock.patch(
+            "app_controllers.loudness_controller.loudness_tools.analyze_full_track",
+            return_value={
+                "filename": "song.wav",
+                "path": "/tmp/song.wav",
+                "ok": True,
+                "duration_display": "3:00",
+                "integrated_lufs": -10.0,
+                "true_peak_dbtp": -1.2,
+                "sample_peak_dbfs": -1.4,
+            },
+        ):
+            controller.analyze_files()
+
+        self.assertTrue(app.loudness_tree_reloaded)
+        self.assertEqual(-12.5, app.state.loudness_results[0]["target_lufs"])
+        self.assertEqual(-2.5, app.state.loudness_results[0]["gain_to_target_db"])
+        self.assertEqual("Analyse abgeschlossen: 1 Dateien.", app.logs[-1])
 
     def test_release_controller_handle_drop_deduplicates_and_matches_titles(self):
         matched_path = os.path.join(self.tempdir.name, "01 - Intro_matched.wav")

@@ -166,11 +166,6 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.status_filter_var = None
         self.sort_key_var = None
         self.sort_desc_var = None
-        
-        # Loudness Perspective
-        self.loudness_output_dir_var = tk.StringVar()
-        self.loudness_target_var = tk.StringVar(value="-14.0")
-        self.loudness_peak_var = tk.StringVar(value="-1.0")
 
     # --- UI BUILDING ---
     def build_ui(self):
@@ -251,11 +246,15 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""
         self.select_tab_by_id("loudness")
+        loudness_tab = self.loudness_tab
         view_state = assistant_tools.build_loudness_tab_open_state(loudness_tools is not None)
-        if hasattr(self, "loudness_status_label"):
-            self.loudness_status_label.config(text=view_state["status_text"])
-        if hasattr(self, "loudness_hint_label"):
-            self.loudness_hint_label.config(text=view_state["hint_text"])
+        if loudness_tab is not None and hasattr(loudness_tab, "set_open_state"):
+            loudness_tab.set_open_state(view_state["status_text"], view_state["hint_text"])
+        else:
+            if hasattr(self, "loudness_status_label"):
+                self.loudness_status_label.config(text=view_state["status_text"])
+            if hasattr(self, "loudness_hint_label"):
+                self.loudness_hint_label.config(text=view_state["hint_text"])
         self.append_log(view_state["log_message"])
 
     def on_tab_changed(self, event):
