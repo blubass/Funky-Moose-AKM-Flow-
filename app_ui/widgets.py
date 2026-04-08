@@ -128,8 +128,6 @@ class AkmScrollablePanel(tk.Frame):
     def __init__(self, parent, **kwargs):
         bg_target = kwargs.pop("bg", BG)
         super().__init__(parent, bg=bg_target, **kwargs)
-        self._mousewheel_bound = set()
-        self._rebind_after = None
         
         self.canvas = tk.Canvas(self, bg=bg_target, highlightthickness=0, bd=0)
         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, 
@@ -149,54 +147,13 @@ class AkmScrollablePanel(tk.Frame):
 
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
-        
-        # Proper local recursive binding instead of bind_all
-        self._bind_mousewheel_recursive(self.canvas)
-        self._bind_mousewheel_recursive(self.scrollable_frame)
 
     def _on_frame_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        # Re-bind lazily so large panels don't walk the whole widget tree
-        # multiple times while geometry is still settling.
-        if self._rebind_after is None:
-            self._rebind_after = self.after_idle(self._refresh_mousewheel_bindings)
-
-    def _refresh_mousewheel_bindings(self):
-        self._rebind_after = None
-        self._bind_mousewheel_recursive(self.scrollable_frame)
-
-    def _bind_mousewheel_recursive(self, widget):
-        if widget is not self and isinstance(widget, AkmScrollablePanel):
-            return
-        widget_id = str(widget)
-        skip_widget = isinstance(widget, (tk.Listbox, tk.Text, tk.Canvas, ttk.Treeview, ttk.Scrollbar))
-        if widget_id not in self._mousewheel_bound and not skip_widget:
-            widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
-            widget.bind("<Button-4>", self._on_mousewheel, add="+")
-            widget.bind("<Button-5>", self._on_mousewheel, add="+")
-            self._mousewheel_bound.add(widget_id)
-        for child in widget.winfo_children():
-            self._bind_mousewheel_recursive(child)
 
     def _on_canvas_configure(self, event):
         # Update the width of the scrollable frame to match the canvas
         self.canvas.itemconfig(self.canvas_window, width=event.width)
-
-    def _on_mousewheel(self, event):
-        if not self.winfo_exists(): return
-        
-        # Scroll logic (no complex 'is_over' check needed as we use direct local binding)
-        if event.num == 4: # Linux
-            self.canvas.yview_scroll(-1, "units")
-        elif event.num == 5: # Linux
-            self.canvas.yview_scroll(1, "units")
-        else: # macOS / Windows
-            delta = event.delta
-            if abs(delta) >= 120:
-                self.canvas.yview_scroll(int(-1*(delta/120)), "units")
-            else: # macOS often sends 1 or -1
-                # Boost the scroll a bit for better feel on macOS canvas
-                self.canvas.yview_scroll(int(-1*delta*2), "units") 
 
 class AkmLabel(tk.Label):
     def __init__(self, parent, **kwargs):

@@ -508,26 +508,38 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             ui_patterns.AkmToast(self, "DATEI NICHT GEFUNDEN", color=ui_patterns.FLAVOR_ERROR)
 
     def _on_root_mousewheel(self, event):
-        """Intelligent global scroll handler for Listboxes, Treeviews, and Text widgets on any OS."""
+        """Global scroll handler that prefers native widgets, then the nearest scrollable page."""
         x, y = event.x_root, event.y_root
         target = self.winfo_containing(x, y)
-        if not target: return
-        
-        # Don't double-scroll if target is already handled by AkmScrollablePanel's canvas or children
-        # But for standard Tkinter widgets, we'll force it.
-        
+        if not target:
+            return
+
+        def _scroll_target(widget):
+            if event.num == 4:
+                widget.yview_scroll(-1, "units")
+                return
+            if event.num == 5:
+                widget.yview_scroll(1, "units")
+                return
+            delta = event.delta
+            if abs(delta) >= 120:
+                widget.yview_scroll(int(-1 * (delta / 120)), "units")
+            else:
+                widget.yview_scroll(int(-1 * delta), "units")
+
         if isinstance(target, (tk.Listbox, tk.Text, ttk.Treeview)):
-            # Handle scroll
-            if event.num == 4: # Linux
-                target.yview_scroll(-1, "units")
-            elif event.num == 5: # Linux
-                target.yview_scroll(1, "units")
-            else: # macOS / Windows
-                delta = event.delta
-                if abs(delta) >= 120:
-                    target.yview_scroll(int(-1*(delta/120)), "units")
-                else: # macOS fine scrolling often gives 1 or -1
-                    target.yview_scroll(int(-1*delta), "units")
+            _scroll_target(target)
+            return
+
+        widget = target
+        while widget is not None:
+            if isinstance(widget, ui_patterns.AkmScrollablePanel):
+                _scroll_target(widget.canvas)
+                return
+            parent_name = widget.winfo_parent()
+            if not parent_name:
+                break
+            widget = widget.nametowidget(parent_name)
 
     def select_all(self, event=None):
         """Universal 'Select All' handler for Listboxes and Treeviews (Cmd+A)."""

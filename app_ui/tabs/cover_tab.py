@@ -46,6 +46,7 @@ def _get_system_fonts():
 class CoverTab(AkmPanel):
     STACK_BREAKPOINT = 1320
     ACTION_STACK_BREAKPOINT = 760
+    MEDIA_STACK_BREAKPOINT = 980
 
     def __init__(self, parent, app):
         super().__init__(parent)
@@ -53,10 +54,13 @@ class CoverTab(AkmPanel):
         self._cover_layout_mode = None
         self._cover_action_mode = None
         self._status_action_mode = None
+        self._cover_media_mode = None
         self._current_image = None
         self._photo = None
         self._is_rendering = False
         self._last_preview_error = ""
+        self._artwork_meta_path = None
+        self._artwork_meta = None
         
         # State Variables
         self.artwork_path_var = tk.StringVar()
@@ -102,7 +106,7 @@ class CoverTab(AkmPanel):
         
         # Image & UI Transformation
         self.zoom_var = tk.DoubleVar(value=1.0)
-        self.ui_preview_zoom_var = tk.IntVar(value=400) # Default UI height
+        self.ui_preview_zoom_var = tk.IntVar(value=260) # Default UI height
         
         # General Colors
         self.bg_color_var = tk.StringVar(value="#181818")
@@ -188,14 +192,19 @@ class CoverTab(AkmPanel):
         content.bind("<Configure>", self._on_responsive_resize, add="+")
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
-        # LEFT: PREVIEW & VARIATION LIST
-        preview_card = AkmCard(left_side)
-        preview_card.pack(fill="both", expand=True, pady=(0, CARD_GAP))
+        # LEFT: PREVIEW & MASTER ASSET
+        media_row = AkmPanel(left_side)
+        media_row.pack(fill="x", pady=(0, CARD_GAP))
+        preview_card = AkmCard(media_row)
+        asset_card = AkmCard(media_row, width=320)
+        self._cover_media_widgets = (preview_card, asset_card)
+        media_row.bind("<Configure>", self._on_cover_media_resize, add="+")
+        self.after_idle(lambda: self._apply_cover_media_layout(media_row.winfo_width()))
         
         AkmLabel(preview_card.inner, text="Live Preview", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self.cover_preview_caption = AkmSubLabel(
             preview_card.inner,
-            text="Geladenes Artwork wird hier sofort mit dem aktuellen Typo-Setup gerendert.",
+            text="Die Cover-Buehne bleibt bewusst kompakt und zeigt dir trotzdem sofort das aktuelle Typo-Setup.",
             bg=PANEL_2,
             justify="left",
             wraplength=420,
@@ -208,9 +217,9 @@ class CoverTab(AkmPanel):
             highlightbackground="#2C3139",
             highlightthickness=1,
         )
-        preview_shell.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        preview_shell.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
-        self.preview_box = AkmPanel(preview_shell, bg="#111111", height=420)
+        self.preview_box = AkmPanel(preview_shell, bg="#111111", height=280)
         self.preview_box.pack(fill="both", expand=True, padx=10, pady=10)
         self.preview_box.pack_propagate(False)
         
@@ -237,6 +246,49 @@ class CoverTab(AkmPanel):
             wraplength=420,
         )
         self.cover_preview_hint_label.pack(fill="x", pady=(2, 0))
+
+        AkmLabel(asset_card.inner, text="Master Asset", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        self.cover_asset_name_label = AkmLabel(
+            asset_card.inner,
+            text="Kein Artwork geladen",
+            bg=PANEL_2,
+            anchor="w",
+            font=FONT_MD_BOLD,
+            justify="left",
+        )
+        self.cover_asset_name_label.pack(fill="x", padx=CARD_PAD_X)
+        self.cover_asset_meta_label = AkmSubLabel(
+            asset_card.inner,
+            text="Zieh ein Cover auf die Preview oder lade es direkt hier.",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+        )
+        self.cover_asset_meta_label.pack(fill="x", padx=CARD_PAD_X, pady=(2, 0))
+        self.cover_asset_path_label = AkmSubLabel(
+            asset_card.inner,
+            text="Unterstuetzt: JPG, PNG, WEBP, TIFF, BMP",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+        )
+        self.cover_asset_path_label.pack(fill="x", padx=CARD_PAD_X, pady=(SPACE_XS, SPACE_SM))
+
+        asset_button_bar = tk.Frame(asset_card.inner, bg=PANEL_2)
+        asset_button_bar.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        self.app.btn(asset_button_bar, "Waehlen", self._choose_artwork_path, primary=True, width=112).pack(fill="x")
+        self.app.btn(asset_button_bar, "Aus Release", self._load_artwork_from_release, quiet=True, width=112).pack(fill="x", pady=(SPACE_XS, 0))
+        self.app.btn(asset_button_bar, "Finder", self._open_artwork_in_finder, quiet=True, width=112).pack(fill="x", pady=(SPACE_XS, 0))
+        self.app.btn(asset_button_bar, "Leeren", self._clear_artwork, quiet=True, width=112).pack(fill="x", pady=(SPACE_XS, 0))
+
+        self.cover_asset_hint_label = AkmSubLabel(
+            asset_card.inner,
+            text="Das Master bleibt links im Blick, waehrend die tieferen Art-Direction-Regler rechts sitzen.",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+        )
+        self.cover_asset_hint_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         # RIGHT: METADATA & FILES
         meta_card = AkmCard(right_side)
@@ -307,7 +359,7 @@ class CoverTab(AkmPanel):
 
             form._current_row += 1
 
-        form.add_header("Master Asset")
+        form.add_header("Art Direction")
         form.add_row("Artwork", self._create_artwork_row)
         form.add_row("Direction", self._create_direction_row)
         form.add_row("Render", self._create_render_row)
@@ -384,6 +436,9 @@ class CoverTab(AkmPanel):
     def _on_page_resize(self, event):
         self._apply_responsive_layout(event.width)
 
+    def _on_cover_media_resize(self, event):
+        self._apply_cover_media_layout(event.width)
+
     def _apply_responsive_layout(self, width):
         if not hasattr(self, "_cover_split_widgets"):
             return
@@ -405,6 +460,26 @@ class CoverTab(AkmPanel):
         meta_width = self._meta_card.winfo_width() if hasattr(self, "_meta_card") else width
         self._apply_status_actions_layout(width)
         self._update_wraplengths(width, meta_width)
+
+    def _apply_cover_media_layout(self, width):
+        if not hasattr(self, "_cover_media_widgets"):
+            return
+        target_mode = "stack" if width and width < self.MEDIA_STACK_BREAKPOINT else "row"
+        if target_mode == self._cover_media_mode:
+            return
+        self._cover_media_mode = target_mode
+
+        preview_card, asset_card = self._cover_media_widgets
+        preview_card.pack_forget()
+        asset_card.pack_forget()
+
+        if target_mode == "stack":
+            preview_card.pack(fill="x", pady=(0, CARD_GAP))
+            asset_card.pack(fill="x")
+            return
+
+        preview_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+        asset_card.pack(side="left", fill="both", expand=False, padx=(CARD_GAP // 2, 0))
 
     def _on_action_bar_resize(self, event):
         content_width = self._cover_split_widgets[0].master.winfo_width() if hasattr(self, "_cover_split_widgets") else event.width
@@ -458,12 +533,23 @@ class CoverTab(AkmPanel):
     def _update_wraplengths(self, content_width, meta_width):
         split_mode = self._cover_layout_mode or "split"
         preview_width = content_width if split_mode == "stack" else max(360, (content_width - CARD_GAP) // 2)
+        media_mode = self._cover_media_mode or "row"
+        asset_width = preview_width if media_mode == "stack" else max(260, min(340, preview_width // 2))
+        preview_text_width = preview_width if media_mode == "stack" else max(260, preview_width - asset_width - CARD_GAP)
         form_width = meta_width if meta_width else preview_width
         fit_wraplength(self._header_intro_label, content_width, padding=120, minimum=300, maximum=900)
         fit_wraplength(self.cover_status_label, content_width, padding=280, minimum=260, maximum=620)
         fit_wraplength(self.cover_meta_label, content_width, padding=260, minimum=260, maximum=560)
-        fit_wraplength(self.cover_preview_caption, preview_width, padding=90, minimum=260, maximum=500)
-        fit_wraplength(self.cover_preview_hint_label, preview_width, padding=90, minimum=260, maximum=500)
+        fit_wraplength(self.cover_preview_caption, preview_text_width, padding=90, minimum=240, maximum=420)
+        fit_wraplength(self.cover_preview_hint_label, preview_text_width, padding=90, minimum=240, maximum=420)
+        if hasattr(self, "cover_asset_name_label"):
+            fit_wraplength(self.cover_asset_name_label, asset_width, padding=90, minimum=220, maximum=300)
+        if hasattr(self, "cover_asset_meta_label"):
+            fit_wraplength(self.cover_asset_meta_label, asset_width, padding=90, minimum=220, maximum=300)
+        if hasattr(self, "cover_asset_path_label"):
+            fit_wraplength(self.cover_asset_path_label, asset_width, padding=90, minimum=220, maximum=300)
+        if hasattr(self, "cover_asset_hint_label"):
+            fit_wraplength(self.cover_asset_hint_label, asset_width, padding=90, minimum=220, maximum=300)
         fit_wraplength(self._typography_hint_label, form_width, padding=90, minimum=280, maximum=500)
         if hasattr(self, "_artwork_hint_label"):
             fit_wraplength(self._artwork_hint_label, form_width, padding=180, minimum=220, maximum=360)
@@ -481,6 +567,8 @@ class CoverTab(AkmPanel):
         self._photo = None
         self._is_rendering = False
         self._last_preview_error = ""
+        self._artwork_meta_path = None
+        self._artwork_meta = None
         self._show_placeholders()
         self._update_cover_dashboard()
 
@@ -566,8 +654,8 @@ class CoverTab(AkmPanel):
         tk.Label(row_main, text="Preview", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
         tk.Scale(
             row_main,
-            from_=320,
-            to=640,
+            from_=220,
+            to=520,
             resolution=20,
             variable=self.ui_preview_zoom_var,
             orient="horizontal",
@@ -641,6 +729,41 @@ class CoverTab(AkmPanel):
         if case_mode == "uppercase":
             return text.upper()
         return text
+
+    def _read_artwork_meta(self, path):
+        if not path or not os.path.isfile(path):
+            self._artwork_meta_path = path
+            self._artwork_meta = None
+            return None
+        if path == self._artwork_meta_path:
+            return self._artwork_meta
+
+        details = {
+            "ext": os.path.splitext(path)[1].replace(".", "").upper() or "Datei",
+            "size_text": "",
+            "dimensions": None,
+        }
+        try:
+            size_bytes = os.path.getsize(path)
+            details["size_text"] = self._format_file_size(size_bytes)
+        except Exception:
+            details["size_text"] = ""
+        try:
+            with Image.open(path) as image:
+                details["dimensions"] = image.size
+        except Exception:
+            details["dimensions"] = None
+
+        self._artwork_meta_path = path
+        self._artwork_meta = details
+        return details
+
+    def _format_file_size(self, size_bytes):
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        if size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
 
     def _build_cover_options(self):
         return {
@@ -750,6 +873,7 @@ class CoverTab(AkmPanel):
         preview_height = self.ui_preview_zoom_var.get()
         artwork_path = self.artwork_path_var.get().strip()
         artwork_name = os.path.basename(artwork_path) if artwork_path else "keiner"
+        artwork_meta = self._read_artwork_meta(artwork_path)
 
         if not artwork_path or not os.path.exists(artwork_path):
             status_text = "Kein Master-Artwork geladen"
@@ -794,6 +918,25 @@ class CoverTab(AkmPanel):
         if self._last_preview_error:
             hint_text = f"{hint_text} Letzter Fehler: {self._last_preview_error}"
         self.cover_preview_hint_label.config(text=hint_text)
+
+        if not artwork_path or not os.path.exists(artwork_path):
+            asset_name = "Kein Artwork geladen"
+            asset_meta = "Quadratisches Master-Artwork laden und links sofort gegen die Typografie pruefen."
+            asset_path = "Unterstuetzt: JPG, PNG, WEBP, TIFF, BMP"
+        else:
+            dims = ""
+            if artwork_meta and artwork_meta.get("dimensions"):
+                dims = f"{artwork_meta['dimensions'][0]}x{artwork_meta['dimensions'][1]} px"
+            size_text = artwork_meta.get("size_text", "") if artwork_meta else ""
+            ext = artwork_meta.get("ext", "Datei") if artwork_meta else "Datei"
+            meta_parts = [part for part in (dims, size_text, ext) if part]
+            asset_name = artwork_name
+            asset_meta = " | ".join(meta_parts) if meta_parts else "Master-Artwork geladen"
+            asset_path = artwork_path
+
+        self.cover_asset_name_label.config(text=asset_name)
+        self.cover_asset_meta_label.config(text=asset_meta)
+        self.cover_asset_path_label.config(text=asset_path)
 
     def get_state(self):
         """Returns the current state of all cover configuration variables."""
@@ -959,6 +1102,8 @@ class CoverTab(AkmPanel):
             AkmToast(self, "ARTWORK NICHT GEFUNDEN", color=ui_patterns.FLAVOR_ERROR)
             return
 
+        self._artwork_meta_path = None
+        self._artwork_meta = None
         self.artwork_path_var.set(path)
         self._last_preview_error = ""
         self.app.append_log(f"Cover geladen: {os.path.basename(path)}")

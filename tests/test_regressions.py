@@ -6,6 +6,7 @@ from unittest import mock
 
 from openpyxl import Workbook
 
+import akm_app
 import akm_core
 import assistant_tools
 import cover_tools
@@ -145,6 +146,43 @@ class FakeListbox:
 
     def curselection(self):
         return self.selection
+
+
+class FakeWidgetNode:
+    def __init__(self, name, registry, parent=None):
+        self._name = name
+        self._registry = registry
+        self._parent = parent
+        registry[name] = self
+
+    def winfo_parent(self):
+        return "" if self._parent is None else self._parent._name
+
+    def nametowidget(self, name):
+        return self._registry[name]
+
+
+class FakeNativeScrollWidget(FakeWidgetNode):
+    def __init__(self, name, registry, parent=None):
+        super().__init__(name, registry, parent=parent)
+        self.scroll_calls = []
+
+    def yview_scroll(self, amount, units):
+        self.scroll_calls.append((amount, units))
+
+
+class FakeCanvas:
+    def __init__(self):
+        self.scroll_calls = []
+
+    def yview_scroll(self, amount, units):
+        self.scroll_calls.append((amount, units))
+
+
+class FakeScrollablePanelWidget(FakeWidgetNode):
+    def __init__(self, name, registry, parent=None):
+        super().__init__(name, registry, parent=parent)
+        self.canvas = FakeCanvas()
 
 
 class ImmediateTaskRunner:
@@ -1188,6 +1226,37 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("Datei→Werk", track["source"])
         self.assertEqual("Intro", track["title"])
         self.assertEqual("1:11", track["duration"])
+
+    def test_root_mousewheel_routes_scroll_to_nearest_scrollable_panel(self):
+        registry = {}
+        panel = FakeScrollablePanelWidget("panel", registry)
+        label = FakeWidgetNode("label", registry, parent=panel)
+        app = SimpleNamespace(winfo_containing=lambda *_args: label)
+
+        with mock.patch.object(
+            akm_app.ui_patterns,
+            "AkmScrollablePanel",
+            FakeScrollablePanelWidget,
+        ):
+            akm_app.AKMApp._on_root_mousewheel(
+                app,
+                SimpleNamespace(x_root=12, y_root=18, num=4, delta=0),
+            )
+
+        self.assertEqual([(-1, "units")], panel.canvas.scroll_calls)
+
+    def test_root_mousewheel_prefers_native_scrollable_widgets(self):
+        registry = {}
+        listbox = FakeNativeScrollWidget("listbox", registry)
+        app = SimpleNamespace(winfo_containing=lambda *_args: listbox)
+
+        with mock.patch.object(akm_app.tk, "Listbox", FakeNativeScrollWidget):
+            akm_app.AKMApp._on_root_mousewheel(
+                app,
+                SimpleNamespace(x_root=8, y_root=10, num=0, delta=120),
+            )
+
+        self.assertEqual([(-1, "units")], listbox.scroll_calls)
 
     def test_merge_export_notes_replaces_previous_auto_lines(self):
         merged = release_tools.merge_export_notes(
