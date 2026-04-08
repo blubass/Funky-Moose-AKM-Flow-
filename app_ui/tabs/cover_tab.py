@@ -95,6 +95,7 @@ class CoverTab(AkmPanel):
         self._photo = None
         self._is_rendering = False
         self._last_preview_error = ""
+        self._open_zoom_when_ready = False
         self._artwork_meta_path = None
         self._artwork_meta = None
         self._init_state_vars()
@@ -160,7 +161,7 @@ class CoverTab(AkmPanel):
         status_right = tk.Frame(status_card.inner, bg=PANEL_2)
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
-        AkmLabel(status_left, text="Art Direction Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmLabel(status_left, text="Cover Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
         self.cover_status_label = AkmLabel(
             status_left,
             text="Kein Master-Artwork geladen",
@@ -172,7 +173,7 @@ class CoverTab(AkmPanel):
         self.cover_status_label.pack(fill="x", pady=(2, 2))
         self.cover_meta_label = AkmSubLabel(
             status_left,
-            text="Layout: manual | Stil: bold | Preview: 400 px",
+            text="Layout: Manual | Stil: bold | Vorschau: 260 px",
             bg=PANEL_2,
             anchor="w",
             justify="left",
@@ -219,10 +220,10 @@ class CoverTab(AkmPanel):
         media_row.bind("<Configure>", self._on_cover_media_resize, add="+")
         self.after_idle(lambda: self._apply_cover_media_layout(media_row.winfo_width()))
         
-        AkmLabel(preview_card.inner, text="Live Preview", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(preview_card.inner, text="Live-Vorschau", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self.cover_preview_caption = AkmSubLabel(
             preview_card.inner,
-            text="Die Cover-Buehne bleibt bewusst kompakt und zeigt dir trotzdem sofort das aktuelle Typo-Setup.",
+            text="Die Cover-Buehne zeigt das komplette Cover live und gibt dir sofort ein sauberes Gefuehl fuer Typo, Layout und Balance.",
             bg=PANEL_2,
             justify="left",
             wraplength=420,
@@ -245,6 +246,8 @@ class CoverTab(AkmPanel):
         self.preview_inner = tk.Frame(self.preview_box, bg="#111111")
         self.preview_inner.pack(fill="both", expand=True)
         self.preview_box.bind("<Configure>", self._on_preview_box_configure, add="+")
+        self.preview_box.bind("<Double-Button-1>", self._open_preview_zoom, add="+")
+        self.preview_inner.bind("<Double-Button-1>", self._open_preview_zoom, add="+")
 
         preview_info = tk.Frame(preview_card.inner, bg=PANEL_2)
         preview_info.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
@@ -277,7 +280,7 @@ class CoverTab(AkmPanel):
         self.cover_asset_name_label.pack(fill="x", padx=CARD_PAD_X)
         self.cover_asset_meta_label = AkmSubLabel(
             asset_card.inner,
-            text="Zieh ein Cover auf die Preview oder lade es direkt hier.",
+            text="Zieh ein Cover direkt auf die Vorschau oder lade es hier.",
             bg=PANEL_2,
             anchor="w",
             justify="left",
@@ -584,6 +587,7 @@ class CoverTab(AkmPanel):
         self._current_image = None
         self._photo = None
         self._is_rendering = False
+        self._open_zoom_when_ready = False
         self._last_preview_error = ""
         self._artwork_meta_path = None
         self._artwork_meta = None
@@ -625,7 +629,7 @@ class CoverTab(AkmPanel):
         self.app.btn(row_aux, "Leeren", self._clear_artwork, quiet=True, width=84).pack(side="left", padx=(SPACE_XS, 0))
         self._artwork_hint_label = AkmSubLabel(
             row_aux,
-            text="JPG, PNG, WEBP, TIFF oder BMP. Drag & Drop auf die Preview geht auch.",
+            text="JPG, PNG, WEBP, TIFF oder BMP. Direkt auf die Vorschau ziehen geht auch.",
             bg=PANEL_2,
             justify="left",
         )
@@ -669,7 +673,7 @@ class CoverTab(AkmPanel):
 
         row_main = tk.Frame(wrap, bg=PANEL_2)
         row_main.pack(fill="x")
-        tk.Label(row_main, text="Preview", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
+        tk.Label(row_main, text="Vorschau", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
         tk.Scale(
             row_main,
             from_=220,
@@ -685,6 +689,7 @@ class CoverTab(AkmPanel):
         ).pack(side="left", padx=(SPACE_XS, 0))
         tk.Label(row_main, textvariable=self.ui_preview_zoom_var, bg=PANEL_2, fg=ACCENT, font=FONT_SM, width=4).pack(side="left", padx=(SPACE_XS, 0))
         tk.Label(row_main, text="px", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(0, SPACE_SM))
+        self.app.btn(row_main, "Zoom-Fenster", self._open_preview_zoom, quiet=True, width=118).pack(side="left", padx=(0, SPACE_SM))
 
         tk.Label(row_main, text="Zoom", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
         tk.Scale(
@@ -911,7 +916,7 @@ class CoverTab(AkmPanel):
         elif self._is_rendering:
             status_text = f"{_friendly_layout_name(layout)} wird neu gerendert"
         elif layout == "manual":
-            status_text = "Manual Layout bereit fuer freie Typografie"
+            status_text = "Manual bereit fuer freie Typografie"
         else:
             status_text = f"{_friendly_layout_name(layout)} bereit fuer Export"
 
@@ -919,7 +924,7 @@ class CoverTab(AkmPanel):
         self.cover_meta_label.config(
             text=(
                 f"Layout: {_friendly_layout_name(layout)} | Stil: {style} | Textblock: {size_mode} "
-                f"| Overlay: {overlay} | Offset: {offset} | Preview: {preview_height} px"
+                f"| Overlay: {overlay} | Offset: {offset} | Vorschau: {preview_height} px"
             )
         )
 
@@ -995,7 +1000,7 @@ class CoverTab(AkmPanel):
             child.destroy()
         self._photo = None
         AkmLabel(self.preview_inner, text="3000 x 3000 px", bg="#111111", fg="#2a2a2a", font=FONT_XXL).pack(expand=True)
-        AkmSubLabel(self.preview_inner, text="Drag & Drop Image Here", bg="#111111", fg=SUBTLE).pack(pady=(0, 20))
+        AkmSubLabel(self.preview_inner, text="Bild hier hineinziehen", bg="#111111", fg=SUBTLE).pack(pady=(0, 20))
 
     def _setup_dnd(self):
         """Standard registration on the main container."""
@@ -1105,6 +1110,30 @@ class CoverTab(AkmPanel):
         self._current_image = img
         self._display_preview_image()
         self._update_cover_dashboard()
+        if self._open_zoom_when_ready:
+            self._open_zoom_when_ready = False
+            self._open_preview_zoom()
+
+    def _open_preview_zoom(self, _event=None):
+        if self._is_rendering:
+            AkmToast(self, "VORSCHAU WIRD GERADE AKTUALISIERT", color=ACCENT)
+            return
+
+        if self._current_image is not None:
+            from app_ui.dialogs import AkmRenderedImageZoomDialog
+
+            title = self.title_var.get().strip() or "Cover"
+            AkmRenderedImageZoomDialog(self, self._current_image, title=f"{title} Zoom")
+            return
+
+        artwork_path = self.artwork_path_var.get().strip()
+        if not artwork_path or not os.path.exists(artwork_path):
+            AkmToast(self, "KEIN COVER FUER ZOOM GELADEN", color=ui_patterns.FLAVOR_ERROR)
+            return
+
+        self._open_zoom_when_ready = True
+        AkmToast(self, "VORSCHAU WIRD ZUERST GERENDERT", color=ACCENT)
+        self.refresh_preview()
 
     def _display_preview_image(self):
         """Fits the rendered cover into the visible preview stage without clipping."""
@@ -1130,10 +1159,13 @@ class CoverTab(AkmPanel):
         for child in self.preview_inner.winfo_children():
             child.destroy()
 
-        tk.Label(self.preview_inner, image=self._photo, bg="#111111", bd=0, highlightthickness=0).pack(expand=True)
+        image_label = tk.Label(self.preview_inner, image=self._photo, bg="#111111", bd=0, highlightthickness=0)
+        image_label.pack(expand=True)
+        image_label.bind("<Double-Button-1>", self._open_preview_zoom, add="+")
 
     def _on_preview_error(self, error_msg):
         self._is_rendering = False
+        self._open_zoom_when_ready = False
         self._current_image = None
         self._last_preview_error = error_msg
         self.app.append_log(f"Preview-Rendering fehlgeschlagen: {error_msg}")
