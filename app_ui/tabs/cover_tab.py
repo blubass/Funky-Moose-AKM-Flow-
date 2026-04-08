@@ -7,6 +7,7 @@ from app_ui import release_view_tools
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmText, AkmBadge,
     AkmScrollablePanel, AkmToast,
+    fit_wraplength,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_MD_BOLD, FONT_XL, FONT_LG, FONT_XXL
@@ -51,6 +52,7 @@ class CoverTab(AkmPanel):
         self.app = app
         self._cover_layout_mode = None
         self._cover_action_mode = None
+        self._status_action_mode = None
         self._current_image = None
         self._photo = None
         self._is_rendering = False
@@ -124,7 +126,7 @@ class CoverTab(AkmPanel):
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, height=118)
+        status_card = AkmCard(self, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -138,6 +140,7 @@ class CoverTab(AkmPanel):
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
+            justify="left",
         )
         self.cover_status_label.pack(fill="x", pady=(2, 2))
         self.cover_meta_label = AkmSubLabel(
@@ -149,12 +152,22 @@ class CoverTab(AkmPanel):
         )
         self.cover_meta_label.pack(fill="x")
 
-        self.app.btn(status_right, "Artwork laden", self._choose_artwork_path, primary=True, width=150).pack(anchor="e", pady=(0, SPACE_XS))
+        self._status_primary_button = self.app.btn(
+            status_right,
+            "Artwork laden",
+            self._choose_artwork_path,
+            primary=True,
+            width=150,
+        )
+        self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
         status_action_row = tk.Frame(status_right, bg=PANEL_2)
         status_action_row.pack(anchor="e")
-        self.app.btn(status_action_row, "Zu Release", self._assign_to_release, quiet=True, width=104).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(status_action_row, "Export", self.export_cover, quiet=True, width=96).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(status_action_row, "Finder", self._open_artwork_in_finder, quiet=True, width=86).pack(side="left")
+        self._status_action_bar = status_action_row
+        self._status_action_buttons = (
+            self.app.btn(status_action_row, "Zu Release", self._assign_to_release, quiet=True, width=104),
+            self.app.btn(status_action_row, "Export", self.export_cover, quiet=True, width=96),
+            self.app.btn(status_action_row, "Finder", self._open_artwork_in_finder, quiet=True, width=86),
+        )
 
         content = AkmPanel(self)
         content.pack(fill="both", expand=True, padx=SPACE_MD, pady=0)
@@ -367,22 +380,22 @@ class CoverTab(AkmPanel):
         if not hasattr(self, "_cover_split_widgets"):
             return
         target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
-        if target_mode == self._cover_layout_mode:
-            return
-        self._cover_layout_mode = target_mode
+        if target_mode != self._cover_layout_mode:
+            self._cover_layout_mode = target_mode
 
-        left_side, scroll_container = self._cover_split_widgets
-        left_side.pack_forget()
-        scroll_container.pack_forget()
+            left_side, scroll_container = self._cover_split_widgets
+            left_side.pack_forget()
+            scroll_container.pack_forget()
 
-        if target_mode == "stack":
-            left_side.pack(side="top", fill="x", expand=False, pady=(0, CARD_GAP))
-            scroll_container.pack(side="top", fill="both", expand=True)
-        else:
-            left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-            scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+            if target_mode == "stack":
+                left_side.pack(side="top", fill="x", expand=False, pady=(0, CARD_GAP))
+                scroll_container.pack(side="top", fill="both", expand=True)
+            else:
+                left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+                scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
         meta_width = self._meta_card.winfo_width() if hasattr(self, "_meta_card") else width
+        self._apply_status_actions_layout(width)
         self._update_wraplengths(width, meta_width)
 
     def _on_action_bar_resize(self, event):
@@ -410,11 +423,36 @@ class CoverTab(AkmPanel):
             pad_left = 0 if index == 0 else SPACE_SM
             button.pack(side="left", padx=(pad_left, 0))
 
+    def _apply_status_actions_layout(self, width):
+        if not hasattr(self, "_status_action_buttons"):
+            return
+        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        if target_mode == self._status_action_mode:
+            return
+        self._status_action_mode = target_mode
+
+        self._status_primary_button.pack_forget()
+        for button in self._status_action_buttons:
+            button.pack_forget()
+
+        if target_mode == "stack":
+            self._status_primary_button.pack(anchor="e", fill="x", pady=(0, SPACE_XS))
+            self._status_action_bar.pack(anchor="e", fill="x")
+            for index, button in enumerate(self._status_action_buttons):
+                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+            return
+
+        self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
+        self._status_action_bar.pack(anchor="e")
+        for index, button in enumerate(self._status_action_buttons):
+            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+
     def _update_wraplengths(self, content_width, meta_width):
         split_mode = self._cover_layout_mode or "split"
         preview_width = content_width if split_mode == "stack" else max(360, (content_width - CARD_GAP) // 2)
         form_width = meta_width if meta_width else preview_width
         fit_wraplength(self._header_intro_label, content_width, padding=120, minimum=300, maximum=900)
+        fit_wraplength(self.cover_status_label, content_width, padding=280, minimum=260, maximum=620)
         fit_wraplength(self.cover_meta_label, content_width, padding=260, minimum=260, maximum=560)
         fit_wraplength(self.cover_preview_caption, preview_width, padding=90, minimum=260, maximum=500)
         fit_wraplength(self.cover_preview_hint_label, preview_width, padding=90, minimum=260, maximum=500)

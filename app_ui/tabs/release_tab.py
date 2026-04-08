@@ -1,6 +1,7 @@
 import tkinter as tk
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmScrollablePanel,
+    fit_wraplength,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD_BOLD, FONT_XL, FONT_LG
@@ -10,12 +11,14 @@ from app_logic import akm_core
 class ReleaseTab(AkmPanel):
     STACK_BREAKPOINT = 1180
     ACTION_STACK_BREAKPOINT = 520
+    STATUS_ACTION_STACK_BREAKPOINT = 760
 
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
         self._release_layout_mode = None
         self._release_action_mode = None
+        self._status_action_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
         self._setup_dnd()
@@ -29,7 +32,7 @@ class ReleaseTab(AkmPanel):
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, height=118)
+        status_card = AkmCard(self, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -43,6 +46,7 @@ class ReleaseTab(AkmPanel):
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
+            justify="left",
         )
         self.app.release_status_label.pack(fill="x", pady=(2, 2))
         self.app.release_action_hint_label = AkmSubLabel(
@@ -50,14 +54,25 @@ class ReleaseTab(AkmPanel):
             text="Werk 0  •  Datei→Werk 0  •  Datei 0",
             bg=PANEL_2,
             anchor="w",
+            justify="left",
         )
         self.app.release_action_hint_label.pack(fill="x")
 
-        self.app.btn(status_right, "Distro-Export starten", self.app.build_distro_export, primary=True, width=190).pack(anchor="e", pady=(0, SPACE_XS))
+        self._status_primary_button = self.app.btn(
+            status_right,
+            "Distro-Export starten",
+            self.app.build_distro_export,
+            primary=True,
+            width=190,
+        )
+        self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(status_right, bg=PANEL_2)
         action_row.pack(anchor="e")
-        self.app.btn(action_row, "Cover-Preview", self.app.open_release_cover_dialog, quiet=True, width=122).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(action_row, "Finder", self.app.open_release_cover_in_finder, quiet=True, width=84).pack(side="left")
+        self._status_action_bar = action_row
+        self._status_action_buttons = (
+            self.app.btn(action_row, "Cover-Preview", self.app.open_release_cover_dialog, quiet=True, width=122),
+            self.app.btn(action_row, "Finder", self.app.open_release_cover_in_finder, quiet=True, width=84),
+        )
 
         scroll_root = AkmScrollablePanel(self)
         scroll_root.pack(fill="both", expand=True)
@@ -175,26 +190,28 @@ class ReleaseTab(AkmPanel):
         if not hasattr(self, "_release_cards"):
             return
         target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
-        if target_mode == self._release_layout_mode:
-            return
-        self._release_layout_mode = target_mode
+        if target_mode != self._release_layout_mode:
+            self._release_layout_mode = target_mode
 
-        left_card, right_card = self._release_cards
-        for card in self._release_cards:
-            card.pack_forget()
+            left_card, right_card = self._release_cards
+            for card in self._release_cards:
+                card.pack_forget()
 
-        if target_mode == "stack":
-            left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
-            right_card.pack(fill="x", expand=False)
-        else:
-            left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-            right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+            if target_mode == "stack":
+                left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
+                right_card.pack(fill="x", expand=False)
+            else:
+                left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+                right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
+        self._apply_status_actions_layout(width)
         self._update_wraplengths(width)
 
     def _update_wraplengths(self, width):
         column_width = width if self._release_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=820)
+        fit_wraplength(self.app.release_status_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.app.release_action_hint_label, width, padding=280, minimum=260, maximum=620)
         fit_wraplength(self._left_intro_label, column_width, padding=80, minimum=260, maximum=460)
         fit_wraplength(self._right_intro_label, column_width, padding=80, minimum=260, maximum=480)
         fit_wraplength(self._drop_zone_hint_label, column_width, padding=120, minimum=240, maximum=420)
@@ -221,6 +238,30 @@ class ReleaseTab(AkmPanel):
         for index, button in enumerate(self._release_action_buttons):
             pad_left = 0 if index == 0 else SPACE_XS
             button.pack(side="left", padx=(pad_left, 0))
+
+    def _apply_status_actions_layout(self, width):
+        if not hasattr(self, "_status_action_buttons"):
+            return
+        target_mode = "stack" if width and width < self.STATUS_ACTION_STACK_BREAKPOINT else "row"
+        if target_mode == self._status_action_mode:
+            return
+        self._status_action_mode = target_mode
+
+        self._status_primary_button.pack_forget()
+        for button in self._status_action_buttons:
+            button.pack_forget()
+
+        if target_mode == "stack":
+            self._status_primary_button.pack(anchor="e", fill="x", pady=(0, SPACE_XS))
+            self._status_action_bar.pack(anchor="e", fill="x")
+            for index, button in enumerate(self._status_action_buttons):
+                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+            return
+
+        self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
+        self._status_action_bar.pack(anchor="e")
+        for index, button in enumerate(self._status_action_buttons):
+            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
 
     def _setup_dnd(self):
         try:
