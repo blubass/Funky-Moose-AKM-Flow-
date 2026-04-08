@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import tempfile
 from datetime import datetime
 from itertools import chain
 from zipfile import BadZipFile
@@ -56,6 +57,50 @@ def _today():
 
 def _ensure_storage_dir():
     cfg.ensure_dirs()
+
+
+def _write_text_atomic(path, content):
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{os.path.basename(path)}.",
+        suffix=".tmp",
+        dir=directory,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _write_json_atomic(path, payload):
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{os.path.basename(path)}.",
+        suffix=".tmp",
+        dir=directory,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, ensure_ascii=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _clean_text(value):
@@ -261,8 +306,7 @@ def set_lang(lang):
     _ensure_storage_dir()
     if lang not in LANGUAGES:
         lang = "de"
-    with open(LANG_FILE, "w", encoding="utf-8") as handle:
-        handle.write(lang)
+    _write_text_atomic(LANG_FILE, lang)
 
 
 def load_settings(strict=False):
@@ -284,9 +328,7 @@ def save_settings(settings):
         merged["release_default_artist"] = _clean_text(
             settings.get("release_default_artist")
         )
-
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as handle:
-        json.dump(merged, handle, indent=2, ensure_ascii=False)
+    _write_json_atomic(SETTINGS_FILE, merged)
 
 
 def get_release_default_artist():
@@ -317,16 +359,13 @@ def save_data(data):
         entry = _normalize_entry(item)
         if entry["title"]:
             normalized.append(entry)
-
-    with open(DATA_FILE, "w", encoding="utf-8") as handle:
-        json.dump(normalized, handle, indent=2, ensure_ascii=False)
+    _write_json_atomic(DATA_FILE, normalized)
 
 
 def backup_data():
     _ensure_storage_dir()
     data = load_data(strict=True)
-    with open(BACKUP_FILE, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=2, ensure_ascii=False)
+    _write_json_atomic(BACKUP_FILE, data)
 
 
 def restore_data():
@@ -657,9 +696,7 @@ def save_project(path, data, cover_state=None, release_state=None, settings=None
         "release": release_state or {},
         "settings": settings or {}
     }
-    
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(bundle, handle, indent=2, ensure_ascii=False)
+    _write_json_atomic(path, bundle)
     return True
 
 def load_project(path):
@@ -668,10 +705,25 @@ def load_project(path):
     """
     if not os.path.exists(path):
         return None
-        
+
+    name = os.path.basename(path)
     try:
         with open(path, "r", encoding="utf-8") as handle:
             bundle = json.load(handle)
-        return bundle
-    except Exception:
-        return None
+    except OSError as exc:
+        raise DataFileError(f"{name} konnte nicht gelesen werden: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise DataFileError(
+            f"{name} ist beschädigt (Zeile {exc.lineno}, Spalte {exc.colno})."
+        ) from exc
+
+    if not isinstance(bundle, dict):
+        raise DataFileError(f"{name} hat ein ungültiges Projektformat.")
+
+    if "data" in bundle and not isinstance(bundle.get("data"), list):
+        raise DataFileError(f"{name} enthält ein ungültiges Datenformat.")
+    for key in ("cover", "release", "settings"):
+        if key in bundle and not isinstance(bundle.get(key), dict):
+            raise DataFileError(f"{name} enthält einen ungültigen Bereich: {key}.")
+
+    return bundle

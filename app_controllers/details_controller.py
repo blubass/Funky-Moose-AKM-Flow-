@@ -110,8 +110,10 @@ class DetailsController(BaseController):
                 self.load_selected_title()
 
         def _extract():
-            try: return loudness_tools.probe_duration(p)
-            except: return 0
+            try:
+                return loudness_tools.probe_duration(p)
+            except Exception:
+                return 0
         
         def _done(dur):
             if dur:

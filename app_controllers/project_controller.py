@@ -79,8 +79,18 @@ class ProjectController(BaseController):
         
         path = dialog.result
         if not path: return
-        
-        bundle = akm_core.load_project(path)
+
+        try:
+            bundle = akm_core.load_project(path)
+        except akm_core.DataFileError as exc:
+            self.log(f"FEHLER beim Laden: {exc}")
+            messagebox.showerror("Fehler", str(exc))
+            return
+        except Exception as exc:
+            self.log(f"FEHLER beim Laden: {exc}")
+            messagebox.showerror("Fehler", f"Projekt konnte nicht geladen werden:\n{exc}")
+            return
+
         if not bundle:
             messagebox.showerror("Fehler", "Projekt konnte nicht geladen werden.")
             return

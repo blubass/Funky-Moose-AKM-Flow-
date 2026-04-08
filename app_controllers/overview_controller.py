@@ -153,8 +153,10 @@ class OverviewController(BaseController):
             audio_p = it.get("audio_path")
             if audio_p and not it.get("duration"):
                 def _ext():
-                    try: return loudness_tools.probe_duration(audio_p)
-                    except: return 0
+                    try:
+                        return loudness_tools.probe_duration(audio_p)
+                    except Exception:
+                        return 0
                 def _upd(dur):
                     if dur:
                         mins, secs = int(dur // 60), int(dur % 60)
@@ -199,7 +201,7 @@ class OverviewController(BaseController):
             sel = self.app.listbox.curselection()
             if not sel: return None
             return self.state.filtered_records[sel[0]]
-        except:
+        except (AttributeError, IndexError, TypeError, tk.TclError):
             return None
 
     def get_selected_item(self):
@@ -209,5 +211,5 @@ class OverviewController(BaseController):
     def _get_selected_overview_items(self):
         try:
             return [self.state.filtered_records[idx] for idx in self.app.listbox.curselection()]
-        except:
+        except (AttributeError, IndexError, TypeError, tk.TclError):
             return []
