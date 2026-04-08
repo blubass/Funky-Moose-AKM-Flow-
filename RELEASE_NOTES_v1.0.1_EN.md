@@ -75,7 +75,7 @@ Funky Moose Release Forge `v1.0.1` delivers a broad UI and workflow polish pass:
 ## Build artifacts
 
 - `Funky Moose Release Forge.app`
-- `Funky Moose Release Forge.app.zip`
+- `Funky Moose Release Forge.zip`
 
 ## macOS note
 

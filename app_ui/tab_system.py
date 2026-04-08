@@ -54,7 +54,7 @@ class AppTabs:
 
         TAB_LABELS = {
             "dashboard": "📊  Dashboard",
-            "assistant": "🤖  Assistent",
+            "assistant": "⚡  Schnellstart",
             "batch":     "⚡  Batch",
             "overview":  "📋  Übersicht",
             "details":   "✏️  Details",

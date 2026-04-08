@@ -75,7 +75,7 @@ Funky Moose Release Forge bekommt mit `v1.0.1` einen grossen UI- und Workflow-Po
 ## Build-Artefakte
 
 - `Funky Moose Release Forge.app`
-- `Funky Moose Release Forge.app.zip`
+- `Funky Moose Release Forge.zip`
 
 ## Hinweis fuer macOS
 

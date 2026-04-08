@@ -89,6 +89,8 @@ python3 akm_app.py
 python3 -m PyInstaller --clean --noconfirm 'AKMFlow+.spec'
 ```
 
+The canonical macOS build recipe lives in `AKMFlow+.spec`.
+
 The standalone app bundle will be created at `dist/Funky Moose Release Forge.app`.
 
 ---

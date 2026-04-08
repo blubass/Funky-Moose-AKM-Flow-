@@ -6,7 +6,7 @@ __pycache__/
 .venv_mac/
 dist/
 build/
-*.spec
+legacy/*.spec
 
 # macOS
 .DS_Store

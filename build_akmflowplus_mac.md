@@ -3,7 +3,8 @@
 ## Voraussetzungen
 - Python 3.11
 - PyInstaller
-- Die Dateien `AKMFlow+.spec` und `akm_icon.icns` liegen im Projektordner
+- Die versionierte Build-Datei `AKMFlow+.spec` liegt im Projektordner
+- Das Icon `akm_icon.icns` liegt im Projektordner
 
 ## Build-Befehl
 
@@ -17,7 +18,7 @@ python3 -m PyInstaller --clean --noconfirm 'AKMFlow+.spec'
 - Fuer Endnutzer ist **keine Python- oder Paket-Installation mehr noetig**. Weitergegeben wird nur `dist/Funky Moose Release Forge.app`.
 
 ## Hinweise
-- Der Build verwendet die Spec-Datei und nicht mehr einen direkten `pyinstaller ... akm_app.py`-Aufruf.
+- Der Build verwendet ausschliesslich die versionierte Spec-Datei `AKMFlow+.spec`.
 - Das Icon wird über `akm_icon.icns` eingebunden.
 - Der aktuelle Build ist bereits auf unnoetige grosse Pakete wie `pandas`, `matplotlib` und `numpy` fuer diese App reduziert.
 - Die Spec-Datei nimmt die benoetigten `tkinterdnd2`-/`tkdnd`-Runtime-Dateien fuer macOS mit ins Bundle.

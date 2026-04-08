@@ -4,13 +4,13 @@
 
 ## Installation und Start
 1. Öffne den Ordner `dist` im Projektverzeichnis.
-2. Ziehe `AKMFlow+.app` optional in den Programme-Ordner.
-3. Starte die App per Doppelklick auf `AKMFlow+.app`.
+2. Ziehe `Funky Moose Release Forge.app` optional in den Programme-Ordner.
+3. Starte die App per Doppelklick auf `Funky Moose Release Forge.app`.
 
 ## Aufbau der App
 Die App hat mehrere Arbeitsbereiche:
 
-### 1. Assistant
+### 1. Schnellstart
 - **Titel eingeben:** Trage einen neuen Werktitel ein.
 - **Add:** Legt das Werk neu an.
 - **Bereit / Gemeldet / Bestätigt:** Setzt direkt den Status des aktuell eingetragenen Titels.
@@ -30,7 +30,7 @@ Die App hat mehrere Arbeitsbereiche:
 - Zeigt alle gespeicherten Werke mit Status an.
 - Wenn Dauer oder Komponist vorhanden sind, werden sie in der Liste mit angezeigt.
 - **Im Batch öffnen:** Öffnet den markierten Titel direkt im Batch-Tab, sofern das Werk noch offen ist.
-- **In Eingabe übernehmen:** Übernimmt den markierten Titel in das Eingabefeld des Assistant-Tabs.
+- **In Eingabe übernehmen:** Übernimmt den markierten Titel in das Eingabefeld des Schnellstart-Tabs.
 - Doppelklick auf einen Eintrag öffnet ihn ebenfalls direkt im Batch.
 - Werke mit Status `submitted` oder `confirmed` werden nicht in den offenen Batch übernommen; stattdessen erscheint ein Hinweis im Log.
 
@@ -82,7 +82,7 @@ Die App speichert ihre Daten lokal im Benutzerordner:
 - Einstellungen: `~/akm_assistant/settings.json`
 
 ## Hinweise
-- Beim Start zeigt der Assistant im Log das zuletzt noch offene Werk an, falls eines existiert.
+- Beim Start zeigt der Schnellstart im Log das zuletzt noch offene Werk an, falls eines existiert.
 - Der Batch ist als Kopierhilfe gedacht und meldet nichts automatisch im Browser.
 - Der Standard-Artist fuer neue Releases kann optional in `~/akm_assistant/settings.json` gesetzt werden, z. B. ueber `"release_default_artist": "Mein Projekt"`.
 
