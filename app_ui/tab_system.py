@@ -68,6 +68,7 @@ class AppTabs:
             
         # Internal Lazy-Build Trigger
         self.notebook.bind("<<NotebookTabChanged>>", self._on_internal_tab_change)
+        self._preload_job = None
 
     def _on_internal_tab_change(self, event=None):
         """Ensures the selected tab is built when the user clicks it or it's changed programmatically."""
@@ -100,3 +101,27 @@ class AppTabs:
         if tab_id in self.map:
             self.notebook.select(self.map[tab_id])
             # getattr(self, tab_id) is now handled by <<NotebookTabChanged>>
+
+    def preload(self, tab_ids=None, delay_ms=120):
+        """Warm tabs incrementally in idle time so the first click feels immediate."""
+        if self._preload_job is not None:
+            try:
+                self.notebook.after_cancel(self._preload_job)
+            except Exception:
+                pass
+            self._preload_job = None
+        pending = []
+        for tab_id in (tab_ids or self._classes.keys()):
+            if tab_id in self._classes and tab_id not in self._instances:
+                pending.append(tab_id)
+        if not pending:
+            return
+
+        def _step(index=0):
+            if index >= len(pending):
+                self._preload_job = None
+                return
+            getattr(self, pending[index])
+            self._preload_job = self.notebook.after(delay_ms, lambda: _step(index + 1))
+
+        self._preload_job = self.notebook.after_idle(_step)

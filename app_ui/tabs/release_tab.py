@@ -8,9 +8,12 @@ from app_ui.ui_patterns import (
 from app_logic import akm_core
 
 class ReleaseTab(AkmPanel):
+    STACK_BREAKPOINT = 1180
+
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self._release_layout_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
         self._setup_dnd()
@@ -58,6 +61,9 @@ class ReleaseTab(AkmPanel):
         right_card = AkmCard(top)
         left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
         right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        self._release_cards = (left_card, right_card)
+        scroll_root.canvas.bind("<Configure>", self._on_responsive_resize, add="+")
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
         AkmSubLabel(
             left_card.inner,
@@ -146,6 +152,29 @@ class ReleaseTab(AkmPanel):
         self.app.btn(tk_actions, "Nach oben", self.app.release_move_track_up, quiet=True, width=108).pack(side="left", padx=(0, SPACE_XS))
         self.app.btn(tk_actions, "Nach unten", self.app.release_move_track_down, quiet=True, width=108).pack(side="left", padx=SPACE_XS)
         self.app.btn(tk_actions, "Entfernen", self.app.release_remove_track, quiet=True, width=108).pack(side="left", padx=SPACE_XS)
+
+    def _on_responsive_resize(self, event):
+        self._apply_responsive_layout(event.width)
+
+    def _apply_responsive_layout(self, width):
+        if not hasattr(self, "_release_cards"):
+            return
+        target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
+        if target_mode == self._release_layout_mode:
+            return
+        self._release_layout_mode = target_mode
+
+        left_card, right_card = self._release_cards
+        for card in self._release_cards:
+            card.pack_forget()
+
+        if target_mode == "stack":
+            left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
+            right_card.pack(fill="x", expand=False)
+            return
+
+        left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+        right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
     def _setup_dnd(self):
         try:

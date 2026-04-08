@@ -65,13 +65,52 @@ class AkmPanel(tk.Frame):
 class AkmCard(AkmRoundedFrame):
     """Hardware Card with organic rounded corners and 3D light-catch edge."""
     def __init__(self, parent, **kwargs):
+        self._auto_height = kwargs.pop("auto_height", "height" not in kwargs)
+        self._min_height = kwargs.pop("min_height", 0)
         super().__init__(parent, **kwargs)
+        self._inner_pad_x = CARD_PAD_X
+        self._inner_pad_top = CARD_PAD_Y + 4
+        self._inner_pad_bottom = CARD_PAD_Y
+        self._auto_height_after = None
         self.inner = tk.Frame(self, bg=self.bg_color)
-        self.inner.place(relx=0.5, rely=0.5, relwidth=0.9, relheight=0.88, anchor="center")
+        # Use fixed insets instead of relative percentages so large forms can define
+        # their own natural height and the card can grow with them when needed.
+        self.inner.place(
+            x=self._inner_pad_x,
+            y=self._inner_pad_top,
+            relwidth=1.0,
+            width=-(self._inner_pad_x * 2),
+            relheight=1.0,
+            height=-(self._inner_pad_top + self._inner_pad_bottom),
+        )
         
         # Add a subtle light-reflect edge at the top
         self.line = tk.Frame(self, bg="#1E1E22", height=1)
-        self.line.place(relx=0.08, rely=0.06, relwidth=0.84)
+        self.line.place(
+            x=self._inner_pad_x,
+            y=CARD_PAD_Y // 2,
+            relwidth=1.0,
+            width=-(self._inner_pad_x * 2),
+        )
+        if self._auto_height:
+            self.inner.bind("<Configure>", self._queue_auto_height, add="+")
+            self.bind("<Map>", self._queue_auto_height, add="+")
+
+    def _queue_auto_height(self, event=None):
+        if not self._auto_height or not self.winfo_exists() or self._auto_height_after is not None:
+            return
+        self._auto_height_after = self.after_idle(self._apply_auto_height)
+
+    def _apply_auto_height(self):
+        self._auto_height_after = None
+        if not self.winfo_exists():
+            return
+        target_height = self.inner.winfo_reqheight() + self._inner_pad_top + self._inner_pad_bottom
+        if self._min_height:
+            target_height = max(target_height, self._min_height)
+        current_height = int(self.cget("height") or 0)
+        if current_height != target_height:
+            self.configure(height=target_height)
 
 class AkmScrollablePanel(tk.Frame):
     """
@@ -81,6 +120,8 @@ class AkmScrollablePanel(tk.Frame):
     def __init__(self, parent, **kwargs):
         bg_target = kwargs.pop("bg", BG)
         super().__init__(parent, bg=bg_target, **kwargs)
+        self._mousewheel_bound = set()
+        self._rebind_after = None
         
         self.canvas = tk.Canvas(self, bg=bg_target, highlightthickness=0, bd=0)
         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, 
@@ -107,13 +148,22 @@ class AkmScrollablePanel(tk.Frame):
 
     def _on_frame_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        # Re-bind for any new children added during dynamic UI building
+        # Re-bind lazily so large panels don't walk the whole widget tree
+        # multiple times while geometry is still settling.
+        if self._rebind_after is None:
+            self._rebind_after = self.after_idle(self._refresh_mousewheel_bindings)
+
+    def _refresh_mousewheel_bindings(self):
+        self._rebind_after = None
         self._bind_mousewheel_recursive(self.scrollable_frame)
 
     def _bind_mousewheel_recursive(self, widget):
-        widget.bind("<MouseWheel>", self._on_mousewheel)
-        widget.bind("<Button-4>", self._on_mousewheel)
-        widget.bind("<Button-5>", self._on_mousewheel)
+        widget_id = str(widget)
+        if widget_id not in self._mousewheel_bound:
+            widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
+            widget.bind("<Button-4>", self._on_mousewheel, add="+")
+            widget.bind("<Button-5>", self._on_mousewheel, add="+")
+            self._mousewheel_bound.add(widget_id)
         for child in widget.winfo_children():
             self._bind_mousewheel_recursive(child)
 

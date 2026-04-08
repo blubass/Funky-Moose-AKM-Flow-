@@ -34,9 +34,12 @@ def _friendly_layout_name(layout_key):
     return mapping.get(layout_key, "Manual")
 
 class CoverTab(AkmPanel):
+    STACK_BREAKPOINT = 1320
+
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self._cover_layout_mode = None
         self._current_image = None
         self._photo = None
         self._is_rendering = False
@@ -150,6 +153,9 @@ class CoverTab(AkmPanel):
         
         left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
         scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        self._cover_split_widgets = (left_side, scroll_container)
+        content.bind("<Configure>", self._on_responsive_resize, add="+")
+        self.after_idle(lambda: self._apply_responsive_layout(content.winfo_width()))
 
         # LEFT: PREVIEW & VARIATION LIST
         preview_card = AkmCard(left_side)
@@ -332,6 +338,29 @@ class CoverTab(AkmPanel):
 
         self._show_placeholders()
         self._update_cover_dashboard()
+
+    def _on_responsive_resize(self, event):
+        self._apply_responsive_layout(event.width)
+
+    def _apply_responsive_layout(self, width):
+        if not hasattr(self, "_cover_split_widgets"):
+            return
+        target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
+        if target_mode == self._cover_layout_mode:
+            return
+        self._cover_layout_mode = target_mode
+
+        left_side, scroll_container = self._cover_split_widgets
+        left_side.pack_forget()
+        scroll_container.pack_forget()
+
+        if target_mode == "stack":
+            left_side.pack(side="top", fill="x", expand=False, pady=(0, CARD_GAP))
+            scroll_container.pack(side="top", fill="both", expand=True)
+            return
+
+        left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+        scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
     def _choose_artwork_path(self):
         path = filedialog.askopenfilename(filetypes=IMAGE_FILETYPES)

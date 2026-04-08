@@ -183,6 +183,7 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
         # Force initial tab loading
         self.after(100, lambda: self.on_tab_changed(None))
+        self.after(240, self._preload_tabs)
 
     @property
     def dashboard_tab(self): return self.tab_system.dashboard
@@ -205,6 +206,12 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def tabs(self): return self.tab_system.notebook
     @property
     def tab_map(self): return self.tab_system.map
+
+    def _preload_tabs(self):
+        self.tab_system.preload(
+            ("assistant", "overview", "details", "batch", "cover", "release", "loudness"),
+            delay_ms=140,
+        )
 
     # --- TAB NAVIGATION & CONTROL ---
     def select_tab_by_id(self, tab_id):
