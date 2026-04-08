@@ -9,11 +9,13 @@ from app_logic import akm_core
 
 class ReleaseTab(AkmPanel):
     STACK_BREAKPOINT = 1180
+    ACTION_STACK_BREAKPOINT = 520
 
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
         self._release_layout_mode = None
+        self._release_action_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
         self._setup_dnd()
@@ -149,9 +151,14 @@ class ReleaseTab(AkmPanel):
 
         tk_actions = AkmPanel(right_card.inner, bg=PANEL_2)
         tk_actions.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        self.app.btn(tk_actions, "Nach oben", self.app.release_move_track_up, quiet=True, width=108).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(tk_actions, "Nach unten", self.app.release_move_track_down, quiet=True, width=108).pack(side="left", padx=SPACE_XS)
-        self.app.btn(tk_actions, "Entfernen", self.app.release_remove_track, quiet=True, width=108).pack(side="left", padx=SPACE_XS)
+        self._release_action_bar = tk_actions
+        self._release_action_buttons = (
+            self.app.btn(tk_actions, "Nach oben", self.app.release_move_track_up, quiet=True, width=108),
+            self.app.btn(tk_actions, "Nach unten", self.app.release_move_track_down, quiet=True, width=108),
+            self.app.btn(tk_actions, "Entfernen", self.app.release_remove_track, quiet=True, width=108),
+        )
+        right_card.bind("<Configure>", self._on_action_bar_resize, add="+")
+        self.after_idle(lambda: self._apply_release_action_layout(right_card.winfo_width()))
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)
@@ -175,6 +182,29 @@ class ReleaseTab(AkmPanel):
 
         left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
         right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+
+    def _on_action_bar_resize(self, event):
+        self._apply_release_action_layout(event.width)
+
+    def _apply_release_action_layout(self, width):
+        if not hasattr(self, "_release_action_buttons"):
+            return
+        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        if target_mode == self._release_action_mode:
+            return
+        self._release_action_mode = target_mode
+
+        for button in self._release_action_buttons:
+            button.pack_forget()
+
+        if target_mode == "stack":
+            for index, button in enumerate(self._release_action_buttons):
+                button.pack(fill="x", pady=(0, SPACE_XS if index < len(self._release_action_buttons) - 1 else 0))
+            return
+
+        for index, button in enumerate(self._release_action_buttons):
+            pad_left = 0 if index == 0 else SPACE_XS
+            button.pack(side="left", padx=(pad_left, 0))
 
     def _setup_dnd(self):
         try:

@@ -35,11 +35,13 @@ def _friendly_layout_name(layout_key):
 
 class CoverTab(AkmPanel):
     STACK_BREAKPOINT = 1320
+    ACTION_STACK_BREAKPOINT = 760
 
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
         self._cover_layout_mode = None
+        self._cover_action_mode = None
         self._current_image = None
         self._photo = None
         self._is_rendering = False
@@ -331,10 +333,15 @@ class CoverTab(AkmPanel):
         # BUTTON BAR
         btn_bar = AkmPanel(meta_card.inner, bg=PANEL_2)
         btn_bar.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        self.app.btn(btn_bar, "Release zuweisen", self._assign_to_release, primary=True, width=146).pack(side="left")
-        self.app.btn(btn_bar, "Cover exportieren", self.export_cover, primary=True, width=146).pack(side="left", padx=SPACE_SM)
-        self.app.btn(btn_bar, "Projekt speichern", self.save_project_locally, quiet=True, width=138).pack(side="left", padx=SPACE_SM)
-        self.app.btn(btn_bar, "Im Finder", self._open_artwork_in_finder, quiet=True, width=104).pack(side="left", padx=SPACE_SM)
+        self._cover_button_bar = btn_bar
+        self._cover_button_widgets = (
+            self.app.btn(btn_bar, "Release zuweisen", self._assign_to_release, primary=True, width=146),
+            self.app.btn(btn_bar, "Cover exportieren", self.export_cover, primary=True, width=146),
+            self.app.btn(btn_bar, "Projekt speichern", self.save_project_locally, quiet=True, width=138),
+            self.app.btn(btn_bar, "Im Finder", self._open_artwork_in_finder, quiet=True, width=104),
+        )
+        meta_card.bind("<Configure>", self._on_action_bar_resize, add="+")
+        self.after_idle(lambda: self._apply_cover_action_layout(meta_card.winfo_width()))
 
         self._show_placeholders()
         self._update_cover_dashboard()
@@ -361,6 +368,29 @@ class CoverTab(AkmPanel):
 
         left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
         scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+
+    def _on_action_bar_resize(self, event):
+        self._apply_cover_action_layout(event.width)
+
+    def _apply_cover_action_layout(self, width):
+        if not hasattr(self, "_cover_button_widgets"):
+            return
+        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        if target_mode == self._cover_action_mode:
+            return
+        self._cover_action_mode = target_mode
+
+        for button in self._cover_button_widgets:
+            button.pack_forget()
+
+        if target_mode == "stack":
+            for index, button in enumerate(self._cover_button_widgets):
+                button.pack(fill="x", pady=(0, SPACE_XS if index < len(self._cover_button_widgets) - 1 else 0))
+            return
+
+        for index, button in enumerate(self._cover_button_widgets):
+            pad_left = 0 if index == 0 else SPACE_SM
+            button.pack(side="left", padx=(pad_left, 0))
 
     def _choose_artwork_path(self):
         path = filedialog.askopenfilename(filetypes=IMAGE_FILETYPES)
