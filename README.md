@@ -1,50 +1,100 @@
-# AKMFlow+ | Der Musik-Assistant 🦌🔥
+# AKMFlow+ | The Music Workflow Forge
 
-![Header](input_file_0.png)
+<p align="center">
+  <img src="AKM.png" alt="AKMFlow+ hero artwork" width="100%">
+</p>
 
-**AKMFlow+** ist die ultimative Zentrale für deinen Release-Workflow. In einer hochmodernen, industriellen "Dark Mode" Umgebung orchestriert diese Forge deine Musik-Metadaten, optimiert die Lautheit deiner Tracks und bereitet deine Releases für den perfekten Export vor.
+<p align="center">
+  <strong>From metadata chaos to release-ready control.</strong><br>
+  <strong>Von Metadaten-Chaos zu releasefertiger Kontrolle.</strong>
+</p>
 
----
-
-## 💎 Features & Highlights
-
-- **AESTHETIC DASHBOARD**: Behalte den Überblick über alle offenen, gemeldeten und bestätigten Werke mit leuchtenden Status-Chips und Echtzeit-Statistiken.
-- **BATCH WORKFLOW**: Melde deine Werke in Sekunden: Ein Klick kopiert den Titel, ein zweiter die Dauer, und der dritte setzt den Status. Nie war AKM/GEMA-Arbeit fokussierter.
-- **LOUDNESS OPTIMIZER**: Integriertes LUFS- & True Peak-Mastering. Analysiere deinen gesamten Katalog und exportiere pefekt gepegelte Match-Dateien.
-- **RELEASE FORGE**: Baue vollständige Release-Pakete inkl. Metadata-Validierung, Cover-Preview und Distribution-Export.
-- **PREMIUM UI**: Vollständige "Industrial Dark" Ästhetik mit sanften Mikro-Animationen, Hover-Feedback und transienten Notification-Toasts.
-
----
-
-## 🎨 Visual Preview
-
-![Dashboard Mockup](akm_flow_plus_ui_dashboard_1775377055436.png)
-*Beispiel des neuen High-Fidelity UI-Designs mit Fokus auf maximale Übersicht und haptisches Feedback.*
+<p align="center">
+  AKMFlow+ brings catalog management, collecting-society prep, cover workflows, loudness checks and release packaging into one focused desktop app.<br>
+  AKMFlow+ bringt Katalogpflege, Verwertungsgesellschaft-Workflow, Cover-Arbeit, Lautheitskontrolle und Release-Paketierung in eine einzige fokussierte Desktop-App.
+</p>
 
 ---
 
-## 🛠 Tech-Stack
+## Deutsch
 
-- **Core**: Python 3.11+
-- **UI**: Custom Tkinter-Engine mit "Industrial Dark" Design-System
-- **Logic**: Modularer AppState (Zentraler Store) & Threaded TaskRunner
-- **Audio**: EBU R128 Loudness Analysis & Digital Peak Tracking
-- **Data**: Excel-Auto-Mapping & JSON Persistence
+**AKMFlow+** ist fuer Artists, Producer, Songwriter, Indies und Release-Menschen gedacht, die ihre Musikverwaltung nicht mehr zwischen Excel, Finder, Notizen und Einzeltools zerlegen wollen.
+
+Hier fuehlt sich Musik-Admin nicht nach Verwaltung an, sondern nach Flow: ein klarer Dark-Interface-Workspace fuer Werke, Metadaten, Batch-Meldungen, Cover, Loudness und Release-Vorbereitung.
+
+### Warum AKMFlow+ auffaellt
+
+- Eine zentrale Werkdatenbank fuer Titel, Dauer, Komponist:innen, Produktion, Tags, Notizen und Status.
+- Ein schneller Batch-Workflow fuer AKM-/GEMA-nahe Meldestrecken mit Copy-Flow und Status-Navigation.
+- Eine Cover-Forge mit Live-Preview, Typografie-Steuerung, Master-Asset-Verwaltung und Export.
+- Ein Loudness-Bereich fuer LUFS, True Peak, Waveform und gematchte Exporte.
+- Ein Release-Bereich fuer Track-Zusammenstellung, Cover-Verknuepfung und Export-Vorbereitung.
+- Ein eigenstaendiger visueller Auftritt statt generischer Tabellen-Software.
+
+### Fuer wen es gebaut ist
+
+- Solo-Artists, die ihre Releases selbst organisieren.
+- Producer und Studios, die Metadaten und Assets sauber halten wollen.
+- Labels und Projektteams, die einen kompakten Desktop-Hub fuer Release-Arbeit brauchen.
+- Alle, die lieber Musik veroeffentlichen als Dateien zusammensuchen.
+
+### Screenshot
+
+![AKMFlow+ dashboard screenshot](assets/akmflowplus-dashboard-screenshot.png)
+
+*Das Dashboard zeigt den aktuellen Produktionsstand auf einen Blick und fuehrt direkt in Batch, Cover, Loudness und Release weiter.*
 
 ---
 
-## 🚀 Schnellstart
+## English
 
-1.  **Repository klonen**
-2.  **Abhängigkeiten installieren**: `pip install tkinterdnd2 openpyxl pyloudnorm` (oder entsprechende Module)
-3.  **Starten**: `python3 akm_app.py`
+**AKMFlow+** is built for artists, producers, songwriters, indie teams and release managers who are tired of splitting music admin across spreadsheets, folders, notes and disconnected utilities.
+
+It turns release work into one sharp desktop flow: a high-contrast dark workspace for works, metadata, registration prep, cover design, loudness control and release assembly.
+
+### Why people want it
+
+- One central catalog for titles, durations, composers, production notes, tags, status and release context.
+- A fast batch workflow for collecting-society style registration tasks with copy-first navigation.
+- A dedicated Cover Forge with live preview, typography controls, master asset handling and export.
+- A loudness workspace for LUFS, true peak, waveform inspection and matched output files.
+- A release workspace for assembling tracklists, linking cover art and preparing final export packages.
+- A desktop experience with its own identity instead of another sterile admin tool.
+
+### Built for
+
+- Independent artists running their own releases.
+- Producers and studios who need metadata and assets under control.
+- Labels and small teams who want one focused release hub.
+- Anyone who would rather ship music than chase files.
+
+### Screenshot
+
+![AKMFlow+ app screenshot](assets/akmflowplus-dashboard-screenshot.png)
+
+*The dashboard gives a fast overview of project status and leads straight into batch work, cover prep, loudness and release packaging.*
 
 ---
 
-## 🧹 Architektur-Refactor Summary
+## Quick Start
 
-In der aktuellen Version wurde das System komplett entkoppelt. Das modernisierte **AppState-Modell** sorgt für konsistente Daten in allen Tabs, während der **TaskRunner** rechenintensive Aufgaben (wie Audio-Analyse) in den Hintergrund verlagert, damit das UI jederzeit flüssig und "live" bleibt.
+```bash
+pip install -r requirements.txt
+python3 akm_app.py
+```
+
+### macOS App Build
+
+```bash
+python3 -m PyInstaller --clean --noconfirm 'AKMFlow+.spec'
+```
+
+The standalone app bundle will be created at `dist/Funky Moose Release Forge.app`.
 
 ---
 
-*Made with 🔥 and Focus. Keep context, keep flow.*
+## What Makes It Different
+
+AKMFlow+ is not trying to be a generic DAM, a generic spreadsheet, or a generic audio utility. It is a purpose-built release workflow app with a strong visual identity and a very practical goal: keep the creative and administrative side of releasing music in one place.
+
+AKMFlow+ will keep getting sharper, faster and more release-focused from here.
