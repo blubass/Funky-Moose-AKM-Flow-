@@ -134,6 +134,7 @@ class CoverTab(AkmPanel):
 
     def _on_cover_state_changed(self, *_args):
         self._sync_cover_state_cache()
+        self._sync_preview_stage_height()
         self._schedule_preview_refresh()
 
     def build_ui(self):
@@ -733,7 +734,18 @@ class CoverTab(AkmPanel):
         if dims == self._preview_dimensions:
             return
         self._preview_dimensions = dims
+        if self._current_image is not None and not self._is_rendering:
+            self._display_preview_image()
         self._update_cover_dashboard()
+
+    def _sync_preview_stage_height(self):
+        if not hasattr(self, "preview_box"):
+            return
+        target_h = max(220, int(self.ui_preview_zoom_var.get()))
+        stage_h = max(280, target_h + 20)
+        current_h = int(self.preview_box.cget("height"))
+        if current_h != stage_h:
+            self.preview_box.configure(height=stage_h)
 
     def _normalized_layout(self):
         raw = (self.layout_var.get() or "manual").strip().lower().replace("_", "").replace("-", "").replace(" ", "")
@@ -978,6 +990,7 @@ class CoverTab(AkmPanel):
 
     def _show_placeholders(self):
         """Restores the industrial placeholder view."""
+        self._sync_preview_stage_height()
         for child in self.preview_inner.winfo_children():
             child.destroy()
         self._photo = None
@@ -1090,22 +1103,34 @@ class CoverTab(AkmPanel):
         self._is_rendering = False
         self._last_preview_error = ""
         self._current_image = img
+        self._display_preview_image()
+        self._update_cover_dashboard()
 
-        # Scale for UI based on Fenster-Zoom slider
-        target_h = self.ui_preview_zoom_var.get()
-        w, h = img.size
-        ratio = target_h / h
-        new_w = int(w * ratio)
-        
-        preview_img = img.resize((new_w, target_h), Image.Resampling.LANCZOS)
+    def _display_preview_image(self):
+        """Fits the rendered cover into the visible preview stage without clipping."""
+        if self._current_image is None:
+            return
+
+        self._sync_preview_stage_height()
+        stage_w = self.preview_inner.winfo_width() or self.preview_box.winfo_width()
+        stage_h = self.preview_inner.winfo_height() or self.preview_box.winfo_height()
+        stage_w = max(1, int(stage_w) - 8)
+        stage_h = max(1, int(stage_h) - 8)
+
+        target_h = max(1, int(self.ui_preview_zoom_var.get()))
+        w, h = self._current_image.size
+        fit_ratio = min(stage_w / w, stage_h / h, target_h / h)
+        fit_ratio = max(fit_ratio, 1 / max(w, h))
+        new_w = max(1, int(w * fit_ratio))
+        new_h = max(1, int(h * fit_ratio))
+
+        preview_img = self._current_image.resize((new_w, new_h), Image.Resampling.LANCZOS)
         self._photo = ImageTk.PhotoImage(preview_img)
-        
-        # Clear placeholders
+
         for child in self.preview_inner.winfo_children():
             child.destroy()
-        
+
         tk.Label(self.preview_inner, image=self._photo, bg="#111111", bd=0, highlightthickness=0).pack(expand=True)
-        self._update_cover_dashboard()
 
     def _on_preview_error(self, error_msg):
         self._is_rendering = False
