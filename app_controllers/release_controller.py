@@ -10,6 +10,23 @@ from app_workflows import release_workflows
 
 class ReleaseController(BaseController):
     """Manages release creation, track ordering, and distribution export."""
+    def __init__(self, app):
+        super().__init__(app)
+        self._last_view_signature = None
+
+    def _build_view_signature(self):
+        cover_path = ""
+        export_dir = ""
+        if hasattr(self.app, "release_vars"):
+            cover_var = self.app.release_vars.get("cover_path")
+            export_var = self.app.release_vars.get("export_dir")
+            cover_path = cover_var.get().strip() if cover_var else ""
+            export_dir = export_var.get().strip() if export_var else ""
+        track_signature = tuple(
+            (track.get("audio_path") or "", track.get("title") or "", track.get("source") or "")
+            for track in self.state.release_tracks
+        )
+        return (track_signature, cover_path, export_dir, hasattr(self.app, "release_track_listbox"))
     
     def handle_drop(self, event):
         data = event.data
@@ -50,7 +67,10 @@ class ReleaseController(BaseController):
         except Exception as e:
             self.log(f"Release DnD Parse Fehler: {e}")
 
-    def refresh_view(self):
+    def refresh_view(self, force=False):
+        signature = self._build_view_signature()
+        if not force and signature == self._last_view_signature:
+            return
         if hasattr(self.app, 'release_track_listbox'):
             self.app.release_track_listbox.delete(0, tk.END)
             for i, t in enumerate(self.state.release_tracks): 
@@ -62,13 +82,7 @@ class ReleaseController(BaseController):
                 text=release_view_tools.build_release_action_hint(counts)
             )
         if hasattr(self.app, "release_status_label") and self.app.release_status_label:
-            cover_path = ""
-            export_dir = ""
-            if hasattr(self.app, "release_vars"):
-                cover_var = self.app.release_vars.get("cover_path")
-                export_var = self.app.release_vars.get("export_dir")
-                cover_path = cover_var.get().strip() if cover_var else ""
-                export_dir = export_var.get().strip() if export_var else ""
+            _track_signature, cover_path, export_dir, _has_listbox = signature
             self.app.release_status_label.config(
                 text=release_view_tools.build_release_status_text(
                     len(self.state.release_tracks),
@@ -77,14 +91,19 @@ class ReleaseController(BaseController):
                     hasattr(self.app, "release_track_listbox"),
                 )
             )
+        self._last_view_signature = signature
 
     def choose_cover(self): 
         p = filedialog.askopenfilename(filetypes=[("Image", "*.jpg *.png")])
-        if p: self.app.release_vars["cover_path"].set(p)
+        if p:
+            self.app.release_vars["cover_path"].set(p)
+            self.refresh_view(force=True)
 
     def choose_export_dir(self): 
         p = filedialog.askdirectory()
-        if p: self.app.release_vars["export_dir"].set(p)
+        if p:
+            self.app.release_vars["export_dir"].set(p)
+            self.refresh_view(force=True)
 
     def open_cover_in_finder(self): 
         p = self.app.release_vars["cover_path"].get()

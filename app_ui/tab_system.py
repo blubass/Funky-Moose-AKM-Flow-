@@ -2,6 +2,7 @@
 Modular Tab Orchestration for the Funky Moose Release Forge.
 """
 import tkinter as tk
+import time
 from tkinter import ttk
 from app_ui import ui_patterns
 from app_ui.ui_patterns import SPACE_LG
@@ -39,6 +40,7 @@ class AppTabs:
 
         # Lazy instantiation storage
         self._instances = {}
+        self.build_metrics = {}
         self._classes = {
             "dashboard": DashboardTab,
             "assistant": AssistantTab,
@@ -69,6 +71,7 @@ class AppTabs:
         # Internal Lazy-Build Trigger
         self.notebook.bind("<<NotebookTabChanged>>", self._on_internal_tab_change)
         self._preload_job = None
+        self._preload_reported = False
 
     def _on_internal_tab_change(self, event=None):
         """Ensures the selected tab is built when the user clicks it or it's changed programmatically."""
@@ -92,7 +95,9 @@ class AppTabs:
                 cls = self._classes[name]
                 frame = self.map[name]
                 # Inject logic
+                start = time.perf_counter()
                 self._instances[name] = cls(frame, self.app)
+                self.build_metrics[name] = round((time.perf_counter() - start) * 1000, 1)
             return self._instances[name]
         raise AttributeError(f"'{self.__class__.__name__}' has no attribute '{name}'")
 
@@ -120,6 +125,13 @@ class AppTabs:
         def _step(index=0):
             if index >= len(pending):
                 self._preload_job = None
+                if not self._preload_reported and self.build_metrics and hasattr(self.app, "append_log"):
+                    metrics = ", ".join(
+                        f"{tab} {duration:.0f}ms"
+                        for tab, duration in sorted(self.build_metrics.items(), key=lambda item: item[1], reverse=True)
+                    )
+                    self.app.append_log(f"Tab warmup: {metrics}")
+                    self._preload_reported = True
                 return
             getattr(self, pending[index])
             self._preload_job = self.notebook.after(delay_ms, lambda: _step(index + 1))

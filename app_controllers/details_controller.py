@@ -8,6 +8,9 @@ from app_ui import ui_patterns, path_ui_tools
 
 class DetailsController(BaseController):
     """Manages granular work metadata editing and resource linking."""
+    def __init__(self, app):
+        super().__init__(app)
+        self._title_signature = None
     
     def save_details(self):
         orig = self.app.detail_original_title
@@ -40,9 +43,13 @@ class DetailsController(BaseController):
     def refresh_titles(self):
         """Updates the Title combobox with current records."""
         recs = self.state.get_all_records(False)
+        signature = (self.state._get_data_mtime(), len(recs))
+        if signature == self._title_signature and hasattr(self.app, 'detail_title_combo'):
+            return
         titles = sorted([r.get("title", "") for r in recs if r.get("title")])
         if hasattr(self.app, 'detail_title_combo'):
             self.app.detail_title_combo.config(values=titles)
+        self._title_signature = signature
 
     def load_selected_title(self):
         """Loads data for a title chosen from the combobox."""

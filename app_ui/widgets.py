@@ -39,6 +39,14 @@ def open_in_finder(path):
     except Exception as exc:
         return False, str(exc)
 
+def fit_wraplength(widget, width, padding=36, minimum=180, maximum=None):
+    """Keep helper labels readable across wide and narrow card layouts."""
+    target = max(minimum, int(width - padding))
+    if maximum is not None:
+        target = min(target, maximum)
+    widget.config(wraplength=target)
+    return target
+
 class AkmRoundedFrame(tk.Canvas):
     """A futuristic rounded container with persistent geometry awareness."""
     def __init__(self, parent, bg_color=PANEL, radius=36, border_color="#2D2D33", **kwargs):

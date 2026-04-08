@@ -42,7 +42,12 @@ class DetailsTab(AkmPanel):
 
     def build_ui(self):
         AkmHeader(self, text="Werkdetails").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
-        AkmSubLabel(self, text="Metadaten, Notizen und Status an einem Ort pflegen.").pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._header_intro_label = AkmSubLabel(
+            self,
+            text="Metadaten, Notizen und Status an einem Ort pflegen.",
+            justify="left",
+        )
+        self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         status_card = AkmCard(self, height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -98,13 +103,14 @@ class DetailsTab(AkmPanel):
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
         # LEFT FORM
-        AkmSubLabel(
+        self._left_intro_label = AkmSubLabel(
             left_card.inner,
             text="Titel, Audio, Credits und Status bleiben hier in einer sauberen Arbeitsansicht gebündelt.",
             bg=PANEL_2,
             justify="left",
             wraplength=360,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
+        )
+        self._left_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
         left_form.add_header("Werksteuerung")
@@ -154,13 +160,14 @@ class DetailsTab(AkmPanel):
 
         # RIGHT FORM
         AkmLabel(right_card.inner, text="Tags & Notizen", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
-        AkmSubLabel(
+        self._right_intro_label = AkmSubLabel(
             right_card.inner,
             text="Sammle Ideen, Produktionshinweise und Suchbegriffe so, dass spätere Übergaben leicht bleiben.",
             bg=PANEL_2,
             justify="left",
             wraplength=360,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        )
+        self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         right_form = AkmForm(right_card.inner, padx=CARD_PAD_X, pady=0)
         right_form.pack(fill="both", expand=True)
         self.app.detail_tags = right_form.add_text("Tags (Kommata)", height=4)
@@ -190,10 +197,18 @@ class DetailsTab(AkmPanel):
         if target_mode == "stack":
             left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
             right_card.pack(fill="x", expand=False)
-            return
+        else:
+            left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+            right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
-        left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-        right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        self._update_wraplengths(width)
+
+    def _update_wraplengths(self, width):
+        column_width = width if self._detail_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)
+        fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=780)
+        fit_wraplength(self.app.details_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self._left_intro_label, column_width, padding=80, minimum=260, maximum=460)
+        fit_wraplength(self._right_intro_label, column_width, padding=80, minimum=260, maximum=460)
 
     def _setup_state_traces(self):
         tracked = []

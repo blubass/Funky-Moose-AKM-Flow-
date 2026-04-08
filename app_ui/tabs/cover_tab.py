@@ -22,6 +22,7 @@ IMAGE_FILETYPES = [
     ("Bilder", "*.jpg *.jpeg *.png *.bmp *.tiff *.webp"),
     ("Alle Dateien", "*.*"),
 ]
+_SYSTEM_FONTS = None
 
 
 def _friendly_layout_name(layout_key):
@@ -32,6 +33,14 @@ def _friendly_layout_name(layout_key):
         "center": "Center Band",
     }
     return mapping.get(layout_key, "Manual")
+
+
+def _get_system_fonts():
+    global _SYSTEM_FONTS
+    if _SYSTEM_FONTS is None:
+        import tkinter.font as tkfont
+        _SYSTEM_FONTS = sorted(tkfont.families())
+    return _SYSTEM_FONTS
 
 class CoverTab(AkmPanel):
     STACK_BREAKPOINT = 1320
@@ -105,14 +114,15 @@ class CoverTab(AkmPanel):
         self._setup_traces()
 
     def build_ui(self):
-        import tkinter.font as tkfont
-        sys_fonts = sorted(tkfont.families())
+        sys_fonts = _get_system_fonts()
         
         AkmHeader(self, text="Cover Forge").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
-        AkmSubLabel(
+        self._header_intro_label = AkmSubLabel(
             self,
             text="Artwork, Typografie und Export in einer durchgaengigen Live-Ansicht. Alles, was nach Release riechen soll, sitzt hier.",
-        ).pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+            justify="left",
+        )
+        self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         status_card = AkmCard(self, height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -135,6 +145,7 @@ class CoverTab(AkmPanel):
             text="Layout: manual | Stil: bold | Preview: 400 px",
             bg=PANEL_2,
             anchor="w",
+            justify="left",
         )
         self.cover_meta_label.pack(fill="x")
 
@@ -215,6 +226,7 @@ class CoverTab(AkmPanel):
 
         form = AkmForm(meta_card.inner, padx=CARD_PAD_X, pady=CARD_PAD_Y)
         form.pack(fill="both", expand=True)
+        self._meta_card = meta_card
         
         # TYPOGRAPHY & POSITIONS (COMPACT VERSION)
         def _add_pos_form(header, font_var, color_var, size_var, bold_var, case_var, x_var, y_var):
@@ -290,13 +302,14 @@ class CoverTab(AkmPanel):
         form.add_entry("Untertitel", self.subtitle_var)
 
         form.add_header("Typography")
-        AkmSubLabel(
+        self._typography_hint_label = AkmSubLabel(
             form,
             text="Manual nutzt die X/Y-Werte. Bei Bottom, Top Left und Center wird die Typografie aus dem Preset gebaut.",
             bg=PANEL_2,
             justify="left",
             wraplength=420,
-        ).grid(row=form._current_row, column=0, columnspan=2, sticky="w", pady=(0, SPACE_SM))
+        )
+        self._typography_hint_label.grid(row=form._current_row, column=0, columnspan=2, sticky="w", pady=(0, SPACE_SM))
         form._current_row += 1
 
         _add_pos_form("Artist Layer", self.artist_font_var, self.artist_color_var, self.artist_size_var, self.artist_bold_var, self.artist_case_var, self.artist_x_var, self.artist_y_var)
@@ -342,6 +355,7 @@ class CoverTab(AkmPanel):
         )
         meta_card.bind("<Configure>", self._on_action_bar_resize, add="+")
         self.after_idle(lambda: self._apply_cover_action_layout(meta_card.winfo_width()))
+        self.after_idle(lambda: self._update_wraplengths(content.winfo_width(), meta_card.winfo_width()))
 
         self._show_placeholders()
         self._update_cover_dashboard()
@@ -364,12 +378,16 @@ class CoverTab(AkmPanel):
         if target_mode == "stack":
             left_side.pack(side="top", fill="x", expand=False, pady=(0, CARD_GAP))
             scroll_container.pack(side="top", fill="both", expand=True)
-            return
+        else:
+            left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+            scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
-        left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-        scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        meta_width = self._meta_card.winfo_width() if hasattr(self, "_meta_card") else width
+        self._update_wraplengths(width, meta_width)
 
     def _on_action_bar_resize(self, event):
+        content_width = self._cover_split_widgets[0].master.winfo_width() if hasattr(self, "_cover_split_widgets") else event.width
+        self._update_wraplengths(content_width, event.width)
         self._apply_cover_action_layout(event.width)
 
     def _apply_cover_action_layout(self, width):
@@ -391,6 +409,20 @@ class CoverTab(AkmPanel):
         for index, button in enumerate(self._cover_button_widgets):
             pad_left = 0 if index == 0 else SPACE_SM
             button.pack(side="left", padx=(pad_left, 0))
+
+    def _update_wraplengths(self, content_width, meta_width):
+        split_mode = self._cover_layout_mode or "split"
+        preview_width = content_width if split_mode == "stack" else max(360, (content_width - CARD_GAP) // 2)
+        form_width = meta_width if meta_width else preview_width
+        fit_wraplength(self._header_intro_label, content_width, padding=120, minimum=300, maximum=900)
+        fit_wraplength(self.cover_meta_label, content_width, padding=260, minimum=260, maximum=560)
+        fit_wraplength(self.cover_preview_caption, preview_width, padding=90, minimum=260, maximum=500)
+        fit_wraplength(self.cover_preview_hint_label, preview_width, padding=90, minimum=260, maximum=500)
+        fit_wraplength(self._typography_hint_label, form_width, padding=90, minimum=280, maximum=500)
+        if hasattr(self, "_artwork_hint_label"):
+            fit_wraplength(self._artwork_hint_label, form_width, padding=180, minimum=220, maximum=360)
+        if hasattr(self, "_direction_hint_label"):
+            fit_wraplength(self._direction_hint_label, form_width, padding=90, minimum=260, maximum=460)
 
     def _choose_artwork_path(self):
         path = filedialog.askopenfilename(filetypes=IMAGE_FILETYPES)
@@ -439,11 +471,13 @@ class CoverTab(AkmPanel):
         row_aux.pack(fill="x", pady=(SPACE_XS, 0))
         self.app.btn(row_aux, "Aus Release", self._load_artwork_from_release, quiet=True, width=108).pack(side="left")
         self.app.btn(row_aux, "Leeren", self._clear_artwork, quiet=True, width=84).pack(side="left", padx=(SPACE_XS, 0))
-        AkmSubLabel(
+        self._artwork_hint_label = AkmSubLabel(
             row_aux,
             text="JPG, PNG, WEBP, TIFF oder BMP. Drag & Drop auf die Preview geht auch.",
             bg=PANEL_2,
-        ).pack(side="left", padx=(SPACE_SM, 0))
+            justify="left",
+        )
+        self._artwork_hint_label.pack(side="left", padx=(SPACE_SM, 0), fill="x", expand=True)
         return wrap
 
     def _create_direction_row(self, parent):
@@ -468,13 +502,14 @@ class CoverTab(AkmPanel):
             width=11,
         ).pack(side="left", padx=(SPACE_XS, 0))
 
-        AkmSubLabel(
+        self._direction_hint_label = AkmSubLabel(
             wrap,
             text="Manual nutzt deine X/Y-Werte. Bottom, Top Left und Center bauen automatisch saubere Text-Frames.",
             bg=PANEL_2,
             justify="left",
             wraplength=420,
-        ).pack(anchor="w", pady=(SPACE_XS, 0))
+        )
+        self._direction_hint_label.pack(anchor="w", pady=(SPACE_XS, 0))
         return wrap
 
     def _create_render_row(self, parent):

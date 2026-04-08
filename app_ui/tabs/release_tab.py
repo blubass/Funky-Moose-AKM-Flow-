@@ -22,7 +22,12 @@ class ReleaseTab(AkmPanel):
 
     def build_ui(self):
         AkmHeader(self, text="Release / Export").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
-        AkmSubLabel(self, text="Baue aus Werken, gematchten Dateien und Cover-Varianten ein sauberes Release-Paket.").pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._header_intro_label = AkmSubLabel(
+            self,
+            text="Baue aus Werken, gematchten Dateien und Cover-Varianten ein sauberes Release-Paket.",
+            justify="left",
+        )
+        self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         status_card = AkmCard(self, height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -67,13 +72,14 @@ class ReleaseTab(AkmPanel):
         scroll_root.canvas.bind("<Configure>", self._on_responsive_resize, add="+")
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
-        AkmSubLabel(
+        self._left_intro_label = AkmSubLabel(
             left_card.inner,
             text="Metadaten, Cover und Zielordner werden hier einmal sauber gesetzt.",
             bg=PANEL_2,
             justify="left",
             wraplength=360,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
+        )
+        self._left_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
         # LEFT FORM
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
@@ -111,13 +117,14 @@ class ReleaseTab(AkmPanel):
 
         # RIGHT CARD: TRACK LIST & ASSEMBLY
         AkmLabel(right_card.inner, text="Release-Zusammenstellung", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_MD))
-        AkmSubLabel(
+        self._right_intro_label = AkmSubLabel(
             right_card.inner,
             text="Ziehe fertige Audiodateien direkt in die Liste. Exakte Titel werden automatisch auf Werke gemappt.",
             bg=PANEL_2,
             justify="left",
             wraplength=380,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        )
+        self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
         drop_zone = tk.Frame(right_card.inner, bg=FIELD_BG, highlightbackground="#2E323A", highlightthickness=1)
         drop_zone.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
@@ -128,13 +135,14 @@ class ReleaseTab(AkmPanel):
             bg=FIELD_BG,
             font=FONT_BOLD,
         ).pack(anchor="w", padx=12, pady=(10, 0))
-        AkmSubLabel(
+        self._drop_zone_hint_label = AkmSubLabel(
             drop_zone,
             text="WAV, AIFF, MP3, FLAC oder M4A hier ablegen. Dubletten werden automatisch uebersprungen.",
             bg=FIELD_BG,
             justify="left",
             wraplength=360,
-        ).pack(anchor="w", padx=12, pady=(2, 10))
+        )
+        self._drop_zone_hint_label.pack(anchor="w", padx=12, pady=(2, 10))
         
         list_frame = AkmPanel(right_card.inner, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_SM))
@@ -178,10 +186,18 @@ class ReleaseTab(AkmPanel):
         if target_mode == "stack":
             left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
             right_card.pack(fill="x", expand=False)
-            return
+        else:
+            left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
+            right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
 
-        left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-        right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        self._update_wraplengths(width)
+
+    def _update_wraplengths(self, width):
+        column_width = width if self._release_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)
+        fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=820)
+        fit_wraplength(self._left_intro_label, column_width, padding=80, minimum=260, maximum=460)
+        fit_wraplength(self._right_intro_label, column_width, padding=80, minimum=260, maximum=480)
+        fit_wraplength(self._drop_zone_hint_label, column_width, padding=120, minimum=240, maximum=420)
 
     def _on_action_bar_resize(self, event):
         self._apply_release_action_layout(event.width)

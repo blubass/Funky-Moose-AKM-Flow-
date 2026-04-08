@@ -4,22 +4,34 @@ from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
-    FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_XL, FONT_LG
+    FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_XL, FONT_LG, fit_wraplength
 )
 
 
 class OverviewTab(AkmPanel):
+    FILTER_STACK_BREAKPOINT = 980
+    ACTION_STACK_BREAKPOINT = 760
+
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self._filter_layout_mode = None
+        self._status_action_mode = None
+        self._bottom_action_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
+        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
         AkmHeader(self, text="Übersicht aller Werke").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
-        AkmSubLabel(self, text="Suche, filtere und sortiere den gesamten Katalog. Doppelklick öffnet die Details, Audio-Preview bleibt als eigener Move erhalten.").pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._header_intro_label = AkmSubLabel(
+            self,
+            text="Suche, filtere und sortiere den gesamten Katalog. Doppelklick öffnet die Details, Audio-Preview bleibt als eigener Move erhalten.",
+            justify="left",
+        )
+        self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
-        status_card = AkmCard(self, height=118)
+        status_card = AkmCard(self, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
         status_left.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, SPACE_SM), pady=CARD_PAD_Y)
@@ -45,21 +57,27 @@ class OverviewTab(AkmPanel):
         )
         self.app.overview_hint_label.pack(fill="x")
 
-        self.app.btn(status_right, "Aktualisieren", self.app.refresh_list, primary=True, width=126).pack(anchor="e", pady=(0, SPACE_XS))
+        self._refresh_button = self.app.btn(status_right, "Aktualisieren", self.app.refresh_list, primary=True, width=126)
+        self._refresh_button.pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(status_right, bg=PANEL_2)
         action_row.pack(anchor="e")
-        self.app.btn(action_row, "Details öffnen", self.app.load_selected_into_details, quiet=True, width=126).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(action_row, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(action_row, "Lautheit", self.app.loudness_import_selected_work, quiet=True, width=96).pack(side="left")
+        self._status_action_bar = action_row
+        self._status_action_buttons = (
+            self.app.btn(action_row, "Details öffnen", self.app.load_selected_into_details, quiet=True, width=126),
+            self.app.btn(action_row, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
+            self.app.btn(action_row, "Lautheit", self.app.loudness_import_selected_work, quiet=True, width=96),
+        )
 
         controls_card = AkmCard(self)
         controls_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
 
         filter_strip = AkmPanel(controls_card.inner, bg=PANEL_2)
         filter_strip.pack(fill="x", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
+        self._filter_strip = filter_strip
 
         search_wrap = tk.Frame(filter_strip, bg=PANEL_2)
         search_wrap.pack(side="left", padx=(0, SPACE_MD))
+        self._search_wrap = search_wrap
         AkmLabel(search_wrap, text="Suche:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
         self.app.search_var = tk.StringVar()
@@ -70,6 +88,7 @@ class OverviewTab(AkmPanel):
 
         filter_chips_wrap = AkmPanel(filter_strip, bg=PANEL_2)
         filter_chips_wrap.pack(side="left")
+        self._filter_chips_wrap = filter_chips_wrap
 
         self.app.status_filter_var = tk.StringVar(value="all")
         for value in ["all", "open", "in_progress", "ready", "submitted", "confirmed"]:
@@ -101,13 +120,14 @@ class OverviewTab(AkmPanel):
         list_card = AkmCard(self)
         list_card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
         AkmLabel(list_card.inner, text="Katalogliste", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
-        AkmSubLabel(
+        self._list_intro_label = AkmSubLabel(
             list_card.inner,
             text="Mehrfachauswahl erlaubt Batch-Statuswechsel. Details und Loudness greifen immer auf die aktuelle Auswahl.",
             bg=PANEL_2,
             justify="left",
             wraplength=760,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        )
+        self._list_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
         list_frame = AkmPanel(list_card.inner, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_XS))
@@ -136,6 +156,79 @@ class OverviewTab(AkmPanel):
         bottom_actions = AkmPanel(list_card.inner, bg=PANEL_2)
         self.app.overview_bottom_actions = bottom_actions
         bottom_actions.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        self.app.btn(bottom_actions, "Details öffnen", self.app.load_selected_into_details, primary=True, width=138).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(bottom_actions, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126).pack(side="left", padx=SPACE_XS)
-        self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=164).pack(side="left", padx=SPACE_XS)
+        self._bottom_action_bar = bottom_actions
+        self._bottom_action_buttons = (
+            self.app.btn(bottom_actions, "Details öffnen", self.app.load_selected_into_details, primary=True, width=138),
+            self.app.btn(bottom_actions, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
+            self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=164),
+        )
+        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+
+    def _on_resize(self, event):
+        self._apply_responsive_layout(event.width)
+
+    def _apply_responsive_layout(self, width):
+        self._apply_filter_layout(width)
+        self._apply_status_actions_layout(width)
+        self._apply_bottom_actions_layout(width)
+        self._update_wraplengths(width)
+
+    def _apply_filter_layout(self, width):
+        if not hasattr(self, "_filter_strip"):
+            return
+        target_mode = "stack" if width and width < self.FILTER_STACK_BREAKPOINT else "row"
+        if target_mode == self._filter_layout_mode:
+            return
+        self._filter_layout_mode = target_mode
+
+        self._search_wrap.pack_forget()
+        self._filter_chips_wrap.pack_forget()
+        if target_mode == "stack":
+            self._search_wrap.pack(anchor="w", pady=(0, SPACE_XS))
+            self._filter_chips_wrap.pack(anchor="w")
+            return
+        self._search_wrap.pack(side="left", padx=(0, SPACE_MD))
+        self._filter_chips_wrap.pack(side="left")
+
+    def _apply_status_actions_layout(self, width):
+        if not hasattr(self, "_status_action_buttons"):
+            return
+        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        if target_mode == self._status_action_mode:
+            return
+        self._status_action_mode = target_mode
+
+        for button in self._status_action_buttons:
+            button.pack_forget()
+        if target_mode == "stack":
+            self._status_action_bar.pack(anchor="e", fill="x")
+            for index, button in enumerate(self._status_action_buttons):
+                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+            return
+        self._status_action_bar.pack(anchor="e")
+        for index, button in enumerate(self._status_action_buttons):
+            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+
+    def _apply_bottom_actions_layout(self, width):
+        if not hasattr(self, "_bottom_action_buttons"):
+            return
+        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        if target_mode == self._bottom_action_mode:
+            return
+        self._bottom_action_mode = target_mode
+
+        for button in self._bottom_action_buttons:
+            button.pack_forget()
+        if target_mode == "stack":
+            for index, button in enumerate(self._bottom_action_buttons):
+                button.pack(fill="x", pady=(0, SPACE_XS if index < len(self._bottom_action_buttons) - 1 else 0))
+            return
+        for index, button in enumerate(self._bottom_action_buttons):
+            pad_left = 0 if index == 0 else SPACE_XS
+            button.pack(side="left", padx=(pad_left, 0))
+
+    def _update_wraplengths(self, width):
+        fit_wraplength(self._header_intro_label, width, padding=120, minimum=320, maximum=880)
+        fit_wraplength(self.app.overview_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self._list_intro_label, width, padding=120, minimum=320, maximum=820)
+        fit_wraplength(self.app.overview_empty_label, width, padding=120, minimum=320, maximum=820)
