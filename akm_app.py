@@ -361,12 +361,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             self.after_cancel(self._refresh_timer)
         self._refresh_timer = self.after(300, self.refresh_list)
 
-    def add(self, title=None): 
-        if title is None:
-            title = ""
-            if hasattr(self, 'entry'):
-                title = self.entry.get().strip()
-        self.project_ctrl.add_entry(title)
+    def add(self, title=""): 
+        self.project_ctrl.add_entry((title or "").strip())
 
     def _set_overview_status_filter(self, s): 
         self.overview_ctrl.set_status_filter(s)

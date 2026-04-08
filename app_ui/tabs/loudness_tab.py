@@ -222,19 +222,19 @@ class LoudnessTab(AkmPanel):
         self._status_log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
 
     def _apply_button_bar(self, container, buttons, width, state_attr):
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if getattr(self, state_attr) == target_mode:
-            return
-        setattr(self, state_attr, target_mode)
-        for button in buttons:
-            button.pack_forget()
-        if target_mode == "stack":
-            for index, button in enumerate(buttons):
-                button.pack(fill="x", pady=(0, SPACE_XS if index < len(buttons) - 1 else 0))
-            return
-        for index, button in enumerate(buttons):
-            pad_left = 0 if index == 0 else 4
-            button.pack(side="left", padx=(pad_left, 0))
+        current_mode = getattr(self, state_attr, None)
+        setattr(
+            self,
+            state_attr,
+            ui_patterns.apply_button_bar_layout(
+                container,
+                buttons,
+                width,
+                self.ACTION_STACK_BREAKPOINT,
+                current_mode,
+                row_spacing=4,
+            ),
+        )
 
     def _apply_split_layout(self, width):
         target_mode = "stack" if width and width < self.MID_STACK_BREAKPOINT else "row"

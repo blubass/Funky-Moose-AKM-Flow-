@@ -7,18 +7,18 @@ from unittest import mock
 from openpyxl import Workbook
 
 import akm_app
-import akm_core
-import assistant_tools
-import cover_tools
-import detail_tools
-import flow_tools
-import loudness_workflows
-import overview_tools
-import path_ui_tools
-import release_tools
-import release_view_tools
-import release_workflows
+from app_logic import akm_core
+from app_logic import assistant_tools
+from app_logic import cover_tools
+from app_logic import detail_tools
+from app_logic import flow_tools
+from app_logic import overview_tools
+from app_logic import release_tools
 from app_logic import akm_core as package_akm_core
+from app_ui import path_ui_tools
+from app_ui import release_view_tools
+from app_workflows import loudness_workflows
+from app_workflows import release_workflows
 from app_controllers.batch_controller import BatchController
 from app_controllers.details_controller import DetailsController
 from app_controllers.loudness_controller import LoudnessController

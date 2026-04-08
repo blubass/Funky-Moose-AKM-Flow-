@@ -2,7 +2,8 @@ import tkinter as tk
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmText, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, SUBTLE, SPACE_MD, SPACE_SM, SPACE_XS, 
-    CARD_PAD_X, CARD_PAD_Y, FONT_LG, FONT_MD, FONT_XL, LOG_BG, LOG_FG, FONT_LOG, fit_wraplength
+    CARD_PAD_X, CARD_PAD_Y, FONT_LG, FONT_MD, FONT_XL, LOG_BG, LOG_FG, FONT_LOG, fit_wraplength,
+    apply_button_bar_layout,
 )
 from app_logic import assistant_tools
 
@@ -136,23 +137,19 @@ class AssistantTab(AkmPanel):
         self._update_wraplengths(width)
 
     def _apply_button_bar(self, container, buttons, width, state_attr):
-        if not hasattr(self, state_attr):
-            setattr(self, state_attr, None)
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if getattr(self, state_attr) == target_mode:
-            return
-        setattr(self, state_attr, target_mode)
-        for button in buttons:
-            button.pack_forget()
-        if target_mode == "stack":
-            container.pack(anchor="w", fill="x")
-            for index, button in enumerate(buttons):
-                button.pack(fill="x", pady=(0, SPACE_XS if index < len(buttons) - 1 else 0))
-            return
-        container.pack(anchor="w")
-        for index, button in enumerate(buttons):
-            pad_left = 0 if index == 0 else SPACE_XS
-            button.pack(side="left", padx=(pad_left, 0))
+        current_mode = getattr(self, state_attr, None)
+        setattr(
+            self,
+            state_attr,
+            apply_button_bar_layout(
+                container,
+                buttons,
+                width,
+                self.ACTION_STACK_BREAKPOINT,
+                current_mode,
+                row_spacing=SPACE_XS,
+            ),
+        )
 
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=300, maximum=820)
