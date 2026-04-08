@@ -13,6 +13,8 @@ class DashboardTab(AkmPanel):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.dashboard_labels = {}
+        self.dashboard_status_chips = {}
         self._action_layout_mode = None
         self._chip_layout_mode = None
         self._stats_columns = None
@@ -47,15 +49,15 @@ class DashboardTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Operations Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        self.app.dashboard_status_label = AkmLabel(
+        self.dashboard_status_label = AkmLabel(
             status_left,
             text="Noch keine Werke im Katalog",
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
         )
-        self.app.dashboard_status_label.pack(fill="x", pady=(2, 2))
-        self.app.dashboard_hint_label = AkmSubLabel(
+        self.dashboard_status_label.pack(fill="x", pady=(2, 2))
+        self.dashboard_hint_label = AkmSubLabel(
             status_left,
             text="Importiere ein Werk oder lege direkt einen neuen Titel an, um loszulegen.",
             bg=PANEL_2,
@@ -63,14 +65,14 @@ class DashboardTab(AkmPanel):
             justify="left",
             wraplength=560,
         )
-        self.app.dashboard_hint_label.pack(fill="x")
-        self.app.dashboard_meta_label = AkmSubLabel(
+        self.dashboard_hint_label.pack(fill="x")
+        self.dashboard_meta_label = AkmSubLabel(
             status_left,
             text="Mit Produktion: 0   •   Mit Notizen: 0   •   Instrumental: 0",
             bg=PANEL_2,
             anchor="w",
         )
-        self.app.dashboard_meta_label.pack(fill="x", pady=(2, 0))
+        self.dashboard_meta_label.pack(fill="x", pady=(2, 0))
 
         self._refresh_button = self.app.btn(status_right, "Dashboard aktualisieren", self.app.refresh_dashboard, primary=True, width=186)
         self._refresh_button.pack(anchor="e", pady=(0, SPACE_XS))
@@ -114,7 +116,7 @@ class DashboardTab(AkmPanel):
                 "<Button-1>",
                 lambda _event, value=status: self.app._open_overview_with_filter(value),
             )
-            self.app.dashboard_status_chips[status] = chip
+            self.dashboard_status_chips[status] = chip
 
         # Stats Grid
         stats_grid = AkmPanel(page)
@@ -147,7 +149,7 @@ class DashboardTab(AkmPanel):
             # Value
             val = tk.Label(card.inner, text="0", fg=ui_patterns.ACCENT, bg=ui_patterns.PANEL_2, font=FONT_XXL)
             val.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-            self.app.dashboard_labels[key] = val
+            self.dashboard_labels[key] = val
             self._stat_cards.append(card)
 
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
@@ -215,5 +217,18 @@ class DashboardTab(AkmPanel):
 
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=320, maximum=860)
-        fit_wraplength(self.app.dashboard_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self.dashboard_hint_label, width, padding=260, minimum=260, maximum=620)
         fit_wraplength(self._chip_intro_label, width, padding=140, minimum=260, maximum=420)
+
+    def render_dashboard_state(self, stats, status_text, hint_text, meta_text, chip_counts, status_text_fn):
+        for key, label in self.dashboard_labels.items():
+            label.config(text=str(stats.get(key, 0)))
+        self.dashboard_status_label.config(text=status_text)
+        self.dashboard_hint_label.config(text=hint_text)
+        self.dashboard_meta_label.config(text=meta_text)
+        for status_key, widget in self.dashboard_status_chips.items():
+            ui_patterns.style_chip_label(
+                widget,
+                status_key,
+                f"{status_text_fn(status_key)}  {chip_counts.get(status_key, 0)}",
+            )

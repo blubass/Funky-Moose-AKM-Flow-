@@ -198,7 +198,7 @@ class FakeReleaseView:
 
 
 class FakeOverviewView:
-    def __init__(self, selection=()):
+    def __init__(self, selection=(), filter_state=None):
         self.selection = tuple(selection)
         self.list_items = []
         self.row_statuses = []
@@ -209,6 +209,14 @@ class FakeOverviewView:
         self.empty_visible = None
         self.filter_chip_texts = {}
         self.filter_chip_selected = {}
+        self.filter_state = {
+            "search": "",
+            "filter": "all",
+            "sort": "title",
+            "desc": False,
+        }
+        if filter_state:
+            self.filter_state.update(filter_state)
 
     def render_overview_records(self, labels, row_statuses):
         self.list_items = list(labels)
@@ -225,8 +233,35 @@ class FakeOverviewView:
         self.filter_chip_texts[status_key] = text
         self.filter_chip_selected[status_key] = selected
 
+    def get_filter_state(self):
+        return dict(self.filter_state)
+
+    def set_status_filter(self, status_key):
+        self.filter_state["filter"] = status_key or "all"
+
     def get_selected_indices(self):
         return self.selection
+
+
+class FakeDashboardView:
+    def __init__(self):
+        self.stats = None
+        self.status_text = None
+        self.hint_text = None
+        self.meta_text = None
+        self.chip_counts = None
+        self.chip_labels = {}
+
+    def render_dashboard_state(self, stats, status_text, hint_text, meta_text, chip_counts, status_text_fn):
+        self.stats = dict(stats)
+        self.status_text = status_text
+        self.hint_text = hint_text
+        self.meta_text = meta_text
+        self.chip_counts = dict(chip_counts)
+        self.chip_labels = {
+            key: f"{status_text_fn(key)}  {chip_counts.get(key, 0)}"
+            for key in chip_counts
+        }
 
 
 class FakeDetailsView:
@@ -1148,6 +1183,17 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.append_log = app.logs.append
         app.select_tab_by_id = lambda tab_id: setattr(app, "selected_tab", tab_id)
         app.status_text = lambda status: status
+        app.get_overview_filter_state = lambda: (
+            app.tab_system._instances["overview"].get_filter_state()
+            if "overview" in app.tab_system._instances
+            and hasattr(app.tab_system._instances["overview"], "get_filter_state")
+            else {
+                "search": (app.search_var.get() if getattr(app, "search_var", None) else ""),
+                "filter": (app.status_filter_var.get() if getattr(app, "status_filter_var", None) else "all"),
+                "sort": (app.sort_key_var.get() if getattr(app, "sort_key_var", None) else "title"),
+                "desc": bool(app.sort_desc_var.get()) if getattr(app, "sort_desc_var", None) else False,
+            }
+        )
         app.get_detail_form_vars = lambda: (
             app.tab_system._instances["details"].get_form_vars()
             if "details" in app.tab_system._instances
@@ -1570,11 +1616,9 @@ class AppRegressionTests(TemporaryStorageTestCase):
     def test_overview_controller_refresh_list_clears_stale_ui_when_no_records(self):
         app = self.make_app_stub(records=[], mtime=None)
         app.state.filtered_records = [{"title": "Veraltet"}]
-        app.search_var = FakeVar("")
-        app.status_filter_var = FakeVar("all")
-        app.sort_key_var = FakeVar("title")
-        app.sort_desc_var = FakeVar(False)
-        overview_view = FakeOverviewView()
+        overview_view = FakeOverviewView(
+            filter_state={"search": "", "filter": "all", "sort": "title", "desc": False}
+        )
         overview_view.list_items = ["Stale Row"]
         app.tab_system._instances["overview"] = overview_view
 
@@ -1589,6 +1633,39 @@ class AppRegressionTests(TemporaryStorageTestCase):
         )
         self.assertEqual("all  0", overview_view.filter_chip_texts["all"])
         self.assertTrue(overview_view.filter_chip_selected["all"])
+
+    def test_overview_controller_refresh_dashboard_updates_dashboard_view(self):
+        app = self.make_app_stub(
+            records=[
+                {"title": "Song A", "status": "ready", "production": "P", "notes": "n", "instrumental": False},
+                {"title": "Song B", "status": "confirmed", "production": "", "notes": "", "instrumental": True},
+            ]
+        )
+        dashboard_view = FakeDashboardView()
+        app.tab_system._instances["dashboard"] = dashboard_view
+
+        controller = OverviewController(app)
+        controller.refresh_dashboard()
+
+        self.assertEqual(2, dashboard_view.stats["total"])
+        self.assertIn("2 Werke", dashboard_view.status_text)
+        self.assertIn("Mit Produktion: 1", dashboard_view.meta_text)
+        self.assertEqual("ready  1", dashboard_view.chip_labels["ready"])
+
+    def test_overview_controller_open_with_filter_builds_overview_view_state(self):
+        app = self.make_app_stub()
+        overview_view = FakeOverviewView()
+        app.tab_system._instances["overview"] = overview_view
+        app.overview_tab = overview_view
+        app.overview_ctrl = OverviewController(app)
+        app.overview_refreshed = False
+        app.overview_ctrl.refresh_list = lambda: setattr(app, "overview_refreshed", True)
+
+        app.overview_ctrl.open_with_filter("confirmed")
+
+        self.assertEqual("overview", app.selected_tab)
+        self.assertEqual("confirmed", overview_view.filter_state["filter"])
+        self.assertTrue(app.overview_refreshed)
 
     def test_details_controller_save_details_updates_loaded_record(self):
         self.save_entries(

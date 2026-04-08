@@ -146,11 +146,6 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
     def _init_ui_vars(self):
         """Prepare tracker variables and registries used across multiple tabs."""
-        # Overview Registry
-        self.overview_filter_chips = {}
-        self.dashboard_labels = {}
-        self.dashboard_status_chips = {}
-        
         # Detail & Metadata Registry
         self.cover_state_cache = {}
         self.release_state_cache = {}
@@ -160,12 +155,6 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         # Batch & Flow
         self.copy_stage = flow_tools.DEFAULT_COPY_STAGE
         self.copy_button = None
-        
-        # Search & Filtering
-        self.search_var = None
-        self.status_filter_var = None
-        self.sort_key_var = None
-        self.sort_desc_var = None
 
     # --- UI BUILDING ---
     def build_ui(self):
@@ -243,6 +232,17 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             return release_tab.get_form_vars()
         return {}
 
+    def get_overview_filter_state(self):
+        overview_tab = self.get_built_tab("overview")
+        if overview_tab is not None and hasattr(overview_tab, "get_filter_state"):
+            return overview_tab.get_filter_state()
+        return {
+            "search": "",
+            "filter": "all",
+            "sort": "title",
+            "desc": False,
+        }
+
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""
         self.select_tab_by_id("loudness")
@@ -293,10 +293,16 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             return
 
         if active_tab_id == "overview":
-            search = (self.search_var.get() or "").lower() if self.search_var else ""
-            filt = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
-            sort_key = self.sort_key_var.get() if self.sort_key_var else "title"
-            sort_desc = bool(self.sort_desc_var.get()) if self.sort_desc_var else False
+            filter_state = self.get_overview_filter_state() if hasattr(self, "get_overview_filter_state") else {
+                "search": (self.search_var.get() or "").lower() if getattr(self, "search_var", None) else "",
+                "filter": (self.status_filter_var.get() or "all") if getattr(self, "status_filter_var", None) else "all",
+                "sort": self.sort_key_var.get() if getattr(self, "sort_key_var", None) else "title",
+                "desc": bool(self.sort_desc_var.get()) if getattr(self, "sort_desc_var", None) else False,
+            }
+            search = (filter_state.get("search") or "").lower()
+            filt = filter_state.get("filter") or "all"
+            sort_key = filter_state.get("sort") or "title"
+            sort_desc = bool(filter_state.get("desc"))
 
             if (
                 self._last_overview_refresh["mtime"] != mtime
@@ -330,10 +336,16 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
     def refresh_all_tabs(self):
         """Standardized orchestrator to update all modular components and reset trackers."""
-        current_search = (self.search_var.get() or "").lower() if self.search_var else ""
-        current_filter = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
-        current_sort = self.sort_key_var.get() if self.sort_key_var else "title"
-        current_desc = bool(self.sort_desc_var.get()) if self.sort_desc_var else False
+        filter_state = self.get_overview_filter_state() if hasattr(self, "get_overview_filter_state") else {
+            "search": (self.search_var.get() or "") if getattr(self, "search_var", None) else "",
+            "filter": (self.status_filter_var.get() or "all") if getattr(self, "status_filter_var", None) else "all",
+            "sort": self.sort_key_var.get() if getattr(self, "sort_key_var", None) else "title",
+            "desc": bool(self.sort_desc_var.get()) if getattr(self, "sort_desc_var", None) else False,
+        }
+        current_search = (filter_state.get("search") or "").lower()
+        current_filter = filter_state.get("filter") or "all"
+        current_sort = filter_state.get("sort") or "title"
+        current_desc = bool(filter_state.get("desc"))
         current_mtime = self.state._get_data_mtime()
 
         self.overview_ctrl.refresh_list()

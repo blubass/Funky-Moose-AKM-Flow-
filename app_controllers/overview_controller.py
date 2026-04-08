@@ -7,10 +7,34 @@ from app_ui import ui_patterns
 class OverviewController(BaseController):
     """Manages catalogue overview, filtering, and cross-tab triggers."""
 
+    def _get_dashboard_view(self):
+        if hasattr(self.app, "get_built_tab"):
+            return self.app.get_built_tab("dashboard")
+        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("dashboard")
+
     def _get_overview_view(self):
         if hasattr(self.app, "get_built_tab"):
             return self.app.get_built_tab("overview")
         return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("overview")
+
+    def _get_overview_filter_state(self):
+        overview_view = self._get_overview_view()
+        if overview_view and hasattr(overview_view, "get_filter_state"):
+            return overview_view.get_filter_state()
+        return {
+            "search": (self.app.search_var.get() or "") if getattr(self.app, "search_var", None) else "",
+            "filter": (self.app.status_filter_var.get() or "all") if getattr(self.app, "status_filter_var", None) else "all",
+            "sort": (self.app.sort_key_var.get() or "title") if getattr(self.app, "sort_key_var", None) else "title",
+            "desc": bool(self.app.sort_desc_var.get()) if getattr(self.app, "sort_desc_var", None) else False,
+        }
+
+    def _set_overview_status_filter(self, status_key):
+        overview_view = self._get_overview_view()
+        if overview_view and hasattr(overview_view, "set_status_filter"):
+            overview_view.set_status_filter(status_key)
+            return
+        if getattr(self.app, "status_filter_var", None):
+            self.app.status_filter_var.set(status_key)
 
     def _render_legacy_overview_records(self, labels, row_statuses):
         if not hasattr(self.app, "listbox"):
@@ -51,11 +75,12 @@ class OverviewController(BaseController):
     def refresh_list(self):
         """Orchestrates filtering, sorting, and UI population of the catalogue overview (Listbox optimized)."""
         recs = self.state.get_all_records(copy_data=False) or []
-        
-        search = (self.app.search_var.get() or "").lower() if self.app.search_var else ""
-        filt = (self.app.status_filter_var.get() or "all") if self.app.status_filter_var else "all"
-        key = (self.app.sort_key_var.get() or "title") if self.app.sort_key_var else "title"
-        desc = (self.app.sort_desc_var.get() or False) if self.app.sort_desc_var else False
+
+        filter_state = self._get_overview_filter_state()
+        search = (filter_state.get("search") or "").lower()
+        filt = filter_state.get("filter") or "all"
+        key = filter_state.get("sort") or "title"
+        desc = bool(filter_state.get("desc"))
         mtime = self.state._get_data_mtime()
         
         # Performance Guard: Skip if nothing has changed since last visit
@@ -122,24 +147,37 @@ class OverviewController(BaseController):
 
     def refresh_dashboard(self):
         st = overview_tools.build_dashboard_stats(self.state.get_all_records(copy_data=False))
-        if not hasattr(self.app, 'dashboard_labels'): return
-        
-        for k, l in self.app.dashboard_labels.items(): 
-            l.config(text=str(st.get(k, 0)))
-
-        if hasattr(self.app, "dashboard_status_label") and self.app.dashboard_status_label:
-            self.app.dashboard_status_label.config(text=overview_tools.build_dashboard_status_text(st))
-        if hasattr(self.app, "dashboard_hint_label") and self.app.dashboard_hint_label:
-            self.app.dashboard_hint_label.config(text=overview_tools.build_dashboard_focus_text(st))
-        if hasattr(self.app, "dashboard_meta_label") and self.app.dashboard_meta_label:
-            self.app.dashboard_meta_label.config(text=overview_tools.build_dashboard_meta_text(st))
-        
+        dashboard_view = self._get_dashboard_view()
         counts = overview_tools.build_dashboard_chip_counts(st)
-        for st_key, widget in self.app.dashboard_status_chips.items(): 
+        status_text = overview_tools.build_dashboard_status_text(st)
+        hint_text = overview_tools.build_dashboard_focus_text(st)
+        meta_text = overview_tools.build_dashboard_meta_text(st)
+        if dashboard_view and hasattr(dashboard_view, "render_dashboard_state"):
+            dashboard_view.render_dashboard_state(
+                st,
+                status_text,
+                hint_text,
+                meta_text,
+                counts,
+                self.app.status_text,
+            )
+            return
+        legacy_dashboard_labels = getattr(self.app, "dashboard_labels", None)
+        if not legacy_dashboard_labels:
+            return
+        for k, l in legacy_dashboard_labels.items():
+            l.config(text=str(st.get(k, 0)))
+        if getattr(self.app, "dashboard_status_label", None):
+            self.app.dashboard_status_label.config(text=status_text)
+        if getattr(self.app, "dashboard_hint_label", None):
+            self.app.dashboard_hint_label.config(text=hint_text)
+        if getattr(self.app, "dashboard_meta_label", None):
+            self.app.dashboard_meta_label.config(text=meta_text)
+        for st_key, widget in getattr(self.app, "dashboard_status_chips", {}).items():
             ui_patterns.style_chip_label(widget, st_key, f"{self.app.status_text(st_key)}  {counts.get(st_key, 0)}")
 
     def _refresh_overview_filter_chips(self, records):
-        current = (self.app.status_filter_var.get() or "all") if self.app.status_filter_var else "all"
+        current = self._get_overview_filter_state().get("filter") or "all"
         counts = overview_tools.build_overview_filter_counts(records)
         overview_view = self._get_overview_view()
         if overview_view and hasattr(overview_view, "update_filter_chip"):
@@ -150,7 +188,7 @@ class OverviewController(BaseController):
                     st_key == current,
                 )
             return
-        for st_key, widget in self.app.overview_filter_chips.items():
+        for st_key, widget in getattr(self.app, "overview_filter_chips", {}).items():
             ui_patterns.style_chip_label(widget, st_key, f"{self.app.status_text(st_key)}  {counts.get(st_key, 0)}", st_key == current)
 
     def _on_g_done(self, result, message):
@@ -234,11 +272,12 @@ class OverviewController(BaseController):
             self.app.batch_ctrl.open_track_in_batch(l)
 
     def set_status_filter(self, s): 
-        self.app.status_filter_var.set(s)
+        self._set_overview_status_filter(s)
         self.refresh_list()
 
     def open_with_filter(self, s): 
-        self.app.status_filter_var.set(s)
+        _ = getattr(self.app, "overview_tab", None)
+        self._set_overview_status_filter(s)
         self.app.select_tab_by_id("overview")
         self.refresh_list()
 

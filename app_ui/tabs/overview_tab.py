@@ -17,6 +17,10 @@ class OverviewTab(AkmPanel):
         super().__init__(parent)
         self.app = app
         self.filter_chips = {}
+        self.search_var = tk.StringVar()
+        self.status_filter_var = tk.StringVar(value="all")
+        self.sort_key_var = tk.StringVar(value="title")
+        self.sort_desc_var = tk.BooleanVar(value=False)
         self._filter_layout_mode = None
         self._status_action_mode = None
         self._bottom_action_mode = None
@@ -87,17 +91,15 @@ class OverviewTab(AkmPanel):
         self._search_wrap = search_wrap
         AkmLabel(search_wrap, text="Suche:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
-        self.app.search_var = tk.StringVar()
-        self.app.search_var.trace_add("write", lambda *args: self.app._schedule_refresh_list())
+        self.search_var.trace_add("write", lambda *args: self.app._schedule_refresh_list())
 
-        search_entry = AkmEntry(search_wrap, textvariable=self.app.search_var, width=26)
+        search_entry = AkmEntry(search_wrap, textvariable=self.search_var, width=26)
         search_entry.pack(side="left", ipady=2)
 
         filter_chips_wrap = AkmPanel(filter_strip, bg=PANEL_2)
         filter_chips_wrap.pack(side="left")
         self._filter_chips_wrap = filter_chips_wrap
 
-        self.app.status_filter_var = tk.StringVar(value="all")
         for value in ["all", "open", "in_progress", "ready", "submitted", "confirmed"]:
             chip = tk.Label(
                 filter_chips_wrap, text="", font=FONT_BOLD,
@@ -111,15 +113,13 @@ class OverviewTab(AkmPanel):
         sort_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         AkmLabel(sort_row, text="Sortierung:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
-        self.app.sort_key_var = tk.StringVar(value="title")
         sort_options = [("Titel", "title"), ("Status", "status"), ("Jahr", "year"), ("Änderung", "last_change")]
-        sort_menu = tk.OptionMenu(sort_row, self.app.sort_key_var, *[v for _, v in sort_options], command=lambda _v: self.app.refresh_list())
+        sort_menu = tk.OptionMenu(sort_row, self.sort_key_var, *[v for _, v in sort_options], command=lambda _v: self.app.refresh_list())
         sort_menu.config(bg=PANEL_2, fg=TEXT, activebackground="#3a3a3a", activeforeground=TEXT, relief="flat", highlightthickness=0)
         sort_menu["menu"].config(bg=PANEL_2, fg=TEXT, activebackground=ACCENT, activeforeground="black")
         sort_menu.pack(side="left", padx=(0, SPACE_XS))
 
-        self.app.sort_desc_var = tk.BooleanVar(value=False)
-        AkmCheckbutton(sort_row, text="Absteigend", variable=self.app.sort_desc_var, command=self.app.refresh_list, bg=PANEL_2).pack(side="left")
+        AkmCheckbutton(sort_row, text="Absteigend", variable=self.sort_desc_var, command=self.app.refresh_list, bg=PANEL_2).pack(side="left")
 
         self.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
         self.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
@@ -263,6 +263,17 @@ class OverviewTab(AkmPanel):
         widget = self.filter_chips.get(status_key)
         if widget:
             ui_patterns.style_chip_label(widget, status_key, text, selected)
+
+    def get_filter_state(self):
+        return {
+            "search": (self.search_var.get() or ""),
+            "filter": (self.status_filter_var.get() or "all"),
+            "sort": (self.sort_key_var.get() or "title"),
+            "desc": bool(self.sort_desc_var.get()),
+        }
+
+    def set_status_filter(self, status_key):
+        self.status_filter_var.set(status_key or "all")
 
     def get_selected_indices(self):
         return tuple(self.listbox.curselection())
