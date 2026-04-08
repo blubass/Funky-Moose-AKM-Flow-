@@ -15,13 +15,21 @@ except ImportError:
     DND_FILES = None
 
 class LoudnessTab(AkmPanel):
+    MID_STACK_BREAKPOINT = 1040
+    ACTION_STACK_BREAKPOINT = 760
+
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self._mid_layout_mode = None
+        self._action_mode = None
+        self._aux_action_mode = None
+        self._split_layout_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.wv_ref = None 
         self.build_ui()
         self._setup_dnd()
+        self.bind("<Configure>", self._on_resize, add="+")
 
     def build_ui(self):
         # --- 1. WAVEFORM PROMINENCE (TOP) ---
@@ -42,37 +50,47 @@ class LoudnessTab(AkmPanel):
         # --- 2. MIDDLE ROW (Workflow | Status) ---
         mid_row = tk.Frame(self, bg=BG)
         mid_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._mid_row = mid_row
         
         # Workflow (Narrower)
-        action_card = AkmCard(mid_row, height=140)
+        action_card = AkmCard(mid_row, min_height=140)
         action_card.pack(side="left", fill="both", expand=True, padx=(0, SPACE_XS))
+        self._workflow_card = action_card
         AkmLabel(action_card.inner, text="Workflow", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(10, 0))
-        AkmSubLabel(
+        self._workflow_intro_label = AkmSubLabel(
             action_card.inner,
             text="Dateien laden, Ziel definieren und den Match in einem Rutsch fahren.",
             bg=PANEL_2,
             wraplength=380,
             justify="left",
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(2, 6))
+        )
+        self._workflow_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(2, 6))
         
         controls = AkmPanel(action_card.inner, bg=PANEL_2)
         controls.pack(fill="x", padx=CARD_PAD_X, pady=(2, 4))
+        self._workflow_action_bar = controls
         self.app.loudness_choose_btn = self.app.btn(controls, "Dateien", self.app.loudness_choose_files, primary=True, width=96)
-        self.app.loudness_choose_btn.pack(side="left", padx=(0, 4))
         self.app.loudness_analyze_btn = self.app.btn(controls, "Analyse", self.app.loudness_analyze_files, primary=True, width=96)
-        self.app.loudness_analyze_btn.pack(side="left", padx=4)
         self.app.loudness_export_btn = self.app.btn(controls, "Export", self.app.loudness_export_files, primary=True, width=96)
-        self.app.loudness_export_btn.pack(side="left", padx=4)
+        self._workflow_action_buttons = (
+            self.app.loudness_choose_btn,
+            self.app.loudness_analyze_btn,
+            self.app.loudness_export_btn,
+        )
 
         aux_controls = AkmPanel(action_card.inner, bg=PANEL_2)
         aux_controls.pack(fill="x", padx=CARD_PAD_X, pady=(0, 6))
-        self.app.btn(aux_controls, "Aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=96).pack(side="left", padx=(0, 4))
-        self.app.btn(aux_controls, "Aus Filter", self.app.loudness_import_filtered_works, quiet=True, width=96).pack(side="left", padx=4)
-        self.app.btn(aux_controls, "Löschen", self.app.loudness_delete_files, quiet=True, width=96).pack(side="left", padx=4)
+        self._workflow_aux_bar = aux_controls
+        self._workflow_aux_buttons = (
+            self.app.btn(aux_controls, "Aus Auswahl", self.app.loudness_import_selected_work, quiet=True, width=96),
+            self.app.btn(aux_controls, "Aus Filter", self.app.loudness_import_filtered_works, quiet=True, width=96),
+            self.app.btn(aux_controls, "Löschen", self.app.loudness_delete_files, quiet=True, width=96),
+        )
 
         # Status / Log (Side-by-side with Workflow)
-        log_card = AkmCard(mid_row, height=140)
+        log_card = AkmCard(mid_row, min_height=140)
         log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
+        self._status_log_card = log_card
         AkmLabel(log_card.inner, text="Systemstatus", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(10, 0))
         self.app.loudness_status_label = AkmLabel(log_card.inner, text="Bereit", bg=PANEL_2, anchor="w", font=FONT_BOLD)
         self.app.loudness_status_label.pack(fill="x", padx=CARD_PAD_X, pady=(2, 0))
@@ -91,10 +109,12 @@ class LoudnessTab(AkmPanel):
         # --- 3. BOTTOM ROW (Settings | List) ---
         split_frame = tk.Frame(self, bg=BG)
         split_frame.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
+        self._split_frame = split_frame
         
         # Left: Settings
         left_p = tk.Frame(split_frame, bg=BG)
         left_p.pack(side="left", fill="both", expand=True, padx=(0, SPACE_SM))
+        self._settings_panel = left_p
         
         settings_card = AkmCard(left_p)
         settings_card.pack(fill="both", expand=True)
@@ -111,25 +131,29 @@ class LoudnessTab(AkmPanel):
         settings_form.add_checkbox("Limiter", self.app.loudness_use_limiter_var)
         self.app.loudness_auto_link_var = tk.BooleanVar(value=True)
         settings_form.add_checkbox("Auto-Link", self.app.loudness_auto_link_var)
-        AkmSubLabel(
+        self._settings_hint_label = AkmSubLabel(
             settings_card.inner,
             text="Limiter greift nur bei Peak-Warnungen. Auto-Link ist fuer spaetere Rueckverweise gedacht.",
             bg=PANEL_2,
             justify="left",
             wraplength=260,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        )
+        self._settings_hint_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
         # Right: Treeview
         right_p = tk.Frame(split_frame, bg=BG)
         right_p.pack(side="left", fill="both", expand=True)
+        self._tree_panel = right_p
         tree_card = AkmCard(right_p)
         tree_card.pack(fill="both", expand=True)
         AkmLabel(tree_card.inner, text="Analyse-Matrix", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
-        AkmSubLabel(
+        self._tree_intro_label = AkmSubLabel(
             tree_card.inner,
             text="Doppelklick oeffnet den Player, Auswahl aktualisiert die Wellenform.",
             bg=PANEL_2,
-        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+            justify="left",
+        )
+        self._tree_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
         tree_wrap = tk.Frame(tree_card.inner, bg=PANEL_2)
         tree_wrap.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
@@ -166,6 +190,68 @@ class LoudnessTab(AkmPanel):
         self.app.loudness_tree.config(yscrollcommand=sb.set)
         self.app.loudness_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.app.loudness_tree.bind("<Double-1>", self.app.on_loudness_tree_activate)
+        self.after_idle(lambda: self._apply_responsive_layout(self.winfo_width()))
+
+    def _on_resize(self, event):
+        self._apply_responsive_layout(event.width)
+
+    def _apply_responsive_layout(self, width):
+        self._apply_mid_layout(width)
+        self._apply_button_bar(self._workflow_action_bar, self._workflow_action_buttons, width, "_action_mode")
+        self._apply_button_bar(self._workflow_aux_bar, self._workflow_aux_buttons, width, "_aux_action_mode")
+        self._apply_split_layout(width)
+        self._update_wraplengths(width)
+
+    def _apply_mid_layout(self, width):
+        target_mode = "stack" if width and width < self.MID_STACK_BREAKPOINT else "row"
+        if target_mode == self._mid_layout_mode:
+            return
+        self._mid_layout_mode = target_mode
+        self._workflow_card.pack_forget()
+        self._status_log_card.pack_forget()
+        if target_mode == "stack":
+            self._workflow_card.pack(fill="x", expand=False, pady=(0, SPACE_SM))
+            self._status_log_card.pack(fill="x", expand=False)
+            return
+        self._workflow_card.pack(side="left", fill="both", expand=True, padx=(0, SPACE_XS))
+        self._status_log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
+
+    def _apply_button_bar(self, container, buttons, width, state_attr):
+        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        if getattr(self, state_attr) == target_mode:
+            return
+        setattr(self, state_attr, target_mode)
+        for button in buttons:
+            button.pack_forget()
+        if target_mode == "stack":
+            for index, button in enumerate(buttons):
+                button.pack(fill="x", pady=(0, SPACE_XS if index < len(buttons) - 1 else 0))
+            return
+        for index, button in enumerate(buttons):
+            pad_left = 0 if index == 0 else 4
+            button.pack(side="left", padx=(pad_left, 0))
+
+    def _apply_split_layout(self, width):
+        target_mode = "stack" if width and width < self.MID_STACK_BREAKPOINT else "row"
+        if target_mode == self._split_layout_mode:
+            return
+        self._split_layout_mode = target_mode
+        self._settings_panel.pack_forget()
+        self._tree_panel.pack_forget()
+        if target_mode == "stack":
+            self._settings_panel.pack(fill="x", expand=False, pady=(0, SPACE_SM))
+            self._tree_panel.pack(fill="both", expand=True)
+            return
+        self._settings_panel.pack(side="left", fill="both", expand=True, padx=(0, SPACE_SM))
+        self._tree_panel.pack(side="left", fill="both", expand=True)
+
+    def _update_wraplengths(self, width):
+        upper_width = width if self._mid_layout_mode == "stack" else max(340, (width - SPACE_XS) // 2)
+        lower_width = width if self._split_layout_mode == "stack" else max(320, (width - SPACE_SM) // 2)
+        fit_wraplength(self._workflow_intro_label, upper_width, padding=90, minimum=260, maximum=420)
+        fit_wraplength(self.app.loudness_hint_label, upper_width, padding=90, minimum=260, maximum=420)
+        fit_wraplength(self._settings_hint_label, lower_width, padding=90, minimum=240, maximum=320)
+        fit_wraplength(self._tree_intro_label, lower_width, padding=90, minimum=260, maximum=420)
 
     def _on_tree_select(self, event):
         selected = self.app.loudness_tree.selection()
