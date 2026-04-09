@@ -1,4 +1,3 @@
-import tkinter as tk
 from .base_controller import BaseController
 from app_logic import akm_core, flow_tools
 
@@ -21,46 +20,6 @@ class BatchController(BaseController):
             batch_view.set_copy_stage(stage)
             return
         self._copy_stage = stage or flow_tools.DEFAULT_COPY_STAGE
-
-    def _render_legacy_flow_widgets(self, flow_state):
-        if hasattr(self.app, 'flow_title'):
-            self.app.flow_title.config(text=flow_state["title_text"])
-        if hasattr(self.app, 'flow_meta'):
-            self.app.flow_meta.config(text=flow_state["meta_text"])
-        if hasattr(self.app, 'progress'):
-            self.app.progress["value"] = flow_state["progress_value"]
-        if hasattr(self.app, 'progress_label'):
-            self.app.progress_label.config(text=flow_state["progress_text"])
-        if hasattr(self.app, 'copy_button') and self.app.copy_button:
-            self.app.copy_button.config(text=flow_state["copy_button_label"])
-        if hasattr(self.app, "batch_status_label") and self.app.batch_status_label:
-            self.app.batch_status_label.config(
-                text=flow_tools.build_flow_status_text(self.state.batch_queue, flow_state)
-            )
-        if hasattr(self.app, "batch_hint_label") and self.app.batch_hint_label:
-            self.app.batch_hint_label.config(
-                text=flow_tools.build_flow_hint_text(
-                    self.state.batch_queue,
-                    flow_state,
-                    self._get_batch_copy_stage(),
-                )
-            )
-        if hasattr(self.app, "batch_meta_label") and self.app.batch_meta_label:
-            self.app.batch_meta_label.config(
-                text=flow_tools.build_flow_meta_summary(self.state.batch_queue)
-            )
-        if hasattr(self.app, "_set_batch_buttons_enabled"):
-            self.app._set_batch_buttons_enabled(flow_state["has_item"])
-
-    def _render_legacy_empty_state(self):
-        if hasattr(self.app, 'flow_title'):
-            self.app.flow_title.config(text="Alle Werke erledigt ✓")
-        if hasattr(self.app, 'flow_meta'):
-            self.app.flow_meta.config(text="Keine offenen Einträge in der Queue.")
-        if hasattr(self.app, 'progress'):
-            self.app.progress["value"] = 100
-        if hasattr(self.app, 'progress_label'):
-            self.app.progress_label.config(text="0 / 0")
 
     def reload_flow_data(self, preferred_index=None):
         """Re-synchronizes the Batch Queue with current state."""
@@ -85,7 +44,7 @@ class BatchController(BaseController):
         self.state.batch_index = flow_state["resolved_index"]
         self.app.current_title = flow_state["current_title"]
         batch_view = self._get_batch_view()
-        if batch_view:
+        if batch_view and hasattr(batch_view, "render_flow_state"):
             batch_view.render_flow_state(
                 title_text=flow_state["title_text"],
                 meta_text=flow_state["meta_text"],
@@ -101,16 +60,12 @@ class BatchController(BaseController):
                 meta_summary=flow_tools.build_flow_meta_summary(self.state.batch_queue),
                 enabled=flow_state["has_item"],
             )
-            return
-        self._render_legacy_flow_widgets(flow_state)
 
     def _set_empty_state(self):
         """Shows an empty/done state when the batch queue is exhausted."""
         batch_view = self._get_batch_view()
-        if batch_view:
+        if batch_view and hasattr(batch_view, "render_empty_state"):
             batch_view.render_empty_state()
-            return
-        self._render_legacy_empty_state()
 
     def flow_copy(self):
         if not self.state.batch_queue:
@@ -121,10 +76,8 @@ class BatchController(BaseController):
         self.app.clipboard_append(res["value"])
         self._set_batch_copy_stage(res["next_stage"])
         batch_view = self._get_batch_view()
-        if batch_view:
+        if batch_view and hasattr(batch_view, "set_copy_button_label"):
             batch_view.set_copy_button_label(f"{res['copied_label']} ✓")
-        elif hasattr(self.app, 'copy_button') and self.app.copy_button:
-            self.app.copy_button.config(text=f"{res['copied_label']} ✓")
 
     def flow_submit(self):
         if not self.state.batch_queue:

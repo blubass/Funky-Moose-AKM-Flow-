@@ -15,6 +15,7 @@ class AssistantTab(AkmPanel):
         self.app = app
         self._status_action_mode = None
         self._quick_action_mode = None
+        self._import_action_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
         self._setup_entry_trace()

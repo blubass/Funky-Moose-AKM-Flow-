@@ -2238,6 +2238,27 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertFalse(details_view.instrumental)
         self.assertEqual("in_progress", app.current_detail_status)
 
+    def test_details_controller_refresh_titles_populates_after_late_tab_build(self):
+        app = self.make_app_stub(
+            records=[
+                {"title": "Song B"},
+                {"title": "Song A"},
+            ]
+        )
+        controller = DetailsController(app)
+
+        controller.refresh_titles()
+
+        self.assertIsNone(controller._title_signature)
+
+        details_view = FakeDetailsView(form_vars={"title": FakeVar("")})
+        app.tab_system._instances["details"] = details_view
+
+        controller.refresh_titles()
+
+        self.assertEqual(["Song A", "Song B"], details_view.title_values)
+        self.assertEqual((app.state._get_data_mtime(), 2), controller._title_signature)
+
     def test_details_controller_set_status_chip_updates_public_state(self):
         app = self.make_app_stub()
         app.current_detail_status = "in_progress"
@@ -2306,6 +2327,23 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual(-12.5, app.state.loudness_results[0]["target_lufs"])
         self.assertEqual(-2.5, app.state.loudness_results[0]["gain_to_target_db"])
         self.assertEqual("Analyse abgeschlossen: 1 Dateien.", app.logs[-1])
+
+    def test_loudness_controller_analyze_files_invalid_settings_show_error(self):
+        app = self.make_app_stub()
+        app.state.loudness_files = ["/tmp/song.wav"]
+        loudness_view = FakeLoudnessView(target_text="nope", peak_text="-0.5")
+        app.tab_system._instances["loudness"] = loudness_view
+
+        controller = LoudnessController(app)
+
+        with mock.patch("app_controllers.loudness_controller.messagebox") as messagebox_mock:
+            controller.analyze_files()
+
+        messagebox_mock.showerror.assert_called_once_with(
+            "Eingabefehler",
+            "LUFS oder Peak-Wert ist kein gültiges Zahlenformat.",
+        )
+        self.assertEqual([], app.state.loudness_results)
 
     def test_release_controller_handle_drop_deduplicates_and_matches_titles(self):
         matched_path = os.path.join(self.tempdir.name, "01 - Intro_matched.wav")

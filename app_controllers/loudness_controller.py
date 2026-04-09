@@ -1,7 +1,6 @@
 
 import os
-import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from .base_controller import BaseController
 from app_logic import loudness_tools
 from app_ui import ui_patterns, path_ui_tools
@@ -22,72 +21,51 @@ class LoudnessController(BaseController):
 
     def _has_loudness_tree(self):
         loudness_view = self._get_loudness_view()
-        if loudness_view and hasattr(loudness_view, "has_tree"):
-            return bool(loudness_view.has_tree())
-        return hasattr(self.app, "loudness_tree")
+        return bool(loudness_view and hasattr(loudness_view, "has_tree") and loudness_view.has_tree())
 
     def _get_selected_paths(self):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "get_selected_paths"):
             return tuple(loudness_view.get_selected_paths())
-        if hasattr(self.app, "loudness_tree"):
-            return tuple(self.app.loudness_tree.selection())
         return ()
 
     def _clear_tree(self):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "clear_tree"):
             loudness_view.clear_tree()
-            return
-        if hasattr(self.app, "loudness_tree"):
-            self.app.loudness_tree.delete(*self.app.loudness_tree.get_children())
 
     def _insert_tree_row(self, path, values, tags=()):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "insert_tree_row"):
             loudness_view.insert_tree_row(path, values, tags=tags)
-            return
-        if hasattr(self.app, "loudness_tree"):
-            self.app.loudness_tree.insert("", tk.END, iid=path, values=values, tags=tags)
 
     def _get_target_text(self):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "get_target_text"):
             return loudness_view.get_target_text()
-        if hasattr(self.app, "loudness_target_var"):
-            return self.app.loudness_target_var.get()
         return "-14.0"
 
     def _get_peak_text(self):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "get_peak_text"):
             return loudness_view.get_peak_text()
-        if hasattr(self.app, "loudness_peak_var"):
-            return self.app.loudness_peak_var.get()
         return "-1.0"
 
     def _get_output_dir(self):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "get_output_dir"):
             return loudness_view.get_output_dir()
-        if hasattr(self.app, "loudness_output_dir_var"):
-            return (self.app.loudness_output_dir_var.get() or "").strip()
         return ""
 
     def _set_output_dir(self, path):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "set_output_dir"):
             loudness_view.set_output_dir(path)
-            return
-        if hasattr(self.app, "loudness_output_dir_var"):
-            self.app.loudness_output_dir_var.set(path)
 
     def _get_use_limiter(self):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "get_use_limiter"):
             return loudness_view.get_use_limiter()
-        if hasattr(self.app, "loudness_use_limiter_var"):
-            return self.app.loudness_use_limiter_var.get()
         return True
     
     def choose_files(self):
@@ -269,15 +247,6 @@ class LoudnessController(BaseController):
         loudness_view = self._get_loudness_view()
         if loudness_view and hasattr(loudness_view, "apply_workflow_state"):
             loudness_view.apply_workflow_state(status_text, hint_text, log_lines)
-        else:
-            if hasattr(self.app, "loudness_status_label"):
-                self.app.loudness_status_label.config(text=status_text or "")
-            if hasattr(self.app, "loudness_hint_label"):
-                self.app.loudness_hint_label.config(text=hint_text or "")
-            if hasattr(self.app, "loudness_log"):
-                self.app.loudness_log.delete("1.0", tk.END)
-                if log_lines:
-                    self.app.loudness_log.insert("1.0", "\n".join(log_lines))
 
         for line in log_lines:
             self.log(line)
