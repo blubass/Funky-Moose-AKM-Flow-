@@ -1,7 +1,6 @@
 
 import os
-import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 from .base_controller import BaseController
 from app_logic import release_tools
 from app_ui import ui_patterns
@@ -15,9 +14,7 @@ class ReleaseController(BaseController):
         self._last_view_signature = None
 
     def _get_release_view(self):
-        if hasattr(self.app, "get_built_tab"):
-            return self.app.get_built_tab("release")
-        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("release")
+        return self.get_built_tab("release")
 
     def _get_release_form_value(self, key):
         release_view = self._get_release_view()
@@ -46,44 +43,37 @@ class ReleaseController(BaseController):
         release_view = self._get_release_view()
         if release_view and hasattr(release_view, "has_track_list"):
             return bool(release_view.has_track_list())
-        return hasattr(self.app, "release_track_listbox")
+        return False
 
-    def _render_legacy_release_view(self, signature):
-        if hasattr(self.app, 'release_track_listbox'):
-            self.app.release_track_listbox.delete(0, tk.END)
-            for i, t in enumerate(self.state.release_tracks):
-                label = release_view_tools.build_release_track_row_label(i + 1, t)
-                self.app.release_track_listbox.insert(tk.END, label)
-        if hasattr(self.app, "release_action_hint_label"):
-            counts = release_view_tools.build_release_source_counts(self.state.release_tracks)
-            self.app.release_action_hint_label.config(
-                text=release_view_tools.build_release_action_hint(counts)
-            )
-        if hasattr(self.app, "release_status_label") and self.app.release_status_label:
-            _track_signature, cover_path, export_dir, _has_listbox = signature
-            self.app.release_status_label.config(
-                text=release_view_tools.build_release_status_text(
-                    len(self.state.release_tracks),
-                    bool(cover_path),
-                    bool(export_dir),
-                    self._has_release_track_list(),
-                )
-            )
+    def _build_release_track_labels(self):
+        return [
+            release_view_tools.build_release_track_row_label(i + 1, track)
+            for i, track in enumerate(self.state.release_tracks)
+        ]
+
+    def _build_release_action_hint(self):
+        counts = release_view_tools.build_release_source_counts(self.state.release_tracks)
+        return release_view_tools.build_release_action_hint(counts)
+
+    def _build_release_status_text(self, signature):
+        _track_signature, cover_path, export_dir, _has_listbox = signature
+        return release_view_tools.build_release_status_text(
+            len(self.state.release_tracks),
+            bool(cover_path),
+            bool(export_dir),
+            self._has_release_track_list(),
+        )
 
     def _get_selected_track_indices(self):
         release_view = self._get_release_view()
         if release_view and hasattr(release_view, "get_selected_track_indices"):
             return tuple(release_view.get_selected_track_indices())
-        if hasattr(self.app, "release_track_listbox"):
-            return tuple(self.app.release_track_listbox.curselection())
         return ()
 
     def _select_track_index(self, index):
         release_view = self._get_release_view()
         if release_view and hasattr(release_view, "select_track_index"):
             release_view.select_track_index(index)
-        elif hasattr(self.app, "release_track_listbox"):
-            self.app.release_track_listbox.selection_set(index)
 
     def _build_view_signature(self):
         cover_path = self._get_release_form_value("cover_path")
@@ -134,29 +124,18 @@ class ReleaseController(BaseController):
             self.log(f"Release DnD Parse Fehler: {e}")
 
     def refresh_view(self, force=False):
+        release_view = self._get_release_view()
+        if release_view is None or not hasattr(release_view, "render_release_state"):
+            return
+
         signature = self._build_view_signature()
         if not force and signature == self._last_view_signature:
             return
-        release_view = self._get_release_view()
-        if release_view and hasattr(release_view, "render_release_state"):
-            counts = release_view_tools.build_release_source_counts(self.state.release_tracks)
-            track_labels = [
-                release_view_tools.build_release_track_row_label(i + 1, track)
-                for i, track in enumerate(self.state.release_tracks)
-            ]
-            _track_signature, cover_path, export_dir, _has_listbox = signature
-            release_view.render_release_state(
-                track_labels=track_labels,
-                action_hint=release_view_tools.build_release_action_hint(counts),
-                status_text=release_view_tools.build_release_status_text(
-                    len(self.state.release_tracks),
-                    bool(cover_path),
-                    bool(export_dir),
-                    self._has_release_track_list(),
-                ),
-            )
-        else:
-            self._render_legacy_release_view(signature)
+        release_view.render_release_state(
+            track_labels=self._build_release_track_labels(),
+            action_hint=self._build_release_action_hint(),
+            status_text=self._build_release_status_text(signature),
+        )
         self._last_view_signature = signature
 
     def choose_cover(self): 
@@ -193,29 +172,41 @@ class ReleaseController(BaseController):
         selection = self._get_selected_track_indices()
         if not selection:
             return
-            
-        index = selection[0]
-        if index > 0:
-            self.state.release_tracks[index], self.state.release_tracks[index-1] = self.state.release_tracks[index-1], self.state.release_tracks[index]
+
+        updated_tracks, target_index = release_workflows.move_release_track(
+            self.state.release_tracks,
+            selection[0],
+            -1,
+        )
+        if target_index is not None:
+            self.state.release_tracks = updated_tracks
             self.refresh_view()
-            self._select_track_index(index-1)
+            self._select_track_index(target_index)
 
     def move_track_down(self):
         selection = self._get_selected_track_indices()
         if not selection:
             return
-            
-        index = selection[0]
-        if index < len(self.state.release_tracks) - 1:
-            self.state.release_tracks[index], self.state.release_tracks[index+1] = self.state.release_tracks[index+1], self.state.release_tracks[index]
+
+        updated_tracks, target_index = release_workflows.move_release_track(
+            self.state.release_tracks,
+            selection[0],
+            1,
+        )
+        if target_index is not None:
+            self.state.release_tracks = updated_tracks
             self.refresh_view()
-            self._select_track_index(index+1)
+            self._select_track_index(target_index)
 
     def remove_track(self): 
         selection = sorted(self._get_selected_track_indices(), reverse=True)
         if selection:
+            updated_tracks = list(self.state.release_tracks)
             for idx in selection:
-                if 0 <= idx < len(self.state.release_tracks):
-                    self.state.release_tracks.pop(idx)
+                updated_tracks, _removed = release_workflows.remove_release_track_at(
+                    updated_tracks,
+                    idx,
+                )
+            self.state.release_tracks = updated_tracks
             self.refresh_view()
             self.toast(f"{len(selection)} TRACKS ENTFERNT")

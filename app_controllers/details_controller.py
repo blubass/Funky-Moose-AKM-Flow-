@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog
 from .base_controller import BaseController
 from app_logic import akm_core, loudness_tools
+from app_controllers import detail_controller_tools
 from app_ui import ui_patterns, path_ui_tools
 
 class DetailsController(BaseController):
@@ -13,9 +14,7 @@ class DetailsController(BaseController):
         self._title_signature = None
 
     def _get_details_view(self):
-        if hasattr(self.app, "get_built_tab"):
-            return self.app.get_built_tab("details")
-        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("details")
+        return self.get_built_tab("details")
 
     def refresh_view(self):
         """Refresh detail-tab chrome without overwriting unsaved form edits."""
@@ -100,29 +99,7 @@ class DetailsController(BaseController):
         recs = self.state.get_all_records(False)
         match = next((r for r in recs if r.get("title") == title), None)
         if match:
-            self.app.detail_original_title = title
-            for k, v in detail_vars.items():
-                v.set(str(match.get(k, "")))
-            details_view = self._get_details_view()
-            if details_view and hasattr(details_view, "set_notes_text"):
-                details_view.set_notes_text(match.get("notes", ""))
-            elif hasattr(self.app, 'detail_notes'):
-                self.app.detail_notes.delete("1.0", tk.END)
-                self.app.detail_notes.insert("1.0", match.get("notes", ""))
-            # Load Tags
-            raw_tags = match.get("tags", [])
-            tags_text = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
-            if details_view and hasattr(details_view, "set_tags_text"):
-                details_view.set_tags_text(tags_text)
-            elif hasattr(self.app, 'detail_tags'):
-                self.app.detail_tags.delete("1.0", tk.END)
-                self.app.detail_tags.insert("1.0", tags_text)
-            # Load Instrumental flag
-            if details_view and hasattr(details_view, "set_instrumental"):
-                details_view.set_instrumental(bool(match.get("instrumental", False)))
-            elif hasattr(self.app, 'detail_instrumental_var'):
-                self.app.detail_instrumental_var.set(bool(match.get("instrumental", False)))
-            self.set_status_chip(match.get("status", "in_progress"))
+            self._populate_details_from_item(match)
             self.log(f"Werk geladen: {title}")
 
     def choose_audio_path(self):
@@ -184,3 +161,25 @@ class DetailsController(BaseController):
             self.app.detail_status_var.set(status_label)
         if hasattr(self.app, 'detail_status_chip') and self.app.detail_status_chip: 
             ui_patterns.style_chip_label(self.app.detail_status_chip, s, status_label)
+
+    def _populate_details_from_item(self, item):
+        detail_vars = self._get_detail_form_vars()
+        detail_controller_tools.populate_detail_view(detail_vars, item)
+        state = detail_controller_tools.build_detail_text_state(item)
+        self.app.detail_original_title = state["title"]
+        details_view = self._get_details_view()
+        if details_view and hasattr(details_view, "set_notes_text"):
+            details_view.set_notes_text(state["notes_text"])
+        elif hasattr(self.app, 'detail_notes'):
+            self.app.detail_notes.delete("1.0", tk.END)
+            self.app.detail_notes.insert("1.0", state["notes_text"])
+        if details_view and hasattr(details_view, "set_tags_text"):
+            details_view.set_tags_text(state["tags_text"])
+        elif hasattr(self.app, 'detail_tags'):
+            self.app.detail_tags.delete("1.0", tk.END)
+            self.app.detail_tags.insert("1.0", state["tags_text"])
+        if details_view and hasattr(details_view, "set_instrumental"):
+            details_view.set_instrumental(state["instrumental"])
+        elif hasattr(self.app, 'detail_instrumental_var'):
+            self.app.detail_instrumental_var.set(state["instrumental"])
+        self.set_status_chip(state["status"])

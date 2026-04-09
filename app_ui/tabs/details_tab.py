@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 import app_ui.ui_patterns as ui_patterns
+from app_ui import detail_view_tools
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm,
     AkmEntry, AkmText, AkmCheckbutton, AkmScrollablePanel,
@@ -300,49 +301,15 @@ class DetailsTab(AkmPanel):
         ui_patterns.style_chip_label(self.detail_status_chip, status_key, status_label)
 
     def _update_detail_radar(self):
-        title = self._detail_value("title")
-        audio_path = self._detail_value("audio_path")
-        composer = self._detail_value("composer")
-        duration = self._detail_value("duration")
-        year = self._detail_value("year")
-        instrumental = bool(self.detail_instrumental_var.get())
-        status_text = self.detail_status_var.get().strip() if self.detail_status_var.get() else "—"
-
-        if title:
-            headline = f"{title} | Status: {status_text}"
-        else:
-            headline = f"Noch kein Werk geladen | Status: {status_text}"
-        self.details_status_label.config(text=headline)
-
-        context_parts = []
-        if composer:
-            context_parts.append(f"Komponist: {composer}")
-        if duration:
-            context_parts.append(f"Dauer: {duration}")
-        if year:
-            context_parts.append(f"Jahr: {year}")
-        context_parts.append(f"Instrumental: {'Ja' if instrumental else 'Nein'}")
-
-        if audio_path:
-            audio_name = os.path.basename(audio_path)
-            if os.path.exists(audio_path):
-                context_parts.insert(0, f"Audio: {audio_name}")
-            else:
-                context_parts.insert(0, f"Audio fehlt: {audio_name}")
-        else:
-            context_parts.insert(0, "Audio: keines")
-
-        self.details_context_label.config(text="   •   ".join(context_parts))
-
-        if not title and not audio_path:
-            hint = "Wähle ein bestehendes Werk oder ziehe eine Audiodatei hier hinein, damit Titel und Dauer schneller zusammenfinden."
-        elif audio_path and not os.path.exists(audio_path):
-            hint = "Der gesetzte Audio-Pfad existiert nicht mehr. Prüfe die Datei oder verknüpfe das Werk neu."
-        elif title and not audio_path:
-            hint = "Die Metadaten stehen schon. Wenn du Audio verknüpfst, kann die App Dauer und Pfad direkt mitziehen."
-        elif audio_path and not title:
-            hint = "Audio ist da – gib dem Werk jetzt noch Titel, Credits und Status, dann ist der Datensatz rund."
-        else:
-            hint = "Werk und Audio sind verbunden. Jetzt noch Notizen, Tags oder Status nachziehen und sauber speichern."
-
-        self.details_hint_label.config(text=hint)
+        radar_state = detail_view_tools.build_detail_radar_state(
+            title=self._detail_value("title"),
+            audio_path=self._detail_value("audio_path"),
+            composer=self._detail_value("composer"),
+            duration=self._detail_value("duration"),
+            year=self._detail_value("year"),
+            instrumental=bool(self.detail_instrumental_var.get()),
+            status_text=self.detail_status_var.get().strip() if self.detail_status_var.get() else "—",
+        )
+        self.details_status_label.config(text=radar_state["headline"])
+        self.details_context_label.config(text=radar_state["context_text"])
+        self.details_hint_label.config(text=radar_state["hint_text"])

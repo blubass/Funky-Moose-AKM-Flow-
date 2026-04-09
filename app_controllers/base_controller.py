@@ -15,6 +15,16 @@ class BaseController:
         self.state = app.state
         self.tasks = app.tasks
 
+    def get_built_tab(self, tab_id):
+        """Returns a built tab instance when available, otherwise None."""
+        if hasattr(self.app, "get_built_tab"):
+            return self.app.get_built_tab(tab_id)
+        tab_system = getattr(self.app, "tab_system", None)
+        instances = getattr(tab_system, "_instances", None)
+        if not instances:
+            return None
+        return instances.get(tab_id)
+
     # --- LOGGING & FEEDBACK ---
 
     def log(self, message: str):

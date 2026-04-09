@@ -8,12 +8,14 @@ import sys
 from typing import Dict, List, Optional
 
 
-def _ensure_ffmpeg_in_path():
-    """Versucht ffmpeg an üblichen Stellen zu finden und zum PATH hinzuzufügen."""
+def _ffmpeg_search_locations():
     common_paths = [
-        # 1. Prio: Bundled FFmpeg inside .app (PyInstaller MEIPASS)
         getattr(sys, "_MEIPASS", ""),
         os.path.dirname(sys.executable),
+        os.path.join(os.path.dirname(sys.executable), "ffmpeg"),
+        os.path.join(os.path.dirname(sys.executable), "ffmpeg", "bin"),
+        os.path.join(os.getcwd(), "ffmpeg"),
+        os.path.join(os.getcwd(), "ffmpeg", "bin"),
         "/opt/homebrew/bin",
         "/usr/local/bin",
         "/usr/bin",
@@ -24,17 +26,31 @@ def _ensure_ffmpeg_in_path():
         "/sw/bin",
         os.path.expanduser("~/bin"),
         os.path.expanduser("~/.local/bin"),
-        os.path.join(os.getcwd(), "ffmpeg")
     ]
+    if os.name == "nt":
+        common_paths.extend(
+            [
+                os.path.join(os.environ.get("ChocolateyInstall", ""), "bin"),
+                os.path.join(os.environ.get("ProgramFiles", ""), "ffmpeg", "bin"),
+                os.path.join(os.environ.get("ProgramFiles(x86)", ""), "ffmpeg", "bin"),
+                os.path.join(os.environ.get("LocalAppData", ""), "Microsoft", "WinGet", "Links"),
+            ]
+        )
+    return [path for path in common_paths if path]
+
+
+def _ensure_ffmpeg_in_path():
+    """Versucht ffmpeg an üblichen Stellen zu finden und zum PATH hinzuzufügen."""
     current_path = os.environ.get("PATH", "")
+    current_entries = [entry for entry in current_path.split(os.pathsep) if entry]
     new_paths = []
     
-    for p in common_paths:
-        if os.path.exists(p) and p not in current_path:
+    for p in _ffmpeg_search_locations():
+        if os.path.exists(p) and p not in current_entries and p not in new_paths:
             new_paths.append(p)
             
     if new_paths:
-        os.environ["PATH"] = ":".join(new_paths) + ":" + current_path
+        os.environ["PATH"] = os.pathsep.join(new_paths + current_entries)
         print(f"DEBUG: PATH updated to include ffmpeg search locations: {new_paths}")
 
 

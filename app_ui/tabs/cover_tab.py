@@ -3,7 +3,8 @@ from tkinter import filedialog, ttk
 import os
 from PIL import Image, ImageTk
 import app_ui.ui_patterns as ui_patterns
-from app_ui import release_view_tools
+from app_ui import cover_view_tools
+from app_ui import path_ui_tools
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmText, AkmBadge,
     AkmScrollablePanel, AkmToast,
@@ -19,10 +20,6 @@ except ImportError:
     DND_FILES = None
 
 
-IMAGE_FILETYPES = [
-    ("Bilder", "*.jpg *.jpeg *.png *.bmp *.tiff *.webp"),
-    ("Alle Dateien", "*.*"),
-]
 _SYSTEM_FONTS = None
 COVER_STATE_SPECS = (
     ("artwork_path", tk.StringVar, ""),
@@ -60,17 +57,6 @@ COVER_STATE_SPECS = (
     ("bg_color", tk.StringVar, "#181818"),
     ("accent_color", tk.StringVar, "#ff9a3c"),
 )
-
-
-def _friendly_layout_name(layout_key):
-    mapping = {
-        "manual": "Manual",
-        "bottom": "Bottom Band",
-        "topleft": "Top Left Card",
-        "center": "Center Band",
-    }
-    return mapping.get(layout_key, "Manual")
-
 
 def _get_system_fonts():
     global _SYSTEM_FONTS
@@ -578,7 +564,7 @@ class CoverTab(AkmPanel):
             fit_wraplength(self._direction_hint_label, form_width, padding=90, minimum=260, maximum=460)
 
     def _choose_artwork_path(self):
-        path = filedialog.askopenfilename(filetypes=IMAGE_FILETYPES)
+        path = filedialog.askopenfilename(filetypes=path_ui_tools.IMAGE_FILETYPES)
         if path:
             self.load_cover(path)
 
@@ -595,11 +581,11 @@ class CoverTab(AkmPanel):
         self._update_cover_dashboard()
 
     def _load_artwork_from_release(self):
-        release_tab = self.app.get_built_tab("release") if hasattr(self.app, "get_built_tab") else None
-        if release_tab is not None and hasattr(release_tab, "get_form_value"):
-            path = release_tab.get_form_value("cover_path")
-        else:
-            path = (getattr(self.app, "release_state_cache", {}) or {}).get("cover_path", "").strip()
+        release_tab = self._get_release_tab()
+        path = cover_view_tools.resolve_release_cover_path(
+            release_tab=release_tab,
+            release_state=getattr(self.app, "release_state_cache", {}) or {},
+        )
         if not path:
             AkmToast(self, "RELEASE HAT NOCH KEIN COVER", color=ui_patterns.FLAVOR_ERROR)
             return
@@ -754,18 +740,6 @@ class CoverTab(AkmPanel):
         if current_h != stage_h:
             self.preview_box.configure(height=stage_h)
 
-    def _normalized_layout(self):
-        raw = (self.layout_var.get() or "manual").strip().lower().replace("_", "").replace("-", "").replace(" ", "")
-        if raw in {"bottom", "center", "topleft"}:
-            return raw
-        return "manual"
-
-    def _format_cover_text(self, text, case_mode):
-        text = (text or "").strip()
-        if case_mode == "uppercase":
-            return text.upper()
-        return text
-
     def _read_artwork_meta(self, path):
         if not path or not os.path.isfile(path):
             self._artwork_meta_path = path
@@ -781,7 +755,7 @@ class CoverTab(AkmPanel):
         }
         try:
             size_bytes = os.path.getsize(path)
-            details["size_text"] = self._format_file_size(size_bytes)
+            details["size_text"] = cover_view_tools.format_file_size(size_bytes)
         except Exception:
             details["size_text"] = ""
         try:
@@ -794,22 +768,15 @@ class CoverTab(AkmPanel):
         self._artwork_meta = details
         return details
 
-    def _format_file_size(self, size_bytes):
-        if size_bytes < 1024:
-            return f"{size_bytes} B"
-        if size_bytes < 1024 * 1024:
-            return f"{size_bytes / 1024:.1f} KB"
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-
     def _build_cover_options(self):
-        return {
-            "bg_color": self.bg_color_var.get().strip() or "#181818",
-            "accent_color": self.accent_color_var.get().strip() or "#ff9a3c",
-            "style": release_view_tools.selected_release_cover_style(self.style_var.get()),
-            "size_mode": release_view_tools.selected_release_cover_size(self.size_mode_var.get()),
-            "overlay": release_view_tools.selected_release_cover_overlay(self.overlay_var.get()),
-            "offset": release_view_tools.selected_release_cover_offset(self.offset_var.get()),
-        }
+        return cover_view_tools.build_cover_render_options(
+            self.bg_color_var.get(),
+            self.accent_color_var.get(),
+            self.style_var.get(),
+            self.size_mode_var.get(),
+            self.overlay_var.get(),
+            self.offset_var.get(),
+        )
 
     def _safe_int(self, value, fallback):
         try:
@@ -821,7 +788,10 @@ class CoverTab(AkmPanel):
         scale = target_size / 1800.0
         return [
             {
-                "text": self._format_cover_text(self.artist_var.get(), self.artist_case_var.get()),
+                "text": cover_view_tools.format_cover_text(
+                    self.artist_var.get(),
+                    self.artist_case_var.get(),
+                ),
                 "size": max(12, int(self._safe_int(self.artist_size_var.get(), 60) * scale)),
                 "font": self.artist_font_var.get(),
                 "bold": self.artist_bold_var.get(),
@@ -830,7 +800,10 @@ class CoverTab(AkmPanel):
                 "y": int(self._safe_int(self.artist_y_var.get(), 1400) * scale),
             },
             {
-                "text": self._format_cover_text(self.title_var.get(), self.title_case_var.get()),
+                "text": cover_view_tools.format_cover_text(
+                    self.title_var.get(),
+                    self.title_case_var.get(),
+                ),
                 "size": max(12, int(self._safe_int(self.title_size_var.get(), 140) * scale)),
                 "font": self.title_font_var.get(),
                 "bold": self.title_bold_var.get(),
@@ -839,7 +812,10 @@ class CoverTab(AkmPanel):
                 "y": int(self._safe_int(self.title_y_var.get(), 1500) * scale),
             },
             {
-                "text": self._format_cover_text(self.subtitle_var.get(), self.subtitle_case_var.get()),
+                "text": cover_view_tools.format_cover_text(
+                    self.subtitle_var.get(),
+                    self.subtitle_case_var.get(),
+                ),
                 "size": max(12, int(self._safe_int(self.subtitle_size_var.get(), 40) * scale)),
                 "font": self.subtitle_font_var.get(),
                 "bold": self.subtitle_bold_var.get(),
@@ -861,11 +837,23 @@ class CoverTab(AkmPanel):
             raise FileNotFoundError("Kein gueltiges Master-Artwork vorhanden.")
 
         zoom_val = self.zoom_var.get()
-        layout = self._normalized_layout()
+        layout = cover_view_tools.normalize_cover_layout(self.layout_var.get())
         options = self._build_cover_options()
-        title = self._format_cover_text(self.title_var.get(), self.title_case_var.get())
-        artist = self._format_cover_text(self.artist_var.get(), self.artist_case_var.get())
-        subtitle = self._format_cover_text(self.subtitle_var.get(), self.subtitle_case_var.get()) or None
+        title = cover_view_tools.format_cover_text(
+            self.title_var.get(),
+            self.title_case_var.get(),
+        )
+        artist = cover_view_tools.format_cover_text(
+            self.artist_var.get(),
+            self.artist_case_var.get(),
+        )
+        subtitle = (
+            cover_view_tools.format_cover_text(
+                self.subtitle_var.get(),
+                self.subtitle_case_var.get(),
+            )
+            or None
+        )
 
         with Image.open(path) as original:
             base = cover_tools.resize_cover_canvas(original, target_size, target_size, zoom=zoom_val)
@@ -901,78 +889,29 @@ class CoverTab(AkmPanel):
         self._preview_refresh_after = self.after(delay_ms, self.refresh_preview)
 
     def _update_cover_dashboard(self):
-        layout = self._normalized_layout()
-        style = release_view_tools.selected_release_cover_style(self.style_var.get())
-        size_mode = release_view_tools.selected_release_cover_size(self.size_mode_var.get())
-        overlay = release_view_tools.selected_release_cover_overlay(self.overlay_var.get())
-        offset = release_view_tools.selected_release_cover_offset(self.offset_var.get())
-        preview_height = self.ui_preview_zoom_var.get()
         artwork_path = self.artwork_path_var.get().strip()
-        artwork_name = os.path.basename(artwork_path) if artwork_path else "keiner"
         artwork_meta = self._read_artwork_meta(artwork_path)
-
-        if not artwork_path or not os.path.exists(artwork_path):
-            status_text = "Kein Master-Artwork geladen"
-        elif self._last_preview_error:
-            status_text = "Artwork geladen, aber Rendering hat gehuestelt"
-        elif self._is_rendering:
-            status_text = f"{_friendly_layout_name(layout)} wird neu gerendert"
-        elif layout == "manual":
-            status_text = "Manual bereit fuer freie Typografie"
-        else:
-            status_text = f"{_friendly_layout_name(layout)} bereit fuer Export"
-
-        self.cover_status_label.config(text=status_text)
-        self.cover_meta_label.config(
-            text=(
-                f"Layout: {_friendly_layout_name(layout)} | Stil: {style} | Textblock: {size_mode} "
-                f"| Overlay: {overlay} | Offset: {offset} | Vorschau: {preview_height} px"
-            )
+        dashboard_state = cover_view_tools.build_cover_dashboard_state(
+            layout_value=self.layout_var.get(),
+            style_value=self.style_var.get(),
+            size_mode_value=self.size_mode_var.get(),
+            overlay_value=self.overlay_var.get(),
+            offset_value=self.offset_var.get(),
+            preview_height=self.ui_preview_zoom_var.get(),
+            artwork_path=artwork_path,
+            artwork_meta=artwork_meta,
+            current_image_size=self._current_image.size if self._current_image is not None else None,
+            preview_dimensions=self._preview_dimensions,
+            is_rendering=self._is_rendering,
+            last_preview_error=self._last_preview_error,
         )
-
-        if self._current_image is not None:
-            render_w, render_h = self._current_image.size
-            info_text = f"Master: {artwork_name} | Render: {render_w}x{render_h}"
-        elif self._is_rendering:
-            info_text = f"Master: {artwork_name} | Render: arbeitet"
-        elif self._last_preview_error:
-            info_text = f"Master: {artwork_name} | Render: Fehler"
-        else:
-            info_text = "Master: keiner | Render: wartet"
-
-        if self._preview_dimensions:
-            info_text += f" | Stage: {self._preview_dimensions[0]}x{self._preview_dimensions[1]}"
-        self.cover_preview_info_label.config(text=info_text)
-
-        hints = {
-            "manual": "Manual erlaubt freie Platzierung mit X/Y und individuellen Fonts pro Layer.",
-            "bottom": "Bottom Band legt ein dunkles Fussband an und zentriert den Textblock fuer Release-Cover.",
-            "topleft": "Top Left Card setzt eine Typo-Karte oben links mit Akzentkante und mehr Editorial-Vibe.",
-            "center": "Center Band baut einen horizontalen Mittelstreifen mit klarer, symmetrischer Titelbuehne.",
-        }
-        hint_text = hints.get(layout, hints["manual"])
-        if self._last_preview_error:
-            hint_text = f"{hint_text} Letzter Fehler: {self._last_preview_error}"
-        self.cover_preview_hint_label.config(text=hint_text)
-
-        if not artwork_path or not os.path.exists(artwork_path):
-            asset_name = "Kein Artwork geladen"
-            asset_meta = "Quadratisches Master-Artwork laden und links sofort gegen die Typografie pruefen."
-            asset_path = "Unterstuetzt: JPG, PNG, WEBP, TIFF, BMP"
-        else:
-            dims = ""
-            if artwork_meta and artwork_meta.get("dimensions"):
-                dims = f"{artwork_meta['dimensions'][0]}x{artwork_meta['dimensions'][1]} px"
-            size_text = artwork_meta.get("size_text", "") if artwork_meta else ""
-            ext = artwork_meta.get("ext", "Datei") if artwork_meta else "Datei"
-            meta_parts = [part for part in (dims, size_text, ext) if part]
-            asset_name = artwork_name
-            asset_meta = " | ".join(meta_parts) if meta_parts else "Master-Artwork geladen"
-            asset_path = artwork_path
-
-        self.cover_asset_name_label.config(text=asset_name)
-        self.cover_asset_meta_label.config(text=asset_meta)
-        self.cover_asset_path_label.config(text=asset_path)
+        self.cover_status_label.config(text=dashboard_state["status_text"])
+        self.cover_meta_label.config(text=dashboard_state["meta_text"])
+        self.cover_preview_info_label.config(text=dashboard_state["info_text"])
+        self.cover_preview_hint_label.config(text=dashboard_state["hint_text"])
+        self.cover_asset_name_label.config(text=dashboard_state["asset_name"])
+        self.cover_asset_meta_label.config(text=dashboard_state["asset_meta"])
+        self.cover_asset_path_label.config(text=dashboard_state["asset_path"])
 
     def get_state(self):
         """Returns the current state of all cover configuration variables."""
@@ -1019,43 +958,18 @@ class CoverTab(AkmPanel):
             self.app.append_log("DnD System nicht geladen (DND_FILES=None)")
 
     def _handle_drop(self, event):
-        """Ultra-robust path parsing with logging."""
         data = event.data
-        if not data: return
-        
-        self.app.append_log(f"DRAG DATA: {data}")
-        
-        try:
-            # 1. Clean braces (common on macOS for single files)
-            if isinstance(data, str):
-                if data.startswith('{') and data.endswith('}'):
-                    data = data[1:-1]
-                
-                # 2. Try splitlist first (standard Tk way)
-                files = self.preview_box.tk.splitlist(data)
-                
-                # 3. If splitlist failed or is empty, try manual split
-                if not files:
-                    import re
-                    # Fallback for complex paths with spaces: 
-                    # Match everything inside {} or space-separated if not inside {}
-                    files = re.findall(r'\{.*?\}|\S+', data)
-                    # Clean the {} from those
-                    files = [f[1:-1] if f.startswith('{') else f for f in files]
+        if not data:
+            return
 
-                if files:
-                    target = files[0]
-                    # Cleanup any leading/trailing trash
-                    target = target.strip('"\'')
-                    
-                    if os.path.exists(target) and os.path.isfile(target):
-                        ext = os.path.splitext(target.lower())[1]
-                        if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']:
-                            self.load_cover(target)
-                        else:
-                            self.app.append_log(f"Falsches Format: {ext}")
-                    else:
-                        self.app.append_log(f"Datei nicht gefunden: {target}")
+        try:
+            files = self.app.tasks.parse_dnd_files(data)
+            target = cover_view_tools.first_supported_artwork_path(files)
+            if target:
+                self.load_cover(target)
+                return
+            if files:
+                self.app.append_log(f"Artwork-DnD ignoriert: kein gueltiges Bild in {len(files)} Datei(en).")
         except Exception as e:
             self.app.append_log(f"Internal DnD Error: {e}")
             import traceback
@@ -1063,7 +977,7 @@ class CoverTab(AkmPanel):
 
     def load_cover(self, path):
         """Simplest path to set the base artwork and start previewing."""
-        if not os.path.isfile(path):
+        if not cover_view_tools.is_supported_artwork_path(path):
             AkmToast(self, "ARTWORK NICHT GEFUNDEN", color=ui_patterns.FLAVOR_ERROR)
             return
 
@@ -1183,7 +1097,7 @@ class CoverTab(AkmPanel):
 
         if hasattr(self.app, "release_state_cache"):
             self.app.release_state_cache["cover_path"] = path
-        release_tab = self.app.get_built_tab("release") if hasattr(self.app, "get_built_tab") else None
+        release_tab = self._get_release_tab()
         if release_tab is not None and hasattr(release_tab, "set_form_value"):
             release_tab.set_form_value("cover_path", path)
         if hasattr(self.app, "release_ctrl"):
@@ -1225,3 +1139,8 @@ class CoverTab(AkmPanel):
             lambda error_msg: AkmToast(self, f"EXPORT-FEHLER: {error_msg}", color=ui_patterns.FLAVOR_ERROR),
             busy_text="Exportiere hochaufloesendes Cover...",
         )
+
+    def _get_release_tab(self):
+        if hasattr(self.app, "get_built_tab"):
+            return self.app.get_built_tab("release")
+        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("release")

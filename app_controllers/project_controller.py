@@ -9,41 +9,69 @@ from app_ui import ui_patterns
 class ProjectController(BaseController):
     """Manages project persistence, exports, and data imports."""
 
-    def _get_built_tab(self, tab_id):
-        tab_system = getattr(self.app, "tab_system", None)
-        instances = getattr(tab_system, "_instances", None)
-        if not instances:
-            return None
-        return instances.get(tab_id)
+    def _ensure_projects_dir(self):
+        os.makedirs(akm_core.PROJECTS_DIR, exist_ok=True)
+
+    def _open_project_dialog(self, dialog_cls, title):
+        self._ensure_projects_dir()
+        dialog = dialog_cls(self.app, title, akm_core.PROJECTS_DIR, extension=".akm")
+        self.app.wait_window(dialog)
+        return dialog.result
+
+    def _collect_tab_state(self, cache_attr, tab_id, getter_name):
+        state = dict(getattr(self.app, cache_attr, {}) or {})
+        tab = self.get_built_tab(tab_id)
+        getter = getattr(tab, getter_name, None) if tab is not None else None
+        if callable(getter):
+            live_state = getter()
+            if isinstance(live_state, dict):
+                state = dict(live_state)
+        if hasattr(self.app, cache_attr):
+            setattr(self.app, cache_attr, dict(state))
+        return state
+
+    def _apply_tab_state(self, cache_attr, tab_id, state, setter_name):
+        normalized_state = dict(state or {})
+        if hasattr(self.app, cache_attr):
+            setattr(self.app, cache_attr, dict(normalized_state))
+        tab = self.get_built_tab(tab_id)
+        setter = getattr(tab, setter_name, None) if tab is not None else None
+        if callable(setter):
+            setter(normalized_state)
+        return normalized_state
 
     def _collect_cover_state(self):
         """Collect cover metadata without forcing the cover tab to build."""
-        cover_state = dict(getattr(self.app, "cover_state_cache", {}) or {})
-        cover_tab = self._get_built_tab("cover")
-        if cover_tab is not None:
-            cover_state = cover_tab.get_state()
-        if hasattr(self.app, "cover_state_cache"):
-            self.app.cover_state_cache = dict(cover_state)
-        return cover_state
+        return self._collect_tab_state("cover_state_cache", "cover", "get_state")
 
     def _collect_release_vars(self):
         """Collect release metadata even if the release tab has not been built yet."""
-        release_vars = dict(getattr(self.app, "release_state_cache", {}) or {})
-        release_tab = self._get_built_tab("release")
-        if release_tab is not None and hasattr(release_tab, "get_form_state"):
-            release_vars.update(release_tab.get_form_state())
-        if hasattr(self.app, "release_state_cache"):
-            self.app.release_state_cache = dict(release_vars)
-        return release_vars
+        return self._collect_tab_state("release_state_cache", "release", "get_form_state")
+
+    def _build_release_state(self):
+        return {
+            "vars": self._collect_release_vars(),
+            "tracks": list(self.state.release_tracks),
+        }
+
+    def _apply_cover_state(self, cover_state):
+        self._apply_tab_state("cover_state_cache", "cover", cover_state, "set_state")
+
+    def _apply_release_state(self, release_state):
+        payload = dict(release_state or {})
+        self.state.release_tracks = list(payload.get("tracks", []) or [])
+        self._apply_tab_state(
+            "release_state_cache",
+            "release",
+            payload.get("vars", {}),
+            "set_form_state",
+        )
+        self.app.release_ctrl.refresh_view(force=True)
     
     def save_project(self):
         """Saves current state and cover settings using the custom Moose Save Dialog."""
         try:
-            os.makedirs(akm_core.PROJECTS_DIR, exist_ok=True)
-            dialog = ui_patterns.AkmSaveDialog(self.app, "Projekt Speichern", akm_core.PROJECTS_DIR, extension=".akm")
-            self.app.wait_window(dialog)
-            
-            path = dialog.result
+            path = self._open_project_dialog(ui_patterns.AkmSaveDialog, "Projekt Speichern")
             if not path:
                 self.log("Speichervorgang abgebrochen.")
                 return False
@@ -51,13 +79,7 @@ class ProjectController(BaseController):
             self.log(f"Speichere Projekt nach: {path}...")
             data = self.state.get_all_records()
             cover_state = self._collect_cover_state()
-            
-            # Collect Release State
-            release_vars = self._collect_release_vars()
-            release_state = {
-                "vars": release_vars,
-                "tracks": self.state.release_tracks
-            }
+            release_state = self._build_release_state()
             
             akm_core.save_project(path, data, cover_state, release_state)
             
@@ -74,12 +96,9 @@ class ProjectController(BaseController):
 
     def load_project_dialog(self):
         """Loads a project file using the custom Moose Load Dialog."""
-        os.makedirs(akm_core.PROJECTS_DIR, exist_ok=True)
-        dialog = ui_patterns.AkmLoadDialog(self.app, "Projekt Laden", akm_core.PROJECTS_DIR, extension=".akm")
-        self.app.wait_window(dialog)
-        
-        path = dialog.result
-        if not path: return
+        path = self._open_project_dialog(ui_patterns.AkmLoadDialog, "Projekt Laden")
+        if not path:
+            return
 
         try:
             bundle = akm_core.load_project(path)
@@ -102,23 +121,10 @@ class ProjectController(BaseController):
         self.app.overview_ctrl.refresh_list()
         
         if "cover" in bundle:
-            cover_state = dict(bundle.get("cover") or {})
-            if hasattr(self.app, "cover_state_cache"):
-                self.app.cover_state_cache = dict(cover_state)
-            cover_tab = self._get_built_tab("cover")
-            if cover_tab is not None:
-                cover_tab.set_state(cover_state)
+            self._apply_cover_state(bundle.get("cover"))
             
         if "release" in bundle:
-            r_data = bundle["release"]
-            self.state.release_tracks = r_data.get("tracks", [])
-            release_vars = dict(r_data.get("vars", {}))
-            if hasattr(self.app, "release_state_cache"):
-                self.app.release_state_cache = dict(release_vars)
-            release_tab = self._get_built_tab("release")
-            if release_tab is not None and hasattr(release_tab, "set_form_state"):
-                release_tab.set_form_state(release_vars)
-            self.app.release_ctrl.refresh_view(force=True)
+            self._apply_release_state(bundle.get("release"))
             
         self.log(f"Projekt geladen: {os.path.basename(path)}")
         self.toast("PROJEKT GELADEN", color=ui_patterns.FLAVOR_SUCCESS)

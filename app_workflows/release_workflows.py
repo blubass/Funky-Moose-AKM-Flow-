@@ -1,5 +1,9 @@
 import os
 
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
+
 from app_logic import release_tools
 
 
@@ -138,17 +142,21 @@ def build_release_export_preserve_paths(cover_path, tracks):
 
 
 def build_release_info_lines(metadata):
+    return [f"{label}: {value}" for label, value in build_release_info_rows(metadata)]
+
+
+def build_release_info_rows(metadata):
     values = metadata or {}
     return [
-        f"Release Title: {_clean_text(values.get('title'))}",
-        f"Artist: {_clean_text(values.get('artist'))}",
-        f"Type: {_clean_text(values.get('type'))}",
-        f"Release Date: {_clean_text(values.get('release_date'))}",
-        f"Genre: {_clean_text(values.get('genre'))}",
-        f"Subgenre: {_clean_text(values.get('subgenre'))}",
-        f"Label: {_clean_text(values.get('label'))}",
-        f"Copyright: {_clean_text(values.get('copyright_line'))}",
-        f"Cover Path: {_clean_text(values.get('cover_path'))}",
+        ("Release Title", _clean_text(values.get("title"))),
+        ("Artist", _clean_text(values.get("artist"))),
+        ("Type", _clean_text(values.get("type"))),
+        ("Release Date", _clean_text(values.get("release_date"))),
+        ("Genre", _clean_text(values.get("genre"))),
+        ("Subgenre", _clean_text(values.get("subgenre"))),
+        ("Label", _clean_text(values.get("label"))),
+        ("Copyright", _clean_text(values.get("copyright_line"))),
+        ("Cover Path", _clean_text(values.get("cover_path"))),
     ]
 
 
@@ -166,6 +174,44 @@ def build_release_track_csv_rows(tracks):
             ]
         )
     return rows
+
+
+def _autosize_excel_columns(sheet, min_width=12, max_width=48):
+    for column_cells in sheet.columns:
+        max_length = 0
+        for cell in column_cells:
+            value = _clean_text(cell.value)
+            if len(value) > max_length:
+                max_length = len(value)
+        column_letter = get_column_letter(column_cells[0].column)
+        sheet.column_dimensions[column_letter].width = max(
+            min_width,
+            min(max_length + 2, max_width),
+        )
+
+
+def write_release_track_workbook(output_path, metadata, tracks):
+    workbook = Workbook()
+    info_sheet = workbook.active
+    info_sheet.title = "Release Info"
+    info_sheet.append(["Field", "Value"])
+    for row in build_release_info_rows(metadata):
+        info_sheet.append(list(row))
+    info_sheet.freeze_panes = "A2"
+
+    track_sheet = workbook.create_sheet("Tracklist")
+    for row in build_release_track_csv_rows(tracks):
+        track_sheet.append(row)
+    track_sheet.freeze_panes = "A2"
+
+    header_font = Font(bold=True)
+    for sheet in (info_sheet, track_sheet):
+        for cell in sheet[1]:
+            cell.font = header_font
+        _autosize_excel_columns(sheet)
+
+    workbook.save(output_path)
+    workbook.close()
 
 
 def build_release_audio_target_name(index, item, audio_path):
@@ -210,7 +256,7 @@ def start_distro_export(metadata, tracks):
         return False, "Kein Export-Ordner angegeben."
     
     release_title = metadata.get("title", "Release").strip()
-    safe_title = safe_directory_name(release_title)
+    safe_title = safe_release_directory_name(release_title)
     full_export_path = os.path.join(export_dir, safe_title)
     
     try:
@@ -249,6 +295,13 @@ def start_distro_export(metadata, tracks):
             writer = csv.writer(f)
             writer.writerows(csv_rows)
 
+        # 4b. Write Tracklist Excel workbook
+        write_release_track_workbook(
+            os.path.join(full_export_path, "tracklist.xlsx"),
+            metadata,
+            tracks,
+        )
+
         # 5. Write Checklist
         checklist_lines = build_release_checklist_lines(cover_src, tracks, copied_audio, missing_audio)
         with open(os.path.join(full_export_path, "checklist.txt"), "w", encoding="utf-8") as f:
@@ -259,7 +312,3 @@ def start_distro_export(metadata, tracks):
 
     except Exception as e:
         return False, f"Fehler beim Export: {str(e)}"
-
-def safe_directory_name(title):
-    # This is a local helper or I can use the one already in the file if I rename it
-    return safe_release_directory_name(title)

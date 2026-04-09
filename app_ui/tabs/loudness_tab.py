@@ -1,16 +1,14 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk
 import os
-import time
 from app_ui.ui_patterns import *
 import app_ui.ui_patterns as ui_patterns
 import app_logic.loudness_tools as loudness_tools
-import app_logic.overview_tools as overview_tools
-import app_logic.flow_tools as flow_tools
+from app_ui import loudness_view_tools
 import app_workflows.loudness_workflows as loudness_workflows
 
 try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD
+    from tkinterdnd2 import DND_FILES
 except ImportError:
     DND_FILES = None
 
@@ -269,19 +267,19 @@ class LoudnessTab(AkmPanel):
 
     def _show_waveform(self, path):
         self.waveform_label.config(text="ANALYSIERE WELLENFORM...", image="")
-        temp_dir = os.path.join(os.path.expanduser("~"), ".akm_temp")
-        os.makedirs(temp_dir, exist_ok=True)
-        out_path = os.path.join(temp_dir, "preview.png")
 
         def _bg():
             try:
-                ok = loudness_tools.generate_waveform_image(path, out_path, hex_color=ACCENT)
-                if not ok or not os.path.exists(out_path): return None, "Bild-Fehler"
                 from PIL import Image
-                with Image.open(out_path) as img:
-                    w, h = 800, 220
-                    return img.resize((w, h), Image.Resampling.LANCZOS).copy(), None
-            except Exception as e: return None, str(e)
+                return loudness_view_tools.render_waveform_preview(
+                    path,
+                    os.path.expanduser("~"),
+                    ACCENT,
+                    loudness_tools.generate_waveform_image,
+                    Image,
+                )
+            except Exception as e:
+                return None, str(e)
 
         def _done(res):
             img_obj, err = res if isinstance(res, tuple) else (res, None)

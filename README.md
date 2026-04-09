@@ -93,6 +93,16 @@ The canonical macOS build recipe lives in `AKMFlow+.spec`.
 
 The standalone app bundle will be created at `dist/Funky Moose Release Forge.app`.
 
+### GitHub Releases
+
+This repository now includes GitHub Actions workflows for:
+
+- running the regression test suite on pushes and pull requests
+- building macOS and Windows release ZIPs on version tags like `v1.0.2`
+- publishing those ZIP packages to a GitHub Release automatically
+
+Push a tag in the format `v*` to trigger a packaged GitHub release.
+
 ---
 
 ## What Makes It Different

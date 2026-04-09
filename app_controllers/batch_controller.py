@@ -7,9 +7,7 @@ class BatchController(BaseController):
     """Manages batch processing queue and flow sequence."""
 
     def _get_batch_view(self):
-        if hasattr(self.app, "get_built_tab"):
-            return self.app.get_built_tab("batch")
-        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("batch")
+        return self.get_built_tab("batch")
 
     def _get_batch_copy_stage(self):
         batch_view = self._get_batch_view()

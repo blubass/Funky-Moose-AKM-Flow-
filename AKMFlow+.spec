@@ -1,11 +1,78 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
 import platform
+import shutil
+from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
-current_tkdnd_platform = "osx-arm64" if platform.machine() == "arm64" else "osx-x64"
+SYSTEM = platform.system()
+MACHINE = platform.machine().lower()
+APP_NAME = "Funky Moose Release Forge"
+
+TKDND_PLATFORMS = {
+    ("Darwin", "arm64"): "osx-arm64",
+    ("Darwin", "x86_64"): "osx-x64",
+    ("Linux", "aarch64"): "linux-arm64",
+    ("Linux", "arm64"): "linux-arm64",
+    ("Linux", "x86_64"): "linux-x64",
+    ("Windows", "amd64"): "win-x64",
+    ("Windows", "x86_64"): "win-x64",
+    ("Windows", "arm64"): "win-arm64",
+    ("Windows", "x86"): "win-x86",
+}
+current_tkdnd_platform = TKDND_PLATFORMS.get((SYSTEM, MACHINE))
+
+
+def _collect_existing_dirs(*names):
+    datas = []
+    for name in names:
+        path = Path(name)
+        if path.exists():
+            datas.append((str(path), name))
+    return datas
+
+
+def _optional_binary(path_str):
+    if not path_str:
+        return []
+    path = Path(path_str).expanduser()
+    if path.exists():
+        return [(str(path), ".")]
+    return []
+
+
+def _collect_ffmpeg_binaries():
+    executable_names = ("ffmpeg.exe", "ffprobe.exe") if SYSTEM == "Windows" else ("ffmpeg", "ffprobe")
+    candidates = []
+    explicit_dir = os.environ.get("AKM_FFMPEG_DIR")
+    if explicit_dir:
+        base = Path(explicit_dir).expanduser()
+        candidates.extend(base / name for name in executable_names)
+    for executable_name in executable_names:
+        resolved = shutil.which(executable_name)
+        if resolved:
+            candidates.append(Path(resolved))
+
+    binaries = []
+    seen = set()
+    for candidate in candidates:
+        resolved = str(candidate.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        binaries.extend(_optional_binary(resolved))
+    return binaries
+
+
+def _resolve_icon():
+    if SYSTEM == "Darwin":
+        return "akm_icon.icns"
+    if SYSTEM == "Windows" and Path("akm_icon.ico").exists():
+        return "akm_icon.ico"
+    return None
 
 
 def _collect_tkinterdnd2_datas():
@@ -15,31 +82,33 @@ def _collect_tkinterdnd2_datas():
         if "/tkdnd/" not in normalized:
             datas.append((source, target))
             continue
-        if f"/tkdnd/{current_tkdnd_platform}/" in normalized:
+        if current_tkdnd_platform and f"/tkdnd/{current_tkdnd_platform}/" in normalized:
             datas.append((source, target))
     return datas
 
 
+icon_path = _resolve_icon()
+
+
 a = Analysis(
-    ['akm_app.py'],
+    ["akm_app.py"],
     pathex=[],
-    binaries=[
-        ('/opt/homebrew/bin/ffmpeg', '.'),
-        ('/opt/homebrew/bin/ffprobe', '.')
-    ],
+    binaries=_collect_ffmpeg_binaries(),
     datas=_collect_tkinterdnd2_datas() + [
-        ('app_logic',       'app_logic'),
-        ('app_ui',          'app_ui'),
-        ('app_controllers', 'app_controllers'),
-        ('app_workflows',   'app_workflows'),
-        ('projects',        'projects'),
-        ('assets',          'assets'),
+        *_collect_existing_dirs(
+            "app_logic",
+            "app_ui",
+            "app_controllers",
+            "app_workflows",
+            "projects",
+            "assets",
+        ),
     ],
-    hiddenimports=collect_submodules('tkinterdnd2'),
+    hiddenimports=collect_submodules("tkinterdnd2"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['numpy', 'pandas', 'matplotlib'],
+    excludes=["numpy", "pandas", "matplotlib"],
     noarchive=False,
     optimize=0,
 )
@@ -50,7 +119,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='Funky Moose Release Forge',
+    name=APP_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -61,7 +130,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['akm_icon.icns'],
+    icon=[icon_path] if icon_path else None,
 )
 coll = COLLECT(
     exe,
@@ -70,11 +139,13 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='Funky Moose Release Forge',
+    name=APP_NAME,
 )
-app = BUNDLE(
-    coll,
-    name='Funky Moose Release Forge.app',
-    icon='akm_icon.icns',
-    bundle_identifier='com.funkymoose.releaseforge',
-)
+
+if SYSTEM == "Darwin":
+    app = BUNDLE(
+        coll,
+        name=f"{APP_NAME}.app",
+        icon="akm_icon.icns",
+        bundle_identifier="com.funkymoose.releaseforge",
+    )

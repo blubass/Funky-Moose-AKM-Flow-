@@ -1,75 +1,42 @@
-
-import tkinter as tk
 from .base_controller import BaseController
+from app_controllers import detail_controller_tools
 from app_logic import akm_core, overview_tools, loudness_tools
-from app_ui import ui_patterns
 
 class OverviewController(BaseController):
     """Manages catalogue overview, filtering, and cross-tab triggers."""
 
     def _get_dashboard_view(self):
-        if hasattr(self.app, "get_built_tab"):
-            return self.app.get_built_tab("dashboard")
-        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("dashboard")
+        return self.get_built_tab("dashboard")
 
     def _get_overview_view(self):
-        if hasattr(self.app, "get_built_tab"):
-            return self.app.get_built_tab("overview")
-        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("overview")
+        return self.get_built_tab("overview")
+
+    def _get_details_view(self):
+        details_view = self.get_built_tab("details")
+        if details_view is not None:
+            return details_view
+        try:
+            return getattr(self.app, "details_tab")
+        except AttributeError:
+            return None
 
     def _get_overview_filter_state(self):
         overview_view = self._get_overview_view()
         if overview_view and hasattr(overview_view, "get_filter_state"):
             return overview_view.get_filter_state()
-        return {
-            "search": (self.app.search_var.get() or "") if getattr(self.app, "search_var", None) else "",
-            "filter": (self.app.status_filter_var.get() or "all") if getattr(self.app, "status_filter_var", None) else "all",
-            "sort": (self.app.sort_key_var.get() or "title") if getattr(self.app, "sort_key_var", None) else "title",
-            "desc": bool(self.app.sort_desc_var.get()) if getattr(self.app, "sort_desc_var", None) else False,
-        }
+        if hasattr(self.app, "get_overview_filter_state"):
+            return self.app.get_overview_filter_state()
+        return {"search": "", "filter": "all", "sort": "title", "desc": False}
 
     def _set_overview_status_filter(self, status_key):
         overview_view = self._get_overview_view()
         if overview_view and hasattr(overview_view, "set_status_filter"):
             overview_view.set_status_filter(status_key)
-            return
-        if getattr(self.app, "status_filter_var", None):
-            self.app.status_filter_var.set(status_key)
-
-    def _render_legacy_overview_records(self, labels, row_statuses):
-        if not hasattr(self.app, "listbox"):
-            return
-        self.app.listbox.delete(0, tk.END)
-        if labels:
-            self.app.listbox.insert(tk.END, *labels)
-        for idx, row_status in enumerate(row_statuses):
-            if row_status in ui_patterns.STATUS_PALETTES:
-                bg_col = ui_patterns.get_row_color(row_status, 0.16)
-                self.app.listbox.itemconfig(idx, bg=bg_col, fg=ui_patterns.FIELD_FG)
-
-    def _render_legacy_overview_meta(self, summary_text, status_text, hint_text, empty_text, show_empty):
-        if hasattr(self.app, "overview_summary_label") and self.app.overview_summary_label:
-            self.app.overview_summary_label.config(text=summary_text)
-        if hasattr(self.app, "overview_status_label") and self.app.overview_status_label:
-            self.app.overview_status_label.config(text=status_text)
-        if hasattr(self.app, "overview_hint_label") and self.app.overview_hint_label:
-            self.app.overview_hint_label.config(text=hint_text)
-        if hasattr(self.app, "overview_empty_label") and self.app.overview_empty_label:
-            self.app.overview_empty_label.config(text=empty_text)
-            if show_empty:
-                pack_kwargs = {"fill": "x", "padx": 12, "pady": 12}
-                if hasattr(self.app, "overview_bottom_actions"):
-                    pack_kwargs["before"] = self.app.overview_bottom_actions
-                self.app.overview_empty_label.pack(**pack_kwargs)
-            else:
-                self.app.overview_empty_label.pack_forget()
 
     def _get_selected_overview_indices(self):
         overview_view = self._get_overview_view()
         if overview_view and hasattr(overview_view, "get_selected_indices"):
             return tuple(overview_view.get_selected_indices())
-        if hasattr(self.app, "listbox"):
-            return tuple(self.app.listbox.curselection())
         return ()
     
     def refresh_list(self):
@@ -83,11 +50,18 @@ class OverviewController(BaseController):
         desc = bool(filter_state.get("desc"))
         mtime = self.state._get_data_mtime()
         
-        # Performance Guard: Skip if nothing has changed since last visit
+        overview_view = self._get_overview_view()
+
+        # Performance Guard: Skip if nothing has changed since last rendered visit
         curr_params = f"{search}|{filt}|{key}|{desc}|{mtime}"
-        if hasattr(self, "_last_refresh_params") and self._last_refresh_params == curr_params:
+        if (
+            overview_view
+            and hasattr(overview_view, "render_overview_records")
+            and hasattr(overview_view, "render_overview_meta")
+            and hasattr(self, "_last_refresh_params")
+            and self._last_refresh_params == curr_params
+        ):
             return
-        self._last_refresh_params = curr_params
 
         self.state.filtered_records = overview_tools.filter_and_sort_entries(recs, search, filt, key, desc)
 
@@ -121,26 +95,15 @@ class OverviewController(BaseController):
             status_filter=filt,
             query=search,
         )
-        overview_view = self._get_overview_view()
-        if overview_view and hasattr(overview_view, "render_overview_records"):
+        if overview_view and hasattr(overview_view, "render_overview_records") and hasattr(overview_view, "render_overview_meta"):
+            self._last_refresh_params = curr_params
             overview_view.render_overview_records(labels, row_statuses)
-        else:
-            self._render_legacy_overview_records(labels, row_statuses)
-        if overview_view and hasattr(overview_view, "render_overview_meta"):
             overview_view.render_overview_meta(
                 summary_text=summary_text,
                 status_text=status_text,
                 hint_text=hint_text,
                 empty_text=hint_text,
                 show_empty=not bool(self.state.filtered_records),
-            )
-        else:
-            self._render_legacy_overview_meta(
-                summary_text,
-                status_text,
-                hint_text,
-                hint_text,
-                not bool(self.state.filtered_records),
             )
         
         self._refresh_overview_filter_chips(recs)
@@ -162,19 +125,6 @@ class OverviewController(BaseController):
                 self.app.status_text,
             )
             return
-        legacy_dashboard_labels = getattr(self.app, "dashboard_labels", None)
-        if not legacy_dashboard_labels:
-            return
-        for k, l in legacy_dashboard_labels.items():
-            l.config(text=str(st.get(k, 0)))
-        if getattr(self.app, "dashboard_status_label", None):
-            self.app.dashboard_status_label.config(text=status_text)
-        if getattr(self.app, "dashboard_hint_label", None):
-            self.app.dashboard_hint_label.config(text=hint_text)
-        if getattr(self.app, "dashboard_meta_label", None):
-            self.app.dashboard_meta_label.config(text=meta_text)
-        for st_key, widget in getattr(self.app, "dashboard_status_chips", {}).items():
-            ui_patterns.style_chip_label(widget, st_key, f"{self.app.status_text(st_key)}  {counts.get(st_key, 0)}")
 
     def _refresh_overview_filter_chips(self, records):
         current = self._get_overview_filter_state().get("filter") or "all"
@@ -187,9 +137,6 @@ class OverviewController(BaseController):
                     f"{self.app.status_text(st_key)}  {counts.get(st_key, 0)}",
                     st_key == current,
                 )
-            return
-        for st_key, widget in getattr(self.app, "overview_filter_chips", {}).items():
-            ui_patterns.style_chip_label(widget, st_key, f"{self.app.status_text(st_key)}  {counts.get(st_key, 0)}", st_key == current)
 
     def _on_g_done(self, result, message):
         """Unified success/error callback for generic CRUD tasks."""
@@ -205,32 +152,19 @@ class OverviewController(BaseController):
     def load_selected_into_details(self):
         it = self._get_selected_overview_item()
         if it:
-            _ = self.app.details_tab
-            details_view = self.app.get_built_tab("details") if hasattr(self.app, "get_built_tab") else None
-            self.app.detail_original_title = it.get("title")
+            details_view = self._get_details_view()
             detail_vars = self.app.get_detail_form_vars() if hasattr(self.app, "get_detail_form_vars") else getattr(self.app, "detail_vars", {})
-            for k, v in detail_vars.items():
-                v.set(str(it.get(k, "")))
+            detail_controller_tools.populate_detail_view(detail_vars, it)
+            detail_state = detail_controller_tools.build_detail_text_state(it)
+            self.app.detail_original_title = detail_state["title"]
             if details_view and hasattr(details_view, "set_notes_text"):
-                details_view.set_notes_text(it.get("notes", ""))
-            elif hasattr(self.app, 'detail_notes'): 
-                self.app.detail_notes.delete("1.0", tk.END)
-                self.app.detail_notes.insert("1.0", it.get("notes", ""))
-            # Load Tags
-            raw_tags = it.get("tags", [])
-            tags_text = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+                details_view.set_notes_text(detail_state["notes_text"])
             if details_view and hasattr(details_view, "set_tags_text"):
-                details_view.set_tags_text(tags_text)
-            elif hasattr(self.app, 'detail_tags'):
-                self.app.detail_tags.delete("1.0", tk.END)
-                self.app.detail_tags.insert("1.0", tags_text)
-            # Load Instrumental flag
+                details_view.set_tags_text(detail_state["tags_text"])
             if details_view and hasattr(details_view, "set_instrumental"):
-                details_view.set_instrumental(bool(it.get("instrumental", False)))
-            elif hasattr(self.app, 'detail_instrumental_var'):
-                self.app.detail_instrumental_var.set(bool(it.get("instrumental", False)))
-            
-            self.app.details_ctrl.set_status_chip(it.get("status", "in_progress"))
+                details_view.set_instrumental(detail_state["instrumental"])
+
+            self.app.details_ctrl.set_status_chip(detail_state["status"])
             self.app.select_tab_by_id("details")
 
             # NEW: Extraction if duration is missing but audio path exists
@@ -286,7 +220,7 @@ class OverviewController(BaseController):
             sel = self._get_selected_overview_indices()
             if not sel: return None
             return self.state.filtered_records[sel[0]]
-        except (AttributeError, IndexError, TypeError, tk.TclError):
+        except (AttributeError, IndexError, TypeError):
             return None
 
     def get_selected_item(self):
@@ -296,5 +230,5 @@ class OverviewController(BaseController):
     def _get_selected_overview_items(self):
         try:
             return [self.state.filtered_records[idx] for idx in self._get_selected_overview_indices()]
-        except (AttributeError, IndexError, TypeError, tk.TclError):
+        except (AttributeError, IndexError, TypeError):
             return []

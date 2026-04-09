@@ -6,7 +6,7 @@ AUDIO_FILETYPES = [
     ("Alle Dateien", "*.*"),
 ]
 IMAGE_FILETYPES = [
-    ("Bilder", "*.jpg *.jpeg *.png *.webp"),
+    ("Bilder", "*.jpg *.jpeg *.png *.bmp *.tiff *.webp"),
     ("Alle Dateien", "*.*"),
 ]
 

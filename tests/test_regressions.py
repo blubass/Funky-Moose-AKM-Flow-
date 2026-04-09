@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 import akm_app
 from app_logic import akm_core
@@ -12,14 +12,21 @@ from app_logic import assistant_tools
 from app_logic import cover_tools
 from app_logic import detail_tools
 from app_logic import flow_tools
+from app_logic import loudness_tools
 from app_logic import overview_tools
 from app_logic import release_tools
 from app_logic import akm_core as package_akm_core
+from app_controllers import detail_controller_tools
+from app_ui import cover_view_tools
+from app_ui import detail_view_tools
+from app_ui import loudness_view_tools
 from app_ui import path_ui_tools
 from app_ui import release_view_tools
+from app_ui import widgets
 from app_workflows import loudness_workflows
 from app_workflows import release_workflows
 from app_controllers.batch_controller import BatchController
+from app_controllers.base_controller import BaseController
 from app_controllers.details_controller import DetailsController
 from app_controllers.loudness_controller import LoudnessController
 from app_controllers.overview_controller import OverviewController
@@ -36,6 +43,31 @@ class FakeVar:
 
     def set(self, value):
         self.value = value
+
+
+class BaseControllerTests(unittest.TestCase):
+    def test_get_built_tab_prefers_app_hook(self):
+        app = SimpleNamespace(
+            state=SimpleNamespace(),
+            tasks=SimpleNamespace(),
+            get_built_tab=lambda tab_id: {"release": "hooked"}.get(tab_id),
+            tab_system=SimpleNamespace(_instances={"release": "fallback"}),
+        )
+
+        controller = BaseController(app)
+
+        self.assertEqual("hooked", controller.get_built_tab("release"))
+
+    def test_get_built_tab_falls_back_to_tab_instances(self):
+        app = SimpleNamespace(
+            state=SimpleNamespace(),
+            tasks=SimpleNamespace(),
+            tab_system=SimpleNamespace(_instances={"release": "fallback"}),
+        )
+
+        controller = BaseController(app)
+
+        self.assertEqual("fallback", controller.get_built_tab("release"))
 
 
 class FakeText:
@@ -997,6 +1029,142 @@ class PathUiToolsTests(unittest.TestCase):
         )
 
 
+class CoverViewToolsTests(unittest.TestCase):
+    def test_first_supported_artwork_path_picks_first_valid_image(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            invalid_path = os.path.join(tempdir, "notes.txt")
+            valid_path = os.path.join(tempdir, "cover.png")
+            with open(invalid_path, "w", encoding="utf-8") as handle:
+                handle.write("x")
+            with open(valid_path, "wb") as handle:
+                handle.write(b"png")
+
+            selected = cover_view_tools.first_supported_artwork_path(
+                [invalid_path, valid_path]
+            )
+
+            self.assertEqual(valid_path, selected)
+
+    def test_build_cover_dashboard_state_reports_loaded_render(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            artwork_path = os.path.join(tempdir, "cover.png")
+            with open(artwork_path, "wb") as handle:
+                handle.write(b"png")
+
+            state = cover_view_tools.build_cover_dashboard_state(
+                layout_value="top-left",
+                style_value="bold",
+                size_mode_value="large",
+                overlay_value="strong",
+                offset_value="low",
+                preview_height=320,
+                artwork_path=artwork_path,
+                artwork_meta={
+                    "dimensions": (3000, 3000),
+                    "size_text": "1.2 MB",
+                    "ext": "PNG",
+                },
+                current_image_size=(1800, 1800),
+                preview_dimensions=(640, 360),
+                is_rendering=False,
+                last_preview_error="",
+            )
+
+            self.assertEqual("Top Left Card bereit fuer Export", state["status_text"])
+            self.assertIn("Layout: Top Left Card | Stil: bold", state["meta_text"])
+            self.assertIn("Render: 1800x1800", state["info_text"])
+            self.assertIn("Stage: 640x360", state["info_text"])
+            self.assertEqual("cover.png", state["asset_name"])
+            self.assertIn("3000x3000 px", state["asset_meta"])
+
+
+class DetailControllerToolsTests(unittest.TestCase):
+    def test_build_detail_text_state_formats_tags_and_status(self):
+        state = detail_controller_tools.build_detail_text_state(
+            {
+                "title": "Song A",
+                "notes": "Idea",
+                "tags": ["pop", "radio"],
+                "instrumental": True,
+                "status": "ready",
+            }
+        )
+
+        self.assertEqual("Song A", state["title"])
+        self.assertEqual("Idea", state["notes_text"])
+        self.assertEqual("pop, radio", state["tags_text"])
+        self.assertTrue(state["instrumental"])
+        self.assertEqual("ready", state["status"])
+
+    def test_populate_detail_view_sets_string_values(self):
+        detail_vars = {"title": FakeVar(), "year": FakeVar()}
+
+        detail_controller_tools.populate_detail_view(
+            detail_vars,
+            {"title": "Song A", "year": 2026},
+        )
+
+        self.assertEqual("Song A", detail_vars["title"].get())
+        self.assertEqual("2026", detail_vars["year"].get())
+
+
+class DetailViewToolsTests(unittest.TestCase):
+    def test_build_detail_radar_state_handles_missing_audio_path(self):
+        state = detail_view_tools.build_detail_radar_state(
+            title="Song A",
+            audio_path="/tmp/missing.wav",
+            composer="Uwe",
+            duration="3:21",
+            year="2026",
+            instrumental=False,
+            status_text="Bereit",
+            exists_fn=lambda _path: False,
+        )
+
+        self.assertEqual("Song A | Status: Bereit", state["headline"])
+        self.assertIn("Audio fehlt: missing.wav", state["context_text"])
+        self.assertIn("Komponist: Uwe", state["context_text"])
+        self.assertIn("Der gesetzte Audio-Pfad existiert nicht mehr", state["hint_text"])
+
+    def test_build_detail_radar_state_handles_empty_record(self):
+        state = detail_view_tools.build_detail_radar_state()
+
+        self.assertEqual("Noch kein Werk geladen | Status: —", state["headline"])
+        self.assertEqual("Audio: keines   •   Instrumental: Nein", state["context_text"])
+        self.assertIn("Wähle ein bestehendes Werk", state["hint_text"])
+
+
+@unittest.skipUnless(cover_tools.have_pillow(), "Pillow not available")
+class LoudnessViewToolsTests(unittest.TestCase):
+    def test_waveform_preview_output_path_uses_temp_preview_name(self):
+        preview_path = loudness_view_tools.waveform_preview_output_path("/tmp/test-home")
+
+        self.assertEqual("/tmp/test-home/.akm_temp/preview.png", preview_path)
+
+    def test_render_waveform_preview_returns_resized_image(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            source_path = os.path.join(tempdir, "track.wav")
+            with open(source_path, "wb") as handle:
+                handle.write(b"audio")
+
+            def fake_generate(_source, output_path, hex_color=None):
+                _ = hex_color
+                image = cover_tools.Image.new("RGB", (400, 100), color="black")
+                image.save(output_path)
+                return True
+
+            preview_image, error = loudness_view_tools.render_waveform_preview(
+                source_path,
+                tempdir,
+                "#ff9a3c",
+                fake_generate,
+                cover_tools.Image,
+            )
+
+            self.assertIsNone(error)
+            self.assertEqual((800, 220), preview_image.size)
+
+
 class LoudnessWorkflowTests(unittest.TestCase):
     def test_collect_importable_overview_audio_and_build_states(self):
         items = loudness_workflows.collect_importable_overview_audio(
@@ -1422,6 +1590,35 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual({"title": "Live Cover Title", "layout": "manual"}, cover_state)
         self.assertEqual(cover_state, app.cover_state_cache)
 
+    def test_project_controller_save_project_prefers_built_release_tab_state_over_cache(self):
+        app = self.make_app_stub()
+        app.release_state_cache = {"artist": "Stale Artist", "type": "Single"}
+        app.tab_system._instances["release"] = SimpleNamespace(
+            get_form_state=lambda: {"artist": "Live Artist", "type": "Album"}
+        )
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmSaveDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.save_project",
+        ) as save_project:
+            saved = controller.save_project()
+
+        self.assertTrue(saved)
+        release_state = save_project.call_args.args[3]
+        self.assertEqual({"artist": "Live Artist", "type": "Album"}, release_state["vars"])
+        self.assertEqual(release_state["vars"], app.release_state_cache)
+
     def test_project_controller_load_project_caches_cover_state_without_built_cover_tab(self):
         app = self.make_app_stub()
         app.overview_ctrl = SimpleNamespace(
@@ -1530,6 +1727,48 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual(bundle["release"]["vars"], app.release_state_cache)
         self.assertEqual(bundle["release"]["tracks"], app.state.release_tracks)
         self.assertTrue(app.overview_refreshed)
+        self.assertTrue(app.release_refresh_force)
+
+    def test_project_controller_load_project_updates_built_release_tab_state(self):
+        app = self.make_app_stub()
+        app.overview_ctrl = SimpleNamespace(
+            refresh_list=lambda: setattr(app, "overview_refreshed", True)
+        )
+        app.release_ctrl = SimpleNamespace(
+            refresh_view=lambda force=False: setattr(app, "release_refresh_force", force)
+        )
+        app.tab_system._instances["release"] = SimpleNamespace(
+            set_form_state=lambda state: setattr(app, "loaded_release_state", state)
+        )
+        controller = ProjectController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        fake_dialog = SimpleNamespace(result=os.path.join(self.tempdir.name, "demo.akm"))
+        app.wait_window = lambda dialog: None
+        bundle = {
+            "data": [{"title": "Song A"}],
+            "release": {
+                "vars": {"artist": "Loaded Artist", "cover_path": "/tmp/cover.png"},
+                "tracks": [{"title": "Song A", "audio_path": "/tmp/song.wav"}],
+            },
+        }
+
+        with mock.patch(
+            "app_controllers.project_controller.ui_patterns.AkmLoadDialog",
+            return_value=fake_dialog,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.PROJECTS_DIR",
+            self.tempdir.name,
+        ), mock.patch(
+            "app_controllers.project_controller.akm_core.load_project",
+            return_value=bundle,
+        ):
+            controller.load_project_dialog()
+
+        self.assertEqual(bundle["release"]["vars"], app.release_state_cache)
+        self.assertEqual(bundle["release"]["vars"], app.loaded_release_state)
+        self.assertEqual(bundle["release"]["tracks"], app.state.release_tracks)
         self.assertTrue(app.release_refresh_force)
 
     def test_on_closing_keeps_window_open_when_save_is_cancelled(self):
@@ -1662,6 +1901,26 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("all  0", overview_view.filter_chip_texts["all"])
         self.assertTrue(overview_view.filter_chip_selected["all"])
 
+    def test_overview_controller_refresh_list_does_not_cache_without_built_view(self):
+        app = self.make_app_stub(
+            records=[{"title": "Song A", "status": "ready"}],
+            mtime=42,
+        )
+        controller = OverviewController(app)
+
+        controller.refresh_list()
+
+        self.assertEqual(1, len(app.state.filtered_records))
+        self.assertFalse(hasattr(controller, "_last_refresh_params"))
+
+        overview_view = FakeOverviewView()
+        app.tab_system._instances["overview"] = overview_view
+
+        controller.refresh_list()
+
+        self.assertEqual(1, len(overview_view.list_items))
+        self.assertTrue(hasattr(controller, "_last_refresh_params"))
+
     def test_overview_controller_refresh_dashboard_updates_dashboard_view(self):
         app = self.make_app_stub(
             records=[
@@ -1694,6 +1953,49 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("overview", app.selected_tab)
         self.assertEqual("confirmed", overview_view.filter_state["filter"])
         self.assertTrue(app.overview_refreshed)
+
+    def test_overview_controller_load_selected_into_details_uses_details_view(self):
+        record = {
+            "title": "Song A",
+            "status": "ready",
+            "duration": "3:11",
+            "composer": "Uwe",
+            "production": "FM",
+            "year": "2026",
+            "audio_path": "/tmp/song.wav",
+            "notes": "Notiz",
+            "tags": ["tag1", "tag2"],
+            "instrumental": True,
+        }
+        app = self.make_app_stub(records=[record])
+        app.state.filtered_records = [record]
+        app.get_detail_form_vars = lambda: details_view.get_form_vars()
+        app.details_ctrl = SimpleNamespace(
+            set_status_chip=lambda status: setattr(app, "detail_status", status)
+        )
+        overview_view = FakeOverviewView(selection=(0,))
+        details_view = FakeDetailsView(
+            form_vars={
+                "title": FakeVar(""),
+                "duration": FakeVar(""),
+                "composer": FakeVar(""),
+                "production": FakeVar(""),
+                "year": FakeVar(""),
+                "audio_path": FakeVar(""),
+            }
+        )
+        app.tab_system._instances["overview"] = overview_view
+        app.tab_system._instances["details"] = details_view
+
+        controller = OverviewController(app)
+        controller.load_selected_into_details()
+
+        self.assertEqual("Song A", details_view.form_vars["title"].get())
+        self.assertEqual("Notiz", details_view.notes_text)
+        self.assertEqual("tag1, tag2", details_view.tags_text)
+        self.assertTrue(details_view.instrumental)
+        self.assertEqual("ready", app.detail_status)
+        self.assertEqual("details", app.selected_tab)
 
     def test_details_controller_save_details_updates_loaded_record(self):
         self.save_entries(
@@ -1860,6 +2162,24 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertIn("Release DnD: 1 Tracks hinzugefügt.", app.logs)
         self.assertEqual("1 TRACKS HINZUGEFÜGT", app.toasts[0])
 
+    def test_release_controller_refresh_view_waits_for_built_release_tab(self):
+        app = self.make_app_stub()
+        app.state.release_tracks = [{"title": "Song A", "audio_path": "/tmp/song.wav", "source": "Datei"}]
+        app.release_state_cache = {"cover_path": "/tmp/cover.png", "export_dir": "/tmp/export"}
+
+        controller = ReleaseController(app)
+        controller.refresh_view()
+
+        self.assertIsNone(controller._last_view_signature)
+
+        release_view = FakeReleaseView(form_state=app.release_state_cache)
+        app.tab_system._instances["release"] = release_view
+
+        controller.refresh_view()
+
+        self.assertEqual(1, len(release_view.track_labels))
+        self.assertIsNotNone(controller._last_view_signature)
+
     def test_loudness_controller_handle_drop_uses_shared_parser_and_skips_duplicates(self):
         first_path = os.path.join(self.tempdir.name, "first.wav")
         second_path = os.path.join(self.tempdir.name, "second.mp3")
@@ -1996,10 +2316,14 @@ class AppRegressionTests(TemporaryStorageTestCase):
         obsolete_audio = os.path.join(release_dir, "09 - Old Track.wav")
         obsolete_cover = os.path.join(release_dir, "old_cover.jpg")
         obsolete_info = os.path.join(release_dir, "release_info.txt")
+        obsolete_excel = os.path.join(release_dir, "tracklist.xlsx")
         keep_file = os.path.join(release_dir, "user_notes.txt")
         for path in (obsolete_audio, obsolete_cover, obsolete_info, keep_file):
             with open(path, "wb") as handle:
                 handle.write(b"old")
+        old_workbook = Workbook()
+        old_workbook.save(obsolete_excel)
+        old_workbook.close()
 
         ok, _status = release_workflows.start_distro_export(
             {
@@ -2033,9 +2357,54 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertTrue(os.path.exists(os.path.join(release_dir, "01 - Fresh Track.wav")))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "cover.jpg")))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "tracklist.csv")))
+        self.assertTrue(os.path.exists(os.path.join(release_dir, "tracklist.xlsx")))
         self.assertTrue(os.path.exists(os.path.join(release_dir, "checklist.txt")))
         with open(obsolete_info, "r", encoding="utf-8") as handle:
             self.assertIn("Release Title: My Release", handle.read())
+        workbook = load_workbook(os.path.join(release_dir, "tracklist.xlsx"), read_only=True, data_only=True)
+        try:
+            info_sheet = workbook["Release Info"]
+            track_sheet = workbook["Tracklist"]
+            info_rows = list(info_sheet.iter_rows(values_only=True))
+            track_rows = list(track_sheet.iter_rows(values_only=True))
+        finally:
+            workbook.close()
+        self.assertEqual(("Field", "Value"), info_rows[0])
+        self.assertIn(("Release Title", "My Release"), info_rows)
+        self.assertEqual(
+            ("Track Number", "Title", "Duration", "Production", "Year", "Audio Path"),
+            track_rows[0],
+        )
+        self.assertEqual("Fresh Track", track_rows[1][1])
+
+    def test_loudness_tools_ensure_ffmpeg_in_path_uses_platform_separator(self):
+        with mock.patch.object(loudness_tools, "_ffmpeg_search_locations", return_value=["C:\\ffmpeg\\bin"]), mock.patch.object(
+            loudness_tools.os.path,
+            "exists",
+            side_effect=lambda value: value == "C:\\ffmpeg\\bin",
+        ), mock.patch.dict(
+            loudness_tools.os.environ,
+            {"PATH": "C:\\Windows\\System32"},
+            clear=False,
+        ), mock.patch.object(loudness_tools.os, "pathsep", ";"):
+            loudness_tools._ensure_ffmpeg_in_path()
+            self.assertEqual("C:\\ffmpeg\\bin;C:\\Windows\\System32", loudness_tools.os.environ["PATH"])
+
+    def test_open_in_finder_uses_windows_explorer_selection_for_files(self):
+        with mock.patch.object(widgets.platform, "system", return_value="Windows"), mock.patch.object(
+            widgets.os.path,
+            "isdir",
+            return_value=False,
+        ), mock.patch.object(
+            widgets.os.path,
+            "normpath",
+            return_value="C:\\tmp\\test.wav",
+        ), mock.patch.object(widgets.subprocess, "run") as run_mock:
+            ok, error = widgets.open_in_finder("C:/tmp/test.wav")
+
+        self.assertTrue(ok)
+        self.assertIsNone(error)
+        run_mock.assert_called_once_with(["explorer", "/select,C:\\tmp\\test.wav"], check=False)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 from .base_controller import BaseController
 from app_logic import loudness_tools
 from app_ui import ui_patterns, path_ui_tools
@@ -11,9 +11,7 @@ class LoudnessController(BaseController):
     """Manages audio analysis, loudness normalization, and matching workflows."""
 
     def _get_loudness_view(self):
-        if hasattr(self.app, "get_built_tab"):
-            return self.app.get_built_tab("loudness")
-        return getattr(getattr(self.app, "tab_system", None), "_instances", {}).get("loudness")
+        return self.get_built_tab("loudness")
 
     def _ensure_loudness_view(self):
         try:

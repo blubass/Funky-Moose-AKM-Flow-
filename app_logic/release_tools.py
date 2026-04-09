@@ -3,7 +3,12 @@ import os
 
 AUDIO_EXTENSIONS = {".wav", ".aiff", ".aif", ".mp3", ".flac", ".m4a"}
 RELEASE_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-REMOVABLE_RELEASE_FILENAMES = {"release_info.txt", "tracklist.csv", "checklist.txt"}
+REMOVABLE_RELEASE_FILENAMES = {
+    "release_info.txt",
+    "tracklist.csv",
+    "tracklist.xlsx",
+    "checklist.txt",
+}
 AUTO_NOTE_PREFIXES = ("Matched Export:", "Limiter:")
 
 

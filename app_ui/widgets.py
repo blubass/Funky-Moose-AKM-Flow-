@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, colorchooser
+import os
+import platform
 import subprocess
 import pyperclip
 from .theme import *
@@ -34,7 +36,18 @@ def copy_to_clipboard(text):
 
 def open_in_finder(path):
     try:
-        subprocess.run(["open", "-R", path], check=False)
+        system = platform.system()
+        if system == "Windows":
+            normalized = os.path.normpath(path)
+            if os.path.isdir(normalized):
+                subprocess.run(["explorer", normalized], check=False)
+            else:
+                subprocess.run(["explorer", f"/select,{normalized}"], check=False)
+        elif system == "Darwin":
+            subprocess.run(["open", "-R", path], check=False)
+        else:
+            target = path if os.path.isdir(path) else os.path.dirname(path) or "."
+            subprocess.run(["xdg-open", target], check=False)
         return True, None
     except Exception as exc:
         return False, str(exc)
