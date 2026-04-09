@@ -77,6 +77,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         
         # --- COMMAND BINDINGS ---
         self.bind_all("<Command-a>", self.select_all)
+        self.bind_all("<Command-q>", self._on_quit_shortcut)
+        self.bind_all("<Control-q>", self._on_quit_shortcut)
         
         dnd_status = "Aktiv" if TkinterDnD is not None else "Deaktiviert (Paket fehlt)"
         self.append_log(f"Drag & Drop System: {dnd_status}")
@@ -378,6 +380,10 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
                 self.destroy()
         elif res is False:
             self.destroy()
+
+    def _on_quit_shortcut(self, _event=None):
+        self.on_closing()
+        return "break"
 
     def _schedule_refresh_list(self):
         """Debounced list refresh for search input."""

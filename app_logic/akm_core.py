@@ -21,8 +21,24 @@ SETTINGS_FILE = cfg.SETTINGS_FILE
 SUPPORTED_EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xltx", ".xltm"}
 
 STATUS_KEYS = ["in_progress", "ready", "submitted", "confirmed"]
+DETAIL_MEMORY_DEFAULTS = {
+    "composer": "",
+    "production": "",
+    "year": "",
+}
+RELEASE_MEMORY_DEFAULTS = {
+    "artist": "Uwe Felchle Project",
+    "type": "Single",
+    "genre": "",
+    "subgenre": "",
+    "label": "",
+    "copyright_line": "",
+    "export_dir": "",
+}
 DEFAULT_SETTINGS = {
     "release_default_artist": "Uwe Felchle Project",
+    "detail_memory": dict(DETAIL_MEMORY_DEFAULTS),
+    "release_memory": dict(RELEASE_MEMORY_DEFAULTS),
 }
 
 LANGUAGES = {
@@ -319,11 +335,26 @@ def set_lang(lang):
 def load_settings(strict=False):
     raw_settings = _read_json_dict(SETTINGS_FILE, strict=strict)
     settings = dict(DEFAULT_SETTINGS)
+    settings["detail_memory"] = dict(DETAIL_MEMORY_DEFAULTS)
+    settings["release_memory"] = dict(RELEASE_MEMORY_DEFAULTS)
 
     if "release_default_artist" in raw_settings:
         settings["release_default_artist"] = _clean_text(
             raw_settings.get("release_default_artist")
         )
+
+    raw_detail_memory = raw_settings.get("detail_memory")
+    if isinstance(raw_detail_memory, dict):
+        for key in DETAIL_MEMORY_DEFAULTS:
+            settings["detail_memory"][key] = _clean_text(raw_detail_memory.get(key))
+
+    raw_release_memory = raw_settings.get("release_memory")
+    if isinstance(raw_release_memory, dict):
+        for key in RELEASE_MEMORY_DEFAULTS:
+            settings["release_memory"][key] = _clean_text(raw_release_memory.get(key))
+
+    if not settings["release_memory"].get("artist"):
+        settings["release_memory"]["artist"] = settings["release_default_artist"]
 
     return settings
 
@@ -331,21 +362,84 @@ def load_settings(strict=False):
 def save_settings(settings):
     _ensure_storage_dir()
     merged = dict(DEFAULT_SETTINGS)
+    merged["detail_memory"] = dict(DETAIL_MEMORY_DEFAULTS)
+    merged["release_memory"] = dict(RELEASE_MEMORY_DEFAULTS)
     if "release_default_artist" in settings:
         merged["release_default_artist"] = _clean_text(
             settings.get("release_default_artist")
         )
+    detail_memory = settings.get("detail_memory")
+    if isinstance(detail_memory, dict):
+        for key in DETAIL_MEMORY_DEFAULTS:
+            merged["detail_memory"][key] = _clean_text(detail_memory.get(key))
+    release_memory = settings.get("release_memory")
+    if isinstance(release_memory, dict):
+        for key in RELEASE_MEMORY_DEFAULTS:
+            merged["release_memory"][key] = _clean_text(release_memory.get(key))
+    if merged["release_memory"].get("artist"):
+        merged["release_default_artist"] = merged["release_memory"]["artist"]
+    else:
+        merged["release_memory"]["artist"] = merged["release_default_artist"]
     _write_json_atomic(SETTINGS_FILE, merged)
 
 
 def get_release_default_artist():
     settings = load_settings()
-    return settings.get("release_default_artist", DEFAULT_SETTINGS["release_default_artist"])
+    release_memory = settings.get("release_memory") or {}
+    return (
+        _clean_text(release_memory.get("artist"))
+        or settings.get("release_default_artist", DEFAULT_SETTINGS["release_default_artist"])
+    )
 
 
 def set_release_default_artist(value):
     settings = load_settings()
-    settings["release_default_artist"] = _clean_text(value)
+    cleaned = _clean_text(value)
+    settings["release_default_artist"] = cleaned
+    settings.setdefault("release_memory", dict(RELEASE_MEMORY_DEFAULTS))
+    settings["release_memory"]["artist"] = cleaned or DEFAULT_SETTINGS["release_default_artist"]
+    save_settings(settings)
+
+
+def get_detail_memory():
+    settings = load_settings()
+    memory = settings.get("detail_memory") or {}
+    return {
+        key: _clean_text(memory.get(key))
+        for key in DETAIL_MEMORY_DEFAULTS
+    }
+
+
+def remember_detail_memory(values):
+    settings = load_settings()
+    memory = dict(get_detail_memory())
+    for key in DETAIL_MEMORY_DEFAULTS:
+        if key in (values or {}):
+            memory[key] = _clean_text((values or {}).get(key))
+    settings["detail_memory"] = memory
+    save_settings(settings)
+
+
+def get_release_memory():
+    settings = load_settings()
+    memory = dict(RELEASE_MEMORY_DEFAULTS)
+    memory.update(settings.get("release_memory") or {})
+    memory["artist"] = _clean_text(memory.get("artist")) or get_release_default_artist()
+    return {
+        key: _clean_text(memory.get(key))
+        for key in RELEASE_MEMORY_DEFAULTS
+    }
+
+
+def remember_release_memory(values):
+    settings = load_settings()
+    memory = dict(get_release_memory())
+    for key in RELEASE_MEMORY_DEFAULTS:
+        if key in (values or {}):
+            memory[key] = _clean_text((values or {}).get(key))
+    settings["release_memory"] = memory
+    if memory.get("artist"):
+        settings["release_default_artist"] = memory["artist"]
     save_settings(settings)
 
 

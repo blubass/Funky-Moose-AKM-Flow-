@@ -647,6 +647,41 @@ class ExcelImportTests(TemporaryStorageTestCase):
         self.assertEqual("/tmp/song.wav", tracks[0]["audio_path"])
 
 
+class SettingsMemoryTests(TemporaryStorageTestCase):
+    def test_settings_helpers_persist_detail_and_release_memory(self):
+        akm_core.remember_detail_memory(
+            {
+                "composer": "Uwe",
+                "production": "FM",
+                "year": "2026",
+            }
+        )
+        akm_core.remember_release_memory(
+            {
+                "artist": "Artist X",
+                "type": "Album",
+                "genre": "Pop",
+                "subgenre": "Indie",
+                "label": "Label X",
+                "copyright_line": "C 2026",
+                "export_dir": "/tmp/exports",
+            }
+        )
+
+        self.assertEqual(
+            {
+                "composer": "Uwe",
+                "production": "FM",
+                "year": "2026",
+            },
+            akm_core.get_detail_memory(),
+        )
+        self.assertEqual("Artist X", akm_core.get_release_memory()["artist"])
+        self.assertEqual("Album", akm_core.get_release_memory()["type"])
+        self.assertEqual("/tmp/exports", akm_core.get_release_memory()["export_dir"])
+        self.assertEqual("Artist X", akm_core.get_release_default_artist())
+
+
 class OverviewToolsTests(unittest.TestCase):
     def test_build_dashboard_stats_counts_key_fields(self):
         entries = [
@@ -1536,12 +1571,19 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertTrue(app.overview_refreshed)
         self.assertEqual(0, app.batch_refreshed)
 
-    def test_project_controller_add_entry_calls_core_without_legacy_language_arg(self):
+    def test_project_controller_add_entry_uses_remembered_detail_defaults(self):
         app = self.make_app_stub()
         app.overview_ctrl = SimpleNamespace(
             _on_g_done=lambda result, message: setattr(app, "done_payload", (result, message))
         )
         controller = ProjectController(app)
+        akm_core.remember_detail_memory(
+            {
+                "composer": "Uwe",
+                "production": "FM",
+                "year": "2026",
+            }
+        )
 
         with mock.patch(
             "app_controllers.project_controller.akm_core.add_entry",
@@ -1549,7 +1591,12 @@ class AppRegressionTests(TemporaryStorageTestCase):
         ) as add_entry:
             controller.add_entry("Song A")
 
-        add_entry.assert_called_once_with("Song A")
+        add_entry.assert_called_once_with(
+            "Song A",
+            composer="Uwe",
+            production="FM",
+            year="2026",
+        )
         self.assertEqual("'Song A' angelegt", app.done_payload[1])
 
     def test_project_controller_save_project_returns_false_when_dialog_cancelled(self):
@@ -1865,6 +1912,17 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
         self.assertTrue(app.destroyed)
 
+    def test_quit_shortcut_routes_through_on_closing(self):
+        app = SimpleNamespace(
+            on_closing=lambda: setattr(app, "closing_called", True)
+        )
+        app.closing_called = False
+
+        result = akm_app.AKMApp._on_quit_shortcut(app)
+
+        self.assertTrue(app.closing_called)
+        self.assertEqual("break", result)
+
     def test_refresh_all_tabs_includes_details_and_built_cover_refresh(self):
         app = SimpleNamespace(
             search_var=FakeVar("Song"),
@@ -2128,8 +2186,57 @@ class AppRegressionTests(TemporaryStorageTestCase):
         entries = {item["title"]: item for item in self.load_entries()}
         self.assertEqual("updated A", entries["Song A"]["notes"])
         self.assertEqual("old B", entries["Song B"]["notes"])
+        self.assertEqual(
+            {
+                "composer": "",
+                "production": "",
+                "year": "",
+            },
+            akm_core.get_detail_memory(),
+        )
         self.assertTrue(app.saved_payload[0][0])
         self.assertEqual("Gespeichert", app.saved_payload[1])
+
+    def test_details_controller_clear_details_form_restores_memory_defaults(self):
+        akm_core.remember_detail_memory(
+            {
+                "composer": "Uwe",
+                "production": "FM",
+                "year": "2026",
+            }
+        )
+
+        app = self.make_app_stub()
+        app.detail_original_title = "Song A"
+        details_view = FakeDetailsView(
+            form_vars={
+                "title": FakeVar("Song A"),
+                "duration": FakeVar("3:11"),
+                "composer": FakeVar("Other"),
+                "production": FakeVar("Other Prod"),
+                "year": FakeVar("2025"),
+                "audio_path": FakeVar("/tmp/song.wav"),
+            }
+        )
+        details_view.set_notes_text("note")
+        details_view.set_tags_text("tag")
+        details_view.set_instrumental(True)
+        app.tab_system._instances["details"] = details_view
+
+        controller = DetailsController(app)
+        controller.clear_details_form()
+
+        self.assertIsNone(app.detail_original_title)
+        self.assertEqual("", details_view.form_vars["title"].get())
+        self.assertEqual("", details_view.form_vars["duration"].get())
+        self.assertEqual("", details_view.form_vars["audio_path"].get())
+        self.assertEqual("Uwe", details_view.form_vars["composer"].get())
+        self.assertEqual("FM", details_view.form_vars["production"].get())
+        self.assertEqual("2026", details_view.form_vars["year"].get())
+        self.assertEqual("", details_view.notes_text)
+        self.assertEqual("", details_view.tags_text)
+        self.assertFalse(details_view.instrumental)
+        self.assertEqual("in_progress", app.current_detail_status)
 
     def test_details_controller_set_status_chip_updates_public_state(self):
         app = self.make_app_stub()

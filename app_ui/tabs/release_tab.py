@@ -20,6 +20,7 @@ class ReleaseTab(AkmPanel):
         self._release_layout_mode = None
         self._release_action_mode = None
         self._status_action_mode = None
+        self._release_memory_after_id = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
         self.build_ui()
         self._setup_dnd()
@@ -126,7 +127,7 @@ class ReleaseTab(AkmPanel):
             ("subgenre", "Subgenre"), ("label", "Label"), ("copyright_line", "Copyright"),
             ("cover_path", "Cover-Bild (JPG/PNG)"), ("export_dir", "Export-Ordner"),
         ]
-        defaults = {"artist": akm_core.get_release_default_artist(), "type": "Single"}
+        defaults = akm_core.get_release_memory()
 
         for key, label in fields:
             var = self._create_release_var(key, defaults.get(key, ""))
@@ -228,12 +229,23 @@ class ReleaseTab(AkmPanel):
                     cache_var.get(),
                 ),
             )
+        if key in akm_core.RELEASE_MEMORY_DEFAULTS:
+            var.trace_add("write", lambda *_args: self._queue_release_memory_save())
         var.trace_add("write", lambda *_args: self._queue_release_refresh())
         return var
 
     def _queue_release_refresh(self):
         if hasattr(self.app, "release_ctrl"):
             self.after_idle(self.app.release_ctrl.refresh_view)
+
+    def _queue_release_memory_save(self):
+        if self._release_memory_after_id:
+            self.after_cancel(self._release_memory_after_id)
+        self._release_memory_after_id = self.after(300, self._save_release_memory)
+
+    def _save_release_memory(self):
+        self._release_memory_after_id = None
+        akm_core.remember_release_memory(self.get_form_state())
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)

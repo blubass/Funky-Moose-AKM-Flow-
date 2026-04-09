@@ -30,6 +30,13 @@ class DetailsController(BaseController):
         if hasattr(self.app, "get_detail_form_vars"):
             return self.app.get_detail_form_vars()
         return getattr(self.app, "detail_vars", {})
+
+    def _apply_detail_memory_defaults(self):
+        detail_vars = self._get_detail_form_vars()
+        defaults = akm_core.get_detail_memory()
+        for key, value in defaults.items():
+            if key in detail_vars:
+                detail_vars[key].set(value)
     
     def save_details(self):
         orig = self.app.detail_original_title
@@ -54,13 +61,21 @@ class DetailsController(BaseController):
                 detail_values, tags_text, notes_text,
                 self.app.current_detail_status, instrumental
             )
-            self.tasks.run(lambda: akm_core.update_entry(orig, upd), 
-                           lambda r: self.app.overview_ctrl._on_g_done(r, "Gespeichert"), 
-                           busy_text="Speichere...")
+            self.tasks.run(
+                lambda: akm_core.update_entry(orig, upd),
+                lambda r, updates=upd: self._on_save_details_done(r, updates),
+                busy_text="Speichere...",
+            )
+
+    def _on_save_details_done(self, result, updates):
+        if result[0]:
+            akm_core.remember_detail_memory(updates)
+        self.app.overview_ctrl._on_g_done(result, "Gespeichert")
 
     def clear_details_form(self):
         self.app.detail_original_title = None
         for v in self._get_detail_form_vars().values(): v.set("")
+        self._apply_detail_memory_defaults()
         details_view = self._get_details_view()
         if details_view and hasattr(details_view, "clear_tags"):
             details_view.clear_tags()

@@ -149,6 +149,13 @@ class ProjectController(BaseController):
 
     def add_entry(self, title):
         if not title: return
-        self.tasks.run(lambda: akm_core.add_entry(title),
+        defaults = akm_core.get_detail_memory()
+        self.tasks.run(
+                       lambda: akm_core.add_entry(
+                           title,
+                           composer=defaults.get("composer", ""),
+                           production=defaults.get("production", ""),
+                           year=defaults.get("year", ""),
+                       ),
                        lambda r: self.app.overview_ctrl._on_g_done(r, f"'{title}' angelegt"), 
                        busy_text=f"Lege '{title}' an...")

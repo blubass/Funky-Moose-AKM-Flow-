@@ -10,7 +10,7 @@ from app_ui.ui_patterns import (
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_MD_BOLD, FONT_XL, FONT_LG
 )
-from app_logic import detail_tools
+from app_logic import akm_core, detail_tools
 
 class DetailsTab(AkmPanel):
     STACK_BREAKPOINT = 1180
@@ -119,6 +119,7 @@ class DetailsTab(AkmPanel):
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
         # LEFT FORM
+        detail_defaults = akm_core.get_detail_memory()
         self._left_intro_label = AkmSubLabel(
             left_card.inner,
             text="Titel, Audio, Credits und Status bleiben hier in einer sauberen Arbeitsansicht gebündelt.",
@@ -132,7 +133,7 @@ class DetailsTab(AkmPanel):
         left_form.add_header("Werksteuerung")
 
         for key, label in detail_tools.DETAIL_FIELD_LABELS:
-            var = tk.StringVar()
+            var = tk.StringVar(value=detail_defaults.get(key, ""))
             self.detail_vars[key] = var
             
             if key == "title":
