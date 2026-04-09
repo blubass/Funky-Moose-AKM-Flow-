@@ -56,12 +56,32 @@ class ReleaseController(BaseController):
         return release_view_tools.build_release_action_hint(counts)
 
     def _build_release_status_text(self, signature):
-        _track_signature, cover_path, export_dir, _has_listbox = signature
+        _track_signature, _release_title, cover_path, export_dir, _has_listbox = signature
         return release_view_tools.build_release_status_text(
             len(self.state.release_tracks),
             bool(cover_path),
             bool(export_dir),
             self._has_release_track_list(),
+        )
+
+    def _build_release_preflight_text(self, signature):
+        _track_signature, release_title, cover_path, export_dir, _has_listbox = signature
+        return release_view_tools.build_release_preflight_text(
+            len(self.state.release_tracks),
+            release_title,
+            bool(cover_path),
+            bool(export_dir),
+            release_view_tools.build_release_source_counts(self.state.release_tracks),
+        )
+
+    def _build_release_flow_hint(self, signature):
+        _track_signature, release_title, cover_path, export_dir, _has_listbox = signature
+        return release_view_tools.build_release_flow_hint(
+            len(self.state.release_tracks),
+            release_title,
+            bool(cover_path),
+            bool(export_dir),
+            release_view_tools.build_release_source_counts(self.state.release_tracks),
         )
 
     def _get_selected_track_indices(self):
@@ -76,13 +96,14 @@ class ReleaseController(BaseController):
             release_view.select_track_index(index)
 
     def _build_view_signature(self):
+        release_title = self._get_release_form_value("title")
         cover_path = self._get_release_form_value("cover_path")
         export_dir = self._get_release_form_value("export_dir")
         track_signature = tuple(
             (track.get("audio_path") or "", track.get("title") or "", track.get("source") or "")
             for track in self.state.release_tracks
         )
-        return (track_signature, cover_path, export_dir, self._has_release_track_list())
+        return (track_signature, release_title, cover_path, export_dir, self._has_release_track_list())
 
     def _refresh_after_release_import(self, open_batch=False):
         self.state.invalidate_cache()
@@ -174,6 +195,8 @@ class ReleaseController(BaseController):
         release_view.render_release_state(
             track_labels=self._build_release_track_labels(),
             action_hint=self._build_release_action_hint(),
+            preflight_text=self._build_release_preflight_text(signature),
+            flow_hint=self._build_release_flow_hint(signature),
             status_text=self._build_release_status_text(signature),
         )
         self._last_view_signature = signature

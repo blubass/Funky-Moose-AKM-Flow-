@@ -198,6 +198,8 @@ class FakeReleaseView:
         self.selected_index = None
         self.track_labels = []
         self.action_hint = None
+        self.preflight_text = None
+        self.flow_hint = None
         self.status_text = None
         self.form_state = {
             "title": "",
@@ -212,9 +214,11 @@ class FakeReleaseView:
     def has_track_list(self):
         return True
 
-    def render_release_state(self, track_labels, action_hint, status_text):
+    def render_release_state(self, track_labels, action_hint, preflight_text, flow_hint, status_text):
         self.track_labels = list(track_labels)
         self.action_hint = action_hint
+        self.preflight_text = preflight_text
+        self.flow_hint = flow_hint
         self.status_text = status_text
 
     def get_selected_track_indices(self):
@@ -1380,6 +1384,31 @@ class ReleaseViewToolsTests(unittest.TestCase):
             status,
         )
 
+    def test_release_view_helpers_build_preflight_flow_and_selection_hints(self):
+        preflight = release_view_tools.build_release_preflight_text(
+            2,
+            "My Release",
+            False,
+            True,
+            {"Werk": 1, "Datei→Werk": 1, "Datei": 0},
+        )
+        flow_hint = release_view_tools.build_release_flow_hint(
+            2,
+            "My Release",
+            False,
+            True,
+            {"Werk": 1, "Datei→Werk": 1, "Datei": 0},
+        )
+        selection_hint = release_view_tools.build_release_selection_hint(3, (1,))
+
+        self.assertEqual("Preflight: Cover fehlt", preflight)
+        self.assertIn("automatisch auf Werke gemappt", flow_hint)
+        self.assertIn("Cover", flow_hint)
+        self.assertEqual(
+            "1 Track ausgewählt. Verfügbar: Nach oben • Nach unten • Entfernen.",
+            selection_hint,
+        )
+
 
 class AppRegressionTests(TemporaryStorageTestCase):
     def make_app_stub(self, records=None, mtime=None):
@@ -2292,7 +2321,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
     def test_release_controller_refresh_view_waits_for_built_release_tab(self):
         app = self.make_app_stub()
         app.state.release_tracks = [{"title": "Song A", "audio_path": "/tmp/song.wav", "source": "Datei"}]
-        app.release_state_cache = {"cover_path": "/tmp/cover.png", "export_dir": "/tmp/export"}
+        app.release_state_cache = {"title": "My Release", "cover_path": "/tmp/cover.png", "export_dir": "/tmp/export"}
 
         controller = ReleaseController(app)
         controller.refresh_view()
@@ -2305,6 +2334,8 @@ class AppRegressionTests(TemporaryStorageTestCase):
         controller.refresh_view()
 
         self.assertEqual(1, len(release_view.track_labels))
+        self.assertEqual("Preflight: 1 ohne Werk-Match", release_view.preflight_text)
+        self.assertIn("Export erstellt Paket", release_view.flow_hint)
         self.assertIsNotNone(controller._last_view_signature)
 
     def test_loudness_controller_handle_drop_uses_shared_parser_and_skips_duplicates(self):

@@ -50,6 +50,15 @@ class ReleaseTab(AkmPanel):
             justify="left",
         )
         self.release_status_label.pack(fill="x", pady=(2, 2))
+        self.release_preflight_label = AkmSubLabel(
+            status_left,
+            text="Preflight: Tracks fehlen • Release-Titel fehlt • Cover fehlt • Export-Ordner fehlt",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+            wraplength=560,
+        )
+        self.release_preflight_label.pack(fill="x")
         self.release_action_hint_label = AkmSubLabel(
             status_left,
             text="Werk 0  •  Datei→Werk 0  •  Datei 0",
@@ -58,6 +67,15 @@ class ReleaseTab(AkmPanel):
             justify="left",
         )
         self.release_action_hint_label.pack(fill="x")
+        self.release_flow_hint_label = AkmSubLabel(
+            status_left,
+            text="Ziehe Audiodateien hinein oder setze zuerst den Release-Titel, damit der Flow direkt weiterlaufen kann.",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+            wraplength=560,
+        )
+        self.release_flow_hint_label.pack(fill="x", pady=(2, 0))
 
         self._status_primary_button = self.app.btn(
             status_right,
@@ -169,6 +187,7 @@ class ReleaseTab(AkmPanel):
             highlightthickness=0, activestyle="none", selectmode="extended"
         )
         self.release_track_listbox.pack(side="left", fill="both", expand=True)
+        self.release_track_listbox.bind("<<ListboxSelect>>", lambda _event: self._update_track_selection_hint())
         sb = tk.Scrollbar(list_frame, command=self.release_track_listbox.yview)
         sb.pack(side="right", fill="y")
         self.release_track_listbox.config(yscrollcommand=sb.set)
@@ -181,8 +200,18 @@ class ReleaseTab(AkmPanel):
             self.app.btn(tk_actions, "Nach unten", self.app.release_ctrl.move_track_down, quiet=True, width=108),
             self.app.btn(tk_actions, "Entfernen", self.app.release_ctrl.remove_track, quiet=True, width=108),
         )
+        self.release_selection_hint_label = AkmSubLabel(
+            right_card.inner,
+            text="Noch keine Tracks im Release. Ziehe Dateien hinein oder übernimm gematchte Werke.",
+            bg=PANEL_2,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        )
+        self.release_selection_hint_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         right_card.bind("<Configure>", self._on_action_bar_resize, add="+")
         self.after_idle(lambda: self._apply_release_action_layout(right_card.winfo_width()))
+        self.after_idle(self._update_track_selection_hint)
 
     def _create_release_var(self, key, default_value=""):
         cache = getattr(self.app, "release_state_cache", {}) or {}
@@ -199,7 +228,12 @@ class ReleaseTab(AkmPanel):
                     cache_var.get(),
                 ),
             )
+        var.trace_add("write", lambda *_args: self._queue_release_refresh())
         return var
+
+    def _queue_release_refresh(self):
+        if hasattr(self.app, "release_ctrl"):
+            self.after_idle(self.app.release_ctrl.refresh_view)
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)
@@ -229,20 +263,35 @@ class ReleaseTab(AkmPanel):
         column_width = width if self._release_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=820)
         fit_wraplength(self.release_status_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.release_preflight_label, width, padding=280, minimum=260, maximum=640)
         fit_wraplength(self.release_action_hint_label, width, padding=280, minimum=260, maximum=620)
+        fit_wraplength(self.release_flow_hint_label, width, padding=280, minimum=260, maximum=640)
         fit_wraplength(self._left_intro_label, column_width, padding=80, minimum=260, maximum=460)
         fit_wraplength(self._right_intro_label, column_width, padding=80, minimum=260, maximum=480)
         fit_wraplength(self._drop_zone_hint_label, column_width, padding=120, minimum=240, maximum=420)
+        fit_wraplength(self.release_selection_hint_label, column_width, padding=80, minimum=260, maximum=460)
 
     def has_track_list(self):
         return True
 
-    def render_release_state(self, track_labels, action_hint, status_text):
+    def render_release_state(self, track_labels, action_hint, preflight_text, flow_hint, status_text):
         self.release_track_listbox.delete(0, tk.END)
         if track_labels:
             self.release_track_listbox.insert(tk.END, *track_labels)
         self.release_action_hint_label.config(text=action_hint)
+        self.release_preflight_label.config(text=preflight_text)
+        self.release_flow_hint_label.config(text=flow_hint)
         self.release_status_label.config(text=status_text)
+        self._update_track_selection_hint()
+
+    def _update_track_selection_hint(self):
+        track_count = self.release_track_listbox.size()
+        selection = self.release_track_listbox.curselection()
+        from app_ui import release_view_tools
+
+        self.release_selection_hint_label.config(
+            text=release_view_tools.build_release_selection_hint(track_count, selection)
+        )
 
     def get_form_vars(self):
         return self.release_vars
