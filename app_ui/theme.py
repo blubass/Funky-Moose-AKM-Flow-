@@ -1,5 +1,6 @@
 import os
 import tkinter.font as tkfont
+import platform
 
 # --- THEME (PERMANENT OBSIDIAN 2026) ---
 
@@ -75,7 +76,7 @@ CARD_PAD_Y = 12
 
 def get_font(size, bold=False, italic=False):
     """Factory for modern variables fonts."""
-    family = "Montserrat" if "mac" in str(os.uname()).lower() else "Inter"
+    family = "Montserrat" if platform.system() == "Darwin" else "Inter"
     style = []
     if bold: style.append("bold")
     if italic: style.append("italic")
@@ -90,7 +91,7 @@ FONT_XL = get_font(18)
 FONT_XXL = get_font(22, bold=True)
 FONT_XXXL = get_font(28, bold=True)
 FONT_ITALIC = get_font(10, italic=True)
-FONT_LOG = ("JetBrains Mono", 10) if "mac" in str(os.uname()).lower() else ("Courier New", 10)
+FONT_LOG = ("JetBrains Mono", 10) if platform.system() == "Darwin" else ("Courier New", 10)
 
 def hex_to_rgb(value):
     raw = value.lstrip("#")
