@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing tag to build and publish
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -26,6 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -80,7 +87,7 @@ jobs:
 
   publish:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || inputs.tag_name != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -90,18 +97,9 @@ jobs:
           path: release-assets
 
       - name: Publish GitHub release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          mapfile -t archives < <(find release-assets -type f -name '*.zip' | sort)
-          if [ "${#archives[@]}" -eq 0 ]; then
-            echo "Keine Release-Archive gefunden."
-            exit 1
-          fi
-
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${archives[@]}" --clobber
-          else
-            gh release create "$tag" "${archives[@]}" --title "$tag" --generate-notes
-          fi
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          files: release-assets/**/*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
