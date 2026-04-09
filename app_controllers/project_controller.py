@@ -143,6 +143,9 @@ class ProjectController(BaseController):
         self.toast(messages[0])
         self.state.invalidate_cache()
         self.app.overview_ctrl.refresh_list()
+        batch_ctrl = getattr(self.app, "batch_ctrl", None)
+        if batch_ctrl is not None and hasattr(batch_ctrl, "reload_flow_data"):
+            batch_ctrl.reload_flow_data(preferred_index=0)
 
     def add_entry(self, title):
         if not title: return

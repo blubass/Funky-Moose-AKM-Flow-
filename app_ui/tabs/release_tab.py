@@ -28,7 +28,7 @@ class ReleaseTab(AkmPanel):
         AkmHeader(self, text="Release / Export").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             self,
-            text="Baue aus Werken, gematchten Dateien und Cover-Varianten ein sauberes Release-Paket.",
+            text="Baue aus Werken, gematchten Dateien und Cover-Varianten ein sauberes Release-Paket und gib die Titel direkt weiter in AKM Batch / Schnellstart.",
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -71,6 +71,7 @@ class ReleaseTab(AkmPanel):
         action_row.pack(anchor="e")
         self._status_action_bar = action_row
         self._status_action_buttons = (
+            self.app.btn(action_row, "In AKM laden", lambda: self.app.release_ctrl.import_release_to_batch(open_batch=True), quiet=True, width=122),
             self.app.btn(action_row, "Cover-Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=122),
             self.app.btn(action_row, "Finder", self.app.release_ctrl.open_cover_in_finder, quiet=True, width=84),
         )

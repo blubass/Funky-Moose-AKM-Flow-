@@ -255,12 +255,17 @@ def load_excel_tracks(file_path):
             production_header = _find_column(headers, ["produktion", "production"])
             year_header = _find_column(headers, ["jahr", "year"])
             notes_header = _find_column(headers, ["notiz", "notizen", "notes"])
+            audio_path_header = _find_column(
+                headers,
+                ["audio path", "audio-pfad", "audio_path", "audio", "pfad", "file path", "filepath"],
+            )
             title_index = headers.index(title_header) if title_header is not None else 0
             duration_index = headers.index(duration_header) if duration_header is not None else None
             composer_index = headers.index(composer_header) if composer_header is not None else None
             production_index = headers.index(production_header) if production_header is not None else None
             year_index = headers.index(year_header) if year_header is not None else None
             notes_index = headers.index(notes_header) if notes_header is not None else None
+            audio_path_index = headers.index(audio_path_header) if audio_path_header is not None else None
             data_rows = rows
         else:
             title_index = 0
@@ -269,6 +274,7 @@ def load_excel_tracks(file_path):
             production_index = 3 if len(first_values) > 3 else None
             year_index = 4 if len(first_values) > 4 else None
             notes_index = 5 if len(first_values) > 5 else None
+            audio_path_index = 6 if len(first_values) > 6 else None
             data_rows = chain((tuple(first_values),), rows)
 
         tracks = []
@@ -286,6 +292,7 @@ def load_excel_tracks(file_path):
                     "production": _clean_text(_get_row_value(values, production_index)),
                     "year": _clean_text(_get_row_value(values, year_index)),
                     "notes": _clean_text(_get_row_value(values, notes_index)),
+                    "audio_path": _clean_text(_get_row_value(values, audio_path_index)),
                 }
             )
         return tracks
@@ -459,23 +466,25 @@ def update_status(title, status, lang):
     return update_entry(title, {"status": status})
 
 
-def import_excel(file_path):
-    tracks = load_excel_tracks(file_path)
-    if not tracks:
-        return []
+def import_tracks(tracks, status="ready"):
+    if status not in STATUS_KEYS:
+        status = "ready"
 
     data = load_data(strict=True)
     touched = []
     changed = False
     now = _today()
 
-    for track in tracks:
-        title = track["title"]
-        duration = track.get("duration", "")
-        composer = track.get("composer", "")
-        production = track.get("production", "")
-        year = track.get("year", "")
-        notes = track.get("notes", "")
+    for track in tracks or []:
+        title = _clean_text(track.get("title"))
+        if not title:
+            continue
+        duration = _clean_text(track.get("duration"))
+        composer = _clean_text(track.get("composer"))
+        production = _clean_text(track.get("production"))
+        year = _clean_text(track.get("year"))
+        notes = _clean_text(track.get("notes"))
+        audio_path = _clean_text(track.get("audio_path"))
 
         existing = find_entry(data, title)
         if existing:
@@ -496,8 +505,11 @@ def import_excel(file_path):
             if notes and notes != existing.get("notes", ""):
                 existing["notes"] = notes
                 entry_changed = True
-            if existing["status"] == "in_progress":
-                existing["status"] = "ready"
+            if audio_path and audio_path != existing.get("audio_path", ""):
+                existing["audio_path"] = audio_path
+                entry_changed = True
+            if existing["status"] == "in_progress" and status != "in_progress":
+                existing["status"] = status
                 entry_changed = True
 
             if entry_changed:
@@ -515,6 +527,7 @@ def import_excel(file_path):
                     "production": existing.get("production", ""),
                     "year": existing.get("year", ""),
                     "notes": existing.get("notes", ""),
+                    "audio_path": existing.get("audio_path", ""),
                     "status": existing["status"],
                     "action": action,
                 }
@@ -523,7 +536,7 @@ def import_excel(file_path):
 
         entry = {
             "title": title,
-            "status": "ready",
+            "status": status,
             "date": now,
             "last_change": now,
             "duration": duration,
@@ -532,6 +545,7 @@ def import_excel(file_path):
             "year": year,
             "instrumental": False,
             "notes": notes,
+            "audio_path": audio_path,
             "tags": [],
         }
         data.append(entry)
@@ -544,7 +558,8 @@ def import_excel(file_path):
                 "production": production,
                 "year": year,
                 "notes": notes,
-                "status": "ready",
+                "audio_path": audio_path,
+                "status": status,
                 "action": "added",
             }
         )
@@ -553,6 +568,13 @@ def import_excel(file_path):
         save_data(data)
 
     return touched
+
+
+def import_excel(file_path):
+    tracks = load_excel_tracks(file_path)
+    if not tracks:
+        return []
+    return import_tracks(tracks)
 
 
 def get_status_map(lang):

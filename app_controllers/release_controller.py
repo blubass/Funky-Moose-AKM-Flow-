@@ -2,7 +2,7 @@
 import os
 from tkinter import filedialog
 from .base_controller import BaseController
-from app_logic import release_tools
+from app_logic import akm_core, assistant_tools, release_tools
 from app_ui import ui_patterns
 from app_ui import release_view_tools
 from app_workflows import release_workflows
@@ -83,6 +83,46 @@ class ReleaseController(BaseController):
             for track in self.state.release_tracks
         )
         return (track_signature, cover_path, export_dir, self._has_release_track_list())
+
+    def _refresh_after_release_import(self, open_batch=False):
+        self.state.invalidate_cache()
+        overview_ctrl = getattr(self.app, "overview_ctrl", None)
+        if overview_ctrl is not None and hasattr(overview_ctrl, "refresh_list"):
+            overview_ctrl.refresh_list()
+        batch_ctrl = getattr(self.app, "batch_ctrl", None)
+        if batch_ctrl is not None and hasattr(batch_ctrl, "reload_flow_data"):
+            batch_ctrl.reload_flow_data(preferred_index=0)
+        if open_batch:
+            self.app.select_tab_by_id("batch")
+
+    def _on_release_import_done(self, imported_items, open_batch=False):
+        messages = assistant_tools.build_import_log_messages(imported_items)
+        summary = messages[0].replace("Excel-Import", "Release -> AKM")
+        self.log(summary)
+        for message in messages[1:]:
+            self.log(message)
+        self.toast(summary, color=ui_patterns.FLAVOR_SUCCESS)
+        self._refresh_after_release_import(open_batch=open_batch)
+
+    def _on_export_done(self, result):
+        ok, message = result
+        self.log(message)
+        if not ok:
+            self.toast("EXPORT FEHLER", color=ui_patterns.FLAVOR_ERROR)
+            return
+        self.toast("EXPORT FERTIG", color=ui_patterns.FLAVOR_SUCCESS)
+        self.import_release_to_batch(open_batch=True)
+
+    def import_release_to_batch(self, open_batch=False):
+        import_tracks = release_workflows.build_release_import_tracks(self.state.release_tracks)
+        if not import_tracks:
+            self.toast("KEINE RELEASE-TITEL", color=ui_patterns.FLAVOR_ERROR)
+            return
+        self.tasks.run(
+            lambda: akm_core.import_tracks(import_tracks),
+            lambda items: self._on_release_import_done(items, open_batch=open_batch),
+            busy_text="Lade Release in AKM...",
+        )
     
     def handle_drop(self, event):
         data = event.data
@@ -165,8 +205,11 @@ class ReleaseController(BaseController):
     def build_export(self):
         m = {k: (v or "").strip() for k, v in self._get_release_form_state().items()}
         if m.get("title") and self.state.release_tracks: 
-            self.tasks.run(lambda: release_workflows.start_distro_export(m, self.state.release_tracks), 
-                           lambda r: self.log(r[1]), busy_text="Exportiere...")
+            self.tasks.run(
+                lambda: release_workflows.start_distro_export(m, self.state.release_tracks),
+                self._on_export_done,
+                busy_text="Exportiere...",
+            )
 
     def move_track_up(self):
         selection = self._get_selected_track_indices()

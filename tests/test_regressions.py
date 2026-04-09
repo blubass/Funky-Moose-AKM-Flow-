@@ -605,6 +605,43 @@ class ExcelImportTests(TemporaryStorageTestCase):
         self.assertEqual("3:21", tracks[0]["duration"])
         self.assertEqual("Uwe", tracks[0]["composer"])
 
+    def test_load_excel_tracks_reads_release_export_import_sheet(self):
+        workbook_path = os.path.join(self.tempdir.name, "release.xlsx")
+        release_workflows.write_release_track_workbook(
+            workbook_path,
+            {
+                "title": "My Release",
+                "artist": "Artist",
+                "type": "Album",
+                "release_date": "2026-04-09",
+                "genre": "Pop",
+                "subgenre": "Indie",
+                "label": "Label",
+                "copyright_line": "C 2026",
+                "cover_path": "/tmp/cover.jpg",
+            },
+            [
+                {
+                    "title": "Mein Song",
+                    "duration": "3:21",
+                    "composer": "Uwe",
+                    "production": "FM",
+                    "year": "2026",
+                    "notes": "Single Mix",
+                    "audio_path": "/tmp/song.wav",
+                    "source": "Werk",
+                }
+            ],
+        )
+
+        tracks = akm_core.load_excel_tracks(workbook_path)
+
+        self.assertEqual(1, len(tracks))
+        self.assertEqual("Mein Song", tracks[0]["title"])
+        self.assertEqual("3:21", tracks[0]["duration"])
+        self.assertEqual("Uwe", tracks[0]["composer"])
+        self.assertEqual("/tmp/song.wav", tracks[0]["audio_path"])
+
 
 class OverviewToolsTests(unittest.TestCase):
     def test_build_dashboard_stats_counts_key_fields(self):
@@ -1438,6 +1475,9 @@ class AppRegressionTests(TemporaryStorageTestCase):
         app.overview_ctrl = SimpleNamespace(
             refresh_list=lambda: setattr(app, "overview_refreshed", True)
         )
+        app.batch_ctrl = SimpleNamespace(
+            reload_flow_data=lambda preferred_index=None: setattr(app, "batch_refreshed", preferred_index)
+        )
         controller = ProjectController(app)
         controller.log = app.logs.append
         controller.toast = app.toasts.append
@@ -1465,6 +1505,7 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("Excel-Import abgeschlossen: 2 Einträge", app.toasts[0])
         self.assertTrue(app.state.invalidated)
         self.assertTrue(app.overview_refreshed)
+        self.assertEqual(0, app.batch_refreshed)
 
     def test_project_controller_add_entry_calls_core_without_legacy_language_arg(self):
         app = self.make_app_stub()
@@ -2140,8 +2181,10 @@ class AppRegressionTests(TemporaryStorageTestCase):
                 {
                     "title": "Intro",
                     "duration": "1:11",
+                    "composer": "Uwe",
                     "production": "Prod",
                     "year": "2026",
+                    "notes": "Ready for AKM",
                     "audio_path": "",
                 }
             ]
@@ -2152,15 +2195,99 @@ class AppRegressionTests(TemporaryStorageTestCase):
 
         controller = ReleaseController(app)
         controller.log = app.logs.append
-        controller.toast = app.toasts.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
 
         controller.handle_drop(SimpleNamespace(data="ignored"))
 
         self.assertEqual(1, len(app.state.release_tracks))
         self.assertEqual("Datei→Werk", app.state.release_tracks[0]["source"])
+        self.assertEqual("Uwe", app.state.release_tracks[0]["composer"])
+        self.assertEqual("Ready for AKM", app.state.release_tracks[0]["notes"])
         self.assertEqual("01. Intro | 1:11 | Prod | 2026 | Datei→Werk", release_view.track_labels[0])
         self.assertIn("Release DnD: 1 Tracks hinzugefügt.", app.logs)
-        self.assertEqual("1 TRACKS HINZUGEFÜGT", app.toasts[0])
+        self.assertEqual("1 TRACKS HINZUGEFÜGT", app.toasts[0][0])
+
+    def test_release_controller_import_release_to_batch_updates_catalog_and_opens_batch(self):
+        app = self.make_app_stub()
+        app.overview_ctrl = SimpleNamespace(
+            refresh_list=lambda: setattr(app, "overview_refreshed", True)
+        )
+        app.batch_ctrl = SimpleNamespace(
+            reload_flow_data=lambda preferred_index=None: setattr(app, "batch_refreshed", preferred_index)
+        )
+        app.state.release_tracks = [
+            {
+                "title": "Intro",
+                "duration": "1:11",
+                "composer": "Uwe",
+                "production": "Prod",
+                "year": "2026",
+                "notes": "Ready for AKM",
+                "audio_path": "/tmp/intro.wav",
+                "source": "Werk",
+            }
+        ]
+
+        controller = ReleaseController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        with mock.patch(
+            "app_controllers.release_controller.akm_core.import_tracks",
+            return_value=[
+                {
+                    "title": "Intro",
+                    "duration": "1:11",
+                    "composer": "Uwe",
+                    "action": "added",
+                }
+            ],
+        ) as import_tracks:
+            controller.import_release_to_batch(open_batch=True)
+
+        import_tracks.assert_called_once_with(
+            [
+                {
+                    "title": "Intro",
+                    "duration": "1:11",
+                    "composer": "Uwe",
+                    "production": "Prod",
+                    "year": "2026",
+                    "notes": "Ready for AKM",
+                    "audio_path": "/tmp/intro.wav",
+                }
+            ]
+        )
+        self.assertEqual("Release -> AKM abgeschlossen: 1 Einträge", app.logs[0])
+        self.assertEqual("  + Intro (1:11 | Uwe)", app.logs[1])
+        self.assertEqual("Release -> AKM abgeschlossen: 1 Einträge", app.toasts[0][0])
+        self.assertTrue(app.state.invalidated)
+        self.assertTrue(app.overview_refreshed)
+        self.assertEqual(0, app.batch_refreshed)
+        self.assertEqual("batch", app.selected_tab)
+
+    def test_release_controller_build_export_triggers_release_handoff_on_success(self):
+        app = self.make_app_stub()
+        app.release_state_cache = {"title": "My Release"}
+        app.state.release_tracks = [{"title": "Intro", "audio_path": "/tmp/intro.wav", "source": "Werk"}]
+
+        controller = ReleaseController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append((message, kwargs))
+
+        with mock.patch(
+            "app_controllers.release_controller.release_workflows.start_distro_export",
+            return_value=(True, "Export fertig"),
+        ) as export_mock, mock.patch.object(
+            controller,
+            "import_release_to_batch",
+        ) as import_release:
+            controller.build_export()
+
+        export_mock.assert_called_once_with({"title": "My Release"}, app.state.release_tracks)
+        import_release.assert_called_once_with(open_batch=True)
+        self.assertIn("Export fertig", app.logs)
+        self.assertEqual("EXPORT FERTIG", app.toasts[0][0])
 
     def test_release_controller_refresh_view_waits_for_built_release_tab(self):
         app = self.make_app_stub()
@@ -2363,12 +2490,42 @@ class AppRegressionTests(TemporaryStorageTestCase):
             self.assertIn("Release Title: My Release", handle.read())
         workbook = load_workbook(os.path.join(release_dir, "tracklist.xlsx"), read_only=True, data_only=True)
         try:
+            sheet_names = workbook.sheetnames
+            import_sheet = workbook["AKM Import"]
             info_sheet = workbook["Release Info"]
             track_sheet = workbook["Tracklist"]
+            import_rows = list(import_sheet.iter_rows(values_only=True))
             info_rows = list(info_sheet.iter_rows(values_only=True))
             track_rows = list(track_sheet.iter_rows(values_only=True))
         finally:
             workbook.close()
+        self.assertEqual("AKM Import", sheet_names[0])
+        self.assertEqual(
+            (
+                "Title",
+                "Duration",
+                "Composer",
+                "Production",
+                "Year",
+                "Notes",
+                "Audio Path",
+                "Track Number",
+                "Release Title",
+                "Artist",
+                "Type",
+                "Release Date",
+                "Genre",
+                "Subgenre",
+                "Label",
+                "Copyright",
+                "Cover Path",
+                "Source",
+            ),
+            import_rows[0],
+        )
+        self.assertEqual("Fresh Track", import_rows[1][0])
+        self.assertEqual("My Release", import_rows[1][8])
+        self.assertEqual(audio_path, import_rows[1][6])
         self.assertEqual(("Field", "Value"), info_rows[0])
         self.assertIn(("Release Title", "My Release"), info_rows)
         self.assertEqual(

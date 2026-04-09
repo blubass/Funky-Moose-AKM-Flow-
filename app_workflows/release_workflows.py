@@ -29,8 +29,10 @@ def copy_work_to_release_track(item, audio_path=None, source="Werk"):
     return {
         "title": _clean_text((item or {}).get("title")),
         "duration": _clean_text((item or {}).get("duration")),
+        "composer": _clean_text((item or {}).get("composer")),
         "production": _clean_text((item or {}).get("production")),
         "year": _clean_text((item or {}).get("year")),
+        "notes": _clean_text((item or {}).get("notes")),
         "audio_path": _clean_text(audio_path) if audio_path is not None else _clean_text((item or {}).get("audio_path")),
         "source": source,
     }
@@ -41,8 +43,10 @@ def build_file_release_track(path, duration=""):
     return {
         "title": title,
         "duration": _clean_text(duration),
+        "composer": "",
         "production": "",
         "year": "",
+        "notes": "",
         "audio_path": _clean_text(path),
         "source": "Datei",
     }
@@ -176,6 +180,74 @@ def build_release_track_csv_rows(tracks):
     return rows
 
 
+def build_release_import_rows(metadata, tracks):
+    values = metadata or {}
+    rows = [[
+        "Title",
+        "Duration",
+        "Composer",
+        "Production",
+        "Year",
+        "Notes",
+        "Audio Path",
+        "Track Number",
+        "Release Title",
+        "Artist",
+        "Type",
+        "Release Date",
+        "Genre",
+        "Subgenre",
+        "Label",
+        "Copyright",
+        "Cover Path",
+        "Source",
+    ]]
+    for index, item in enumerate(tracks or [], start=1):
+        rows.append(
+            [
+                _clean_text(item.get("title")),
+                _clean_text(item.get("duration")),
+                _clean_text(item.get("composer")),
+                _clean_text(item.get("production")),
+                _clean_text(item.get("year")),
+                _clean_text(item.get("notes")),
+                _clean_text(item.get("audio_path")),
+                index,
+                _clean_text(values.get("title")),
+                _clean_text(values.get("artist")),
+                _clean_text(values.get("type")),
+                _clean_text(values.get("release_date")),
+                _clean_text(values.get("genre")),
+                _clean_text(values.get("subgenre")),
+                _clean_text(values.get("label")),
+                _clean_text(values.get("copyright_line")),
+                _clean_text(values.get("cover_path")),
+                _clean_text(item.get("source")),
+            ]
+        )
+    return rows
+
+
+def build_release_import_tracks(tracks):
+    importable_tracks = []
+    for item in tracks or []:
+        title = _clean_text((item or {}).get("title"))
+        if not title:
+            continue
+        importable_tracks.append(
+            {
+                "title": title,
+                "duration": _clean_text(item.get("duration")),
+                "composer": _clean_text(item.get("composer")),
+                "production": _clean_text(item.get("production")),
+                "year": _clean_text(item.get("year")),
+                "notes": _clean_text(item.get("notes")),
+                "audio_path": _clean_text(item.get("audio_path")),
+            }
+        )
+    return importable_tracks
+
+
 def _autosize_excel_columns(sheet, min_width=12, max_width=48):
     for column_cells in sheet.columns:
         max_length = 0
@@ -192,8 +264,13 @@ def _autosize_excel_columns(sheet, min_width=12, max_width=48):
 
 def write_release_track_workbook(output_path, metadata, tracks):
     workbook = Workbook()
-    info_sheet = workbook.active
-    info_sheet.title = "Release Info"
+    import_sheet = workbook.active
+    import_sheet.title = "AKM Import"
+    for row in build_release_import_rows(metadata, tracks):
+        import_sheet.append(row)
+    import_sheet.freeze_panes = "A2"
+
+    info_sheet = workbook.create_sheet("Release Info")
     info_sheet.append(["Field", "Value"])
     for row in build_release_info_rows(metadata):
         info_sheet.append(list(row))
@@ -205,7 +282,7 @@ def write_release_track_workbook(output_path, metadata, tracks):
     track_sheet.freeze_panes = "A2"
 
     header_font = Font(bold=True)
-    for sheet in (info_sheet, track_sheet):
+    for sheet in (import_sheet, info_sheet, track_sheet):
         for cell in sheet[1]:
             cell.font = header_font
         _autosize_excel_columns(sheet)
