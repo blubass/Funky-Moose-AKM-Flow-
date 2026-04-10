@@ -1,112 +1,119 @@
 # AKMFlow+ | The Music Workflow Forge
 
-<p align="center">
-  <img src="AKM.png" alt="AKMFlow+ hero artwork" width="100%">
-</p>
+From metadata chaos to release-ready control.  
+Von Metadaten-Chaos zu releasefertiger Kontrolle.
 
-<p align="center">
-  <strong>From metadata chaos to release-ready control.</strong><br>
-  <strong>Von Metadaten-Chaos zu releasefertiger Kontrolle.</strong>
-</p>
+![AKMFlow+ hero artwork](AKM.png)
 
-<p align="center">
-  AKMFlow+ brings catalog management, collecting-society prep, cover workflows, loudness checks and release packaging into one focused desktop app.<br>
-  AKMFlow+ bringt Katalogpflege, Verwertungsgesellschaft-Workflow, Cover-Arbeit, Lautheitskontrolle und Release-Paketierung in eine einzige fokussierte Desktop-App.
-</p>
+AKMFlow+ is a desktop app for music release workflow. It brings catalog management, collecting-society prep, cover workflows, loudness checks and release packaging into one focused place.
+
+AKMFlow+ ist eine Desktop-App für Musik-Release-Workflows. Sie bringt Katalogpflege, Verwertungsgesellschaft-Vorbereitung, Cover-Handling, Lautheitskontrolle und Release-Paketierung in einen einzigen fokussierten Workspace.
 
 ---
 
-## Deutsch
+## Current Status / Aktueller Stand
 
-**AKMFlow+** ist fuer Artists, Producer, Songwriter, Indies und Release-Menschen gedacht, die ihre Musikverwaltung nicht mehr zwischen Excel, Finder, Notizen und Einzeltools zerlegen wollen.
+**Active development / usable beta**  
+**Aktive Entwicklung / nutzbare Beta**
 
-Hier fuehlt sich Musik-Admin nicht nach Verwaltung an, sondern nach Flow: ein klarer Dark-Interface-Workspace fuer Werke, Metadaten, Batch-Meldungen, Cover, Loudness und Release-Vorbereitung.
+Core workflow areas already included:
+- catalog and metadata handling
+- batch workflow
+- cover workflow
+- loudness workspace
+- release packaging
 
-### Warum AKMFlow+ auffaellt
-
-- Eine zentrale Werkdatenbank fuer Titel, Dauer, Komponist:innen, Produktion, Tags, Notizen und Status.
-- Ein schneller Batch-Workflow fuer AKM-/GEMA-nahe Meldestrecken mit Copy-Flow und Status-Navigation.
-- Eine Cover-Forge mit Live-Preview, Typografie-Steuerung, Master-Asset-Verwaltung und Export.
-- Ein Loudness-Bereich fuer LUFS, True Peak, Waveform und gematchte Exporte.
-- Ein Release-Bereich fuer Track-Zusammenstellung, Cover-Verknuepfung und Export-Vorbereitung.
-- Ein eigenstaendiger visueller Auftritt statt generischer Tabellen-Software.
-
-### Fuer wen es gebaut ist
-
-- Solo-Artists, die ihre Releases selbst organisieren.
-- Producer und Studios, die Metadaten und Assets sauber halten wollen.
-- Labels und Projektteams, die einen kompakten Desktop-Hub fuer Release-Arbeit brauchen.
-- Alle, die lieber Musik veroeffentlichen als Dateien zusammensuchen.
-
-### Screenshot
-
-![AKMFlow+ dashboard screenshot](assets/akmflowplus-dashboard-screenshot.png)
-
-*Das Dashboard zeigt den aktuellen Produktionsstand auf einen Blick und fuehrt direkt in Batch, Cover, Loudness und Release weiter.*
+Bereits enthaltene Kernbereiche:
+- Katalog- und Metadatenverwaltung
+- Batch-Workflow
+- Cover-Workflow
+- Loudness-Bereich
+- Release-Paketierung
 
 ---
 
-## English
+## Why AKMFlow+ / Warum AKMFlow+
 
-**AKMFlow+** is built for artists, producers, songwriters, indie teams and release managers who are tired of splitting music admin across spreadsheets, folders, notes and disconnected utilities.
+### English
+AKMFlow+ is built for artists, producers, songwriters, indie teams and release-minded studios who are tired of splitting music admin across spreadsheets, folders, notes and disconnected utilities.
 
-It turns release work into one sharp desktop flow: a high-contrast dark workspace for works, metadata, registration prep, cover design, loudness control and release assembly.
+It turns release work into one focused desktop flow:
+- one central catalog for titles, durations, composers, notes, tags and status
+- a fast batch workflow for collecting-society style registration prep
+- a dedicated cover workspace with preview and export
+- loudness checks for LUFS and True Peak
+- a release area for assembling assets and export-ready packages
 
-### Why people want it
+### Deutsch
+AKMFlow+ ist für Artists, Producer, Songwriter:innen, Indie-Teams und release-orientierte Studios gedacht, die ihre Musikverwaltung nicht länger zwischen Excel, Ordnern, Notizen und Einzeltools zerlegen wollen.
 
-- One central catalog for titles, durations, composers, production notes, tags, status and release context.
-- A fast batch workflow for collecting-society style registration tasks with copy-first navigation.
-- A dedicated Cover Forge with live preview, typography controls, master asset handling and export.
-- A loudness workspace for LUFS, true peak, waveform inspection and matched output files.
-- A release workspace for assembling tracklists, linking cover art and preparing final export packages.
-- A desktop experience with its own identity instead of another sterile admin tool.
+Die App macht daraus einen fokussierten Desktop-Flow:
+- ein zentraler Katalog für Titel, Dauer, Komponist:innen, Notizen, Tags und Status
+- ein schneller Batch-Workflow für meldeähnliche Registrierungsstrecken
+- ein eigener Cover-Bereich mit Vorschau und Export
+- Loudness-Prüfung für LUFS und True Peak
+- ein Release-Bereich für Assets und exportfertige Pakete
 
-### Built for
+---
 
-- Independent artists running their own releases.
-- Producers and studios who need metadata and assets under control.
-- Labels and small teams who want one focused release hub.
-- Anyone who would rather ship music than chase files.
+## Main Areas / Hauptbereiche
 
-### Screenshot
+### Catalog / Katalog
+Keep works, titles, durations, composers, notes and status in one place.
 
-![AKMFlow+ app screenshot](assets/akmflowplus-dashboard-screenshot.png)
+Werke, Titel, Dauern, Komponist:innen, Notizen und Status an einem Ort.
 
-*The dashboard gives a fast overview of project status and leads straight into batch work, cover prep, loudness and release packaging.*
+### Batch Workflow / Batch-Workflow
+Speed up repetitive registration-style tasks with copy-first navigation and status control.
+
+Wiederkehrende Meldestrecken mit Copy-Flow und Statuskontrolle beschleunigen.
+
+### Cover Forge / Cover-Forge
+Preview typography, manage cover assets and prepare artwork exports.
+
+Typografie prüfen, Cover-Assets verwalten und Artwork-Exporte vorbereiten.
+
+### Loudness / Lautheit
+Check LUFS and True Peak and prepare matched output files.
+
+LUFS und True Peak prüfen und gematchte Ausgabedateien vorbereiten.
+
+### Release Workspace / Release-Bereich
+Assemble track data, link cover assets and prepare final release packages.
+
+Trackdaten zusammenführen, Cover verknüpfen und finale Release-Pakete vorbereiten.
+
+---
+
+## Built For / Für wen es gebaut ist
+
+### English
+- independent artists managing their own releases
+- producers and studios who want clean metadata and asset control
+- small labels and release teams
+- anyone who would rather release music than chase files
+
+### Deutsch
+- unabhängige Artists mit eigener Release-Arbeit
+- Produzent:innen und Studios mit sauberer Metadaten- und Asset-Verwaltung
+- kleine Labels und Release-Teams
+- alle, die lieber veröffentlichen als Dateien zusammensuchen
+
+---
+
+## Screenshot
+
+![AKMFlow+ dashboard screenshot](assets/akmflow_screenshot.png)
+
+The dashboard gives a quick overview of project state and leads directly into batch work, cover prep, loudness and release packaging.
+
+Das Dashboard zeigt den Projektstatus auf einen Blick und führt direkt in Batch, Cover, Loudness und Release-Vorbereitung.
 
 ---
 
 ## Quick Start
 
+### Local run
 ```bash
 pip install -r requirements.txt
 python3 akm_app.py
-```
-
-### macOS App Build
-
-```bash
-python3 -m PyInstaller --clean --noconfirm 'AKMFlow+.spec'
-```
-
-The canonical macOS build recipe lives in `AKMFlow+.spec`.
-
-The standalone app bundle will be created at `dist/Funky Moose Release Forge.app`.
-
-### GitHub Releases
-
-This repository now includes GitHub Actions workflows for:
-
-- running the regression test suite on pushes and pull requests
-- building macOS and Windows release ZIPs on version tags like `v1.0.2`
-- publishing those ZIP packages to a GitHub Release automatically
-
-Push a tag in the format `v*` to trigger a packaged GitHub release.
-
----
-
-## What Makes It Different
-
-AKMFlow+ is not trying to be a generic DAM, a generic spreadsheet, or a generic audio utility. It is a purpose-built release workflow app with a strong visual identity and a very practical goal: keep the creative and administrative side of releasing music in one place.
-
-AKMFlow+ will keep getting sharper, faster and more release-focused from here.
