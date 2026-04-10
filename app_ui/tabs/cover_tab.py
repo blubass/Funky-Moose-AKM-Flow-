@@ -598,7 +598,7 @@ class CoverTab(AkmPanel):
     def _apply_status_actions_layout(self, width):
         if not hasattr(self, "_status_action_buttons"):
             return
-        target_mode = self._resolve_layout_mode(width, self.ACTION_STACK_BREAKPOINT)
+        target_mode = ui_patterns.resolve_layout_mode(width, self.ACTION_STACK_BREAKPOINT)
         if target_mode == self._status_action_mode:
             return
 

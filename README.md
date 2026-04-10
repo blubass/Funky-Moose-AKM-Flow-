@@ -1,113 +1,132 @@
-# AKMFlow+ | The Music Workflow Forge
+# Funky Moose Release Forge
+## The Release Forge for Humans Who Make Music
 
-From metadata chaos to release-ready control.  
-Von Metadaten-Chaos zu releasefertiger Kontrolle.
+Less spreadsheet pain. More flow.  
+Weniger Excel-Gewuerge. Mehr Flow.
 
-![AKMFlow+ hero artwork](AKM.png)
+![Funky Moose Release Forge dashboard](assets/funky-moose-release-forge-dashboard.png)
 
-AKMFlow+ is a desktop app for music release workflow. It brings catalog management, collecting-society prep, cover workflows, loudness checks and release packaging into one focused place.
+*The dashboard keeps status, batch work, cover prep, loudness and release packaging in one place.  
+Das Dashboard haelt Status, Batch, Cover, Loudness und Release-Paketierung an einem Ort zusammen.*
 
-AKMFlow+ ist eine Desktop-App für Musik-Release-Workflows. Sie bringt Katalogpflege, Verwertungsgesellschaft-Vorbereitung, Cover-Handling, Lautheitskontrolle und Release-Paketierung in einen einzigen fokussierten Workspace.
+### Demo Video
+
+[Watch the app walkthrough](assets/funky-moose-release-forge-demo.mp4)
+
+**Funky Moose Release Forge** is a desktop app for artists, producers, songwriters and release-minded music people who want one strong place for metadata, cover work, loudness checks and release prep.
+
+**Funky Moose Release Forge** ist eine Desktop-App fuer Artists, Produzent:innen, Songwriter:innen und alle Musikmenschen, die Metadaten, Cover-Arbeit, Loudness und Release-Vorbereitung an einem starken Ort buendeln wollen.
+
+It is built for the real mess behind releases: titles, durations, notes, composer data, cover versions, loudness targets, export files, release assets and all the small details that otherwise get lost across folders, spreadsheets and half-finished lists.
+
+Sie ist fuer das echte Chaos hinter Releases gebaut: Titel, Dauern, Notizen, Komponist:innen-Daten, Cover-Versionen, Loudness-Ziele, Export-Dateien, Release-Assets und all die kleinen Teile, die sonst in Ordnern, Tabellen und halbfertigen Listen verschwinden.
 
 ---
 
-## Current Status / Aktueller Stand
+## What It Does
+
+### English
+Funky Moose Release Forge turns scattered release work into one focused desktop workflow.
+
+It helps you:
+- manage catalog and metadata in one place
+- prepare collecting-society style workflows faster
+- build and preview cover variations
+- check LUFS and true peak
+- assemble release assets and export packages
+- keep track of status instead of guessing where you left off
+
+### Deutsch
+Funky Moose Release Forge verwandelt verstreute Release-Arbeit in einen fokussierten Desktop-Workflow.
+
+Die App hilft dir dabei:
+- Katalog und Metadaten an einem Ort zu verwalten
+- AKM-/GEMA-nahe Workflows schneller vorzubereiten
+- Cover-Varianten zu bauen und zu pruefen
+- LUFS und True Peak zu kontrollieren
+- Release-Assets und Export-Pakete zusammenzustellen
+- den Ueberblick zu behalten, statt zu raetseln, wo du zuletzt aufgehoert hast
+
+---
+
+## Core Areas
+
+### Catalog
+Titles, works, durations, composers, notes, tags and status.  
+No treasure hunt. No folder archaeology.
+
+### Batch Flow
+For the repetitive part of release prep.  
+Copy flow, navigation, fast handling, less friction.
+
+### Cover Forge
+Preview artwork, manage assets, test text placement and prepare export-ready covers.
+
+### Loudness
+Check LUFS and true peak and prepare matched outputs without losing the thread.
+
+### Release Workspace
+Bring the pieces together and prepare the final package.
+
+---
+
+## Hauptbereiche
+
+### Katalog
+Titel, Werke, Dauern, Komponist:innen, Notizen, Tags und Status.  
+Keine Schatzsuche. Keine Ordner-Archaeologie.
+
+### Batch Flow
+Fuer den wiederkehrenden Teil der Release-Vorbereitung.  
+Copy-Flow, Navigation, schnelles Arbeiten, weniger Reibung.
+
+### Cover Forge
+Artworks pruefen, Assets verwalten, Textplatzierung testen und exportfertige Cover vorbereiten.
+
+### Loudness
+LUFS und True Peak kontrollieren und gematchte Dateien vorbereiten, ohne den Faden zu verlieren.
+
+### Release Workspace
+Alle Teile zusammenfuehren und das finale Paket vorbereiten.
+
+---
+
+## Built For
+
+### English
+- independent artists
+- producers and composers
+- small studios
+- release-focused teams
+- people who are tired of doing music admin with ten open folders and mild despair
+
+### Deutsch
+- unabhaengige Artists
+- Produzent:innen und Komponist:innen
+- kleine Studios
+- release-orientierte Teams
+- Menschen, die Musikverwaltung nicht mehr mit zehn offenen Ordnern und leichter Verzweiflung machen wollen
+
+---
+
+## Current Status
 
 **Active development / usable beta**  
 **Aktive Entwicklung / nutzbare Beta**
 
-Core workflow areas already included:
+Current workflow areas inside the project include:
 - catalog and metadata handling
-- batch workflow
+- batch-oriented workflow
 - cover workflow
 - loudness workspace
-- release packaging
+- release preparation
 
-Bereits enthaltene Kernbereiche:
+Aktuell im Projekt enthalten sind:
 - Katalog- und Metadatenverwaltung
-- Batch-Workflow
+- batch-orientierter Workflow
 - Cover-Workflow
 - Loudness-Bereich
-- Release-Paketierung
-
----
-
-## Why AKMFlow+ / Warum AKMFlow+
-
-### English
-AKMFlow+ is built for artists, producers, songwriters, indie teams and release-minded studios who are tired of splitting music admin across spreadsheets, folders, notes and disconnected utilities.
-
-It turns release work into one focused desktop flow:
-- one central catalog for titles, durations, composers, notes, tags and status
-- a fast batch workflow for collecting-society style registration prep
-- a dedicated cover workspace with preview and export
-- loudness checks for LUFS and True Peak
-- a release area for assembling assets and export-ready packages
-
-### Deutsch
-AKMFlow+ ist für Artists, Producer, Songwriter:innen, Indie-Teams und release-orientierte Studios gedacht, die ihre Musikverwaltung nicht länger zwischen Excel, Ordnern, Notizen und Einzeltools zerlegen wollen.
-
-Die App macht daraus einen fokussierten Desktop-Flow:
-- ein zentraler Katalog für Titel, Dauer, Komponist:innen, Notizen, Tags und Status
-- ein schneller Batch-Workflow für meldeähnliche Registrierungsstrecken
-- ein eigener Cover-Bereich mit Vorschau und Export
-- Loudness-Prüfung für LUFS und True Peak
-- ein Release-Bereich für Assets und exportfertige Pakete
-
----
-
-## Main Areas / Hauptbereiche
-
-### Catalog / Katalog
-Keep works, titles, durations, composers, notes and status in one place.
-
-Werke, Titel, Dauern, Komponist:innen, Notizen und Status an einem Ort.
-
-### Batch Workflow / Batch-Workflow
-Speed up repetitive registration-style tasks with copy-first navigation and status control.
-
-Wiederkehrende Meldestrecken mit Copy-Flow und Statuskontrolle beschleunigen.
-
-### Cover Forge / Cover-Forge
-Preview typography, manage cover assets and prepare artwork exports.
-
-Typografie prüfen, Cover-Assets verwalten und Artwork-Exporte vorbereiten.
-
-### Loudness / Lautheit
-Check LUFS and True Peak and prepare matched output files.
-
-LUFS und True Peak prüfen und gematchte Ausgabedateien vorbereiten.
-
-### Release Workspace / Release-Bereich
-Assemble track data, link cover assets and prepare final release packages.
-
-Trackdaten zusammenführen, Cover verknüpfen und finale Release-Pakete vorbereiten.
-
----
-
-## Built For / Für wen es gebaut ist
-
-### English
-- independent artists managing their own releases
-- producers and studios who want clean metadata and asset control
-- small labels and release teams
-- anyone who would rather release music than chase files
-
-### Deutsch
-- unabhängige Artists mit eigener Release-Arbeit
-- Produzent:innen und Studios mit sauberer Metadaten- und Asset-Verwaltung
-- kleine Labels und Release-Teams
-- alle, die lieber veröffentlichen als Dateien zusammensuchen
-
----
-
-## Screenshot
-
-![AKMFlow+ dashboard screenshot](assets/akmflow_screenshot.png)
-
-The dashboard gives a quick overview of project state and leads directly into batch work, cover prep, loudness and release packaging.
-
-Das Dashboard zeigt den Projektstatus auf einen Blick und führt direkt in Batch, Cover, Loudness und Release-Vorbereitung.
+- Release-Vorbereitung
 
 ---
 
@@ -117,3 +136,72 @@ Das Dashboard zeigt den Projektstatus auf einen Blick und führt direkt in Batch
 ```bash
 pip install -r requirements.txt
 python3 akm_app.py
+```
+
+### macOS build
+```bash
+python3 -m PyInstaller --clean --noconfirm 'FunkyMooseReleaseForge.spec'
+```
+
+The versioned PyInstaller spec is `FunkyMooseReleaseForge.spec`, and the built app is `Funky Moose Release Forge.app`.
+
+### Release automation
+- tests run on pushes and pull requests
+- version tags in the format `v*` build macOS and Windows release packages
+- tagged builds publish release ZIPs automatically via GitHub Actions
+
+### See also
+- [INSTALL_MAC.md](INSTALL_MAC.md)
+- [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md)
+
+### Project Structure
+- `akm_app.py` - main app entry and orchestration
+- `app_controllers/` - controllers
+- `app_logic/` - processing and business logic
+- `app_ui/` - UI components
+- `app_workflows/` - workflow modules
+- `tests/` - tests
+- `.github/workflows/` - CI and automation
+- `assets/` - artwork, screenshots and demo material
+
+---
+
+## Why It Exists
+
+### English
+Because music admin should not feel like punishment.
+
+Because release work gets messy fast.
+
+Because good tools should help you stay in flow, not drag you into dead menus, broken lists and forgotten folders.
+
+### Deutsch
+Weil Musikverwaltung sich nicht wie Strafe anfuehlen sollte.
+
+Weil Release-Arbeit schnell unuebersichtlich wird.
+
+Weil gute Tools dich im Flow halten sollten, statt dich in tote Menues, kaputte Listen und vergessene Ordner zu ziehen.
+
+---
+
+## Funky Moose Spirit
+
+This app is not built for corporate fog.  
+It is built for real work, real releases and real creative momentum.
+
+No fake magic.  
+No empty dashboard theatre.  
+Just a strong workflow forge for getting music from chaos to control.
+
+Diese App ist nicht fuer Unternehmensnebel gebaut.  
+Sie ist fuer echte Arbeit, echte Releases und echten kreativen Schwung gebaut.
+
+Keine falsche Magie.  
+Kein leeres Dashboard-Theater.  
+Sondern eine starke Workflow-Forge, die Musik von Chaos zu Kontrolle bringt.
+
+---
+
+## License
+
+No license file is included yet. Add your preferred license here when you are ready.

@@ -57,7 +57,7 @@ jobs:
         run: python make_icon.py
 
       - name: Build standalone package
-        run: python -m PyInstaller --clean --noconfirm "AKMFlow+.spec"
+        run: python -m PyInstaller --clean --noconfirm "FunkyMooseReleaseForge.spec"
 
       - name: Package macOS release
         if: runner.os == 'macOS'
