@@ -1,4 +1,5 @@
 from app_logic.text_utils import clean_text as _clean_text
+from app_logic import i18n
 
 
 ASSISTANT_STATUS_ACTIONS = [
@@ -16,12 +17,17 @@ def build_assistant_radar_state(value):
     title = normalize_assistant_title(value)
     if not title:
         return {
-            "status_text": "Schnellstart bereit",
-            "hint_text": "Gib einen Titel ein, importiere Excel oder nutze die Status-Aktionen mit deiner Auswahl aus der Übersicht.",
-            "meta_text": "Keine Eingabe aktiv | Excel-Import und Statuswechsel stehen bereit",
+            "status_text": i18n._t("ash_radar_ready"),
+            "hint_text": i18n._t("ash_radar_hint"),
+            "meta_text": i18n._t("ash_radar_context_empty"),
         }
 
     words = len([part for part in title.split(" ") if part])
+    return {
+        "status_text": f"Bereit für neuen Titel: {title}", # TODO: Move some parts to i18n if needed
+        "hint_text": "Werk anlegen erstellt sofort einen Datensatz. Status-Aktionen arbeiten auf die aktuelle Auswahl in der Übersicht.",
+        "meta_text": f"{words} Wort/Wörter | {len(title)} Zeichen | Direkt aus dem Schnellstart anlegbar",
+    }
     return {
         "status_text": f"Bereit für neuen Titel: {title}",
         "hint_text": "Werk anlegen erstellt sofort einen Datensatz. Status-Aktionen arbeiten auf die aktuelle Auswahl in der Übersicht.",
@@ -32,9 +38,9 @@ def build_assistant_radar_state(value):
 def build_import_log_messages(imported_items):
     items = list(imported_items or [])
     if not items:
-        return ["Excel-Import: keine verwertbaren Titel gefunden."]
+        return [i18n._t("log_import_none")]
 
-    messages = [f"Excel-Import abgeschlossen: {len(items)} Einträge"]
+    messages = [i18n._t("log_import_done").format(count=len(items))]
     for item in items:
         marker = {"added": "+", "updated": "~", "unchanged": "="}.get(
             item.get("action"),

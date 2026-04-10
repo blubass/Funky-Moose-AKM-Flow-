@@ -20,7 +20,7 @@ except Exception:
 # Core Logic & Infrastructure
 from app_logic import (
     akm_core, assistant_tools, app_state, task_runner,
-    loudness_tools
+    loudness_tools, i18n
 )
 from app_ui import ui_patterns
 
@@ -36,9 +36,17 @@ from app_controllers.release_controller import ReleaseController
 from app_controllers.batch_controller import BatchController
 from app_controllers.details_controller import DetailsController
 
-# Architectural Layout Components
 from app_ui.header import MainHeader
 from app_ui.tab_system import AppTabs
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app_controllers.project_controller import ProjectController
+    from app_controllers.overview_controller import OverviewController
+    from app_controllers.loudness_controller import LoudnessController
+    from app_controllers.release_controller import ReleaseController
+    from app_controllers.batch_controller import BatchController
+    from app_controllers.details_controller import DetailsController
 
 class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     """
@@ -55,10 +63,18 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def __init__(self):
         super().__init__()
 
+        # Explicit Controller Type Annotations
+        self.overview_ctrl: 'OverviewController'
+        self.project_ctrl: 'ProjectController'
+        self.loudness_ctrl: 'LoudnessController'
+        self.release_ctrl: 'ReleaseController'
+        self.batch_ctrl: 'BatchController'
+        self.details_ctrl: 'DetailsController'
+
         self._perform_global_setup()
         self._set_window_config()
-        self._init_runtime_state()
         self._init_services()
+        self._init_runtime_state()
         self._init_controllers()
         self._build_application_shell()
         self._configure_runtime_bindings()
@@ -124,13 +140,14 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         logging.info(f"GUI MASTER START: {cfg.APP_NAME} v{cfg.VERSION}")
 
     def _init_refresh_trackers(self):
-        """Track refresh-sensitive state separately from widget construction."""
+        """Track refresh-sensitive state separately."""
         self._last_overview_refresh = self._build_overview_refresh_snapshot()
-        self._last_overview_refresh["mtime"] = None
-        self._last_dashboard_refresh = {"mtime": None}
-        self._last_batch_refresh = {"mtime": None}
         self._refresh_timer = None
         self._prev_selected_path = None
+        
+        # Subscribe to data changes
+        self.state.subscribe("cache_invalidated", self._on_data_invalidated)
+        self.state.subscribe("data_changed", self._on_data_changed)
 
     def _bind_window_events(self):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -155,7 +172,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         dnd_status = self._get_drag_and_drop_status_text(include_reason=True)
         self.append_log(f"Drag & Drop System: {dnd_status}")
         if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
-            self.header.task_detail_label.config(text=f"Workspace bereit | Drag & Drop: {dnd_status}")
+            workspace_ready = i18n._t("workspace_ready")
+            self.header.task_detail_label.config(text=f"{workspace_ready} | Drag & Drop: {dnd_status}")
 
     def _prime_initial_views(self):
         """Load controller-backed startup data once the shell is visible."""
@@ -191,30 +209,21 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         return "Deaktiviert"
 
     def _bind_controller_delegates(self):
-        """Expose only the shared controller actions that multiple app surfaces need."""
-        delegate_map = {
-            self.project_ctrl: (
-                "save_project",
-                "load_project_dialog",
-                "import_excel",
-                "import_excel_path",
-            ),
-            self.overview_ctrl: (
-                "refresh_list",
-                "refresh_dashboard",
-                "load_selected_into_details",
-                "set_status",
-                "on_listbox_activate",
-                "jump_to_last_open",
-            ),
-        }
-        for controller, bindings in delegate_map.items():
-            for binding in bindings:
-                if isinstance(binding, tuple):
-                    app_name, controller_name = binding
-                else:
-                    app_name = controller_name = binding
-                setattr(self, app_name, getattr(controller, controller_name))
+        """Expose shared controller actions explicitly for better transparency."""
+        
+        # Project Controller delegates
+        self.save_project = self.project_ctrl.save_project
+        self.load_project_dialog = self.project_ctrl.load_project_dialog
+        self.import_excel = self.project_ctrl.import_excel
+        self.import_excel_path = self.project_ctrl.import_excel_path
+        
+        # Overview Controller delegates
+        self.refresh_list = self.overview_ctrl.refresh_list
+        self.refresh_dashboard = self.overview_ctrl.refresh_dashboard
+        self.load_selected_into_details = self.overview_ctrl.load_selected_into_details
+        self.set_status = self.overview_ctrl.set_status
+        self.on_listbox_activate = self.overview_ctrl.on_listbox_activate
+        self.jump_to_last_open = self.overview_ctrl.jump_to_last_open
 
     def _init_ui_vars(self):
         """Prepare tracker variables and registries used across multiple tabs."""
@@ -320,15 +329,15 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             "mtime": mtime,
         }
 
-    def _should_refresh_overview(self, mtime, snapshot):
+    def _should_refresh_overview(self, snapshot):
         """Compare the active overview state against the last refresh snapshot."""
         return any(
             self._last_overview_refresh[key] != snapshot[key]
             for key in ("search", "filter", "sort", "desc")
-        ) or self._last_overview_refresh["mtime"] != mtime
+        )
 
-    def _remember_overview_refresh(self, mtime, snapshot):
-        self._last_overview_refresh.update(dict(snapshot, mtime=mtime))
+    def _remember_overview_refresh(self, snapshot):
+        self._last_overview_refresh.update(snapshot)
 
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""
@@ -364,28 +373,29 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             return
 
         getattr(self.tab_system, active_tab_id)
-        mtime = self.state._get_data_mtime()
-        self._handle_tab_refresh(active_tab_id, mtime)
+        self._handle_tab_refresh(active_tab_id)
 
-    def _handle_tab_refresh(self, active_tab_id, mtime):
+    def _on_data_invalidated(self, _data=None):
+        self.refresh_all_tabs()
+
+    def _on_data_changed(self, _data=None):
+        self.refresh_all_tabs()
+
+    def _handle_tab_refresh(self, active_tab_id):
         """Runs only the refresh logic needed for the currently active tab."""
         if active_tab_id == "dashboard":
-            if self._last_dashboard_refresh["mtime"] != mtime:
-                self.overview_ctrl.refresh_dashboard()
-                self._last_dashboard_refresh["mtime"] = mtime
+            self.overview_ctrl.refresh_dashboard()
             return
 
         if active_tab_id == "overview":
             snapshot = self._build_overview_refresh_snapshot()
-            if self._should_refresh_overview(mtime, snapshot):
+            if self._should_refresh_overview(snapshot):
                 self.overview_ctrl.refresh_list()
-                self._remember_overview_refresh(mtime, snapshot)
+                self._remember_overview_refresh(snapshot)
             return
 
         if active_tab_id == "batch":
-            if self._last_batch_refresh["mtime"] != mtime:
-                self.batch_ctrl.update_flow()
-                self._last_batch_refresh["mtime"] = mtime
+            self.batch_ctrl.update_flow()
             return
 
         if active_tab_id == "details":
@@ -396,13 +406,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             self.release_ctrl.refresh_view()
 
     def refresh_all_tabs(self):
-        """Standardized orchestrator to update all modular components and reset trackers."""
-        current_mtime = self.state._get_data_mtime()
-        snapshot_builder = getattr(self, "_build_overview_refresh_snapshot", None)
-        if callable(snapshot_builder):
-            overview_snapshot = snapshot_builder(mtime=current_mtime)
-        else:
-            overview_snapshot = AKMApp._build_overview_refresh_snapshot(self, mtime=current_mtime)
+        """Standardized orchestrator to update all modular components."""
+        overview_snapshot = self._build_overview_refresh_snapshot()
 
         self.overview_ctrl.refresh_list()
         self.overview_ctrl.refresh_dashboard()
@@ -413,14 +418,12 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         if cover_tab is not None and hasattr(cover_tab, "refresh_view"):
             cover_tab.refresh_view()
         self._last_overview_refresh.update(overview_snapshot)
-        self._last_dashboard_refresh["mtime"] = current_mtime
-        self._last_batch_refresh["mtime"] = current_mtime
 
     def on_closing(self):
         """Asks for confirmation before exiting."""
         res = messagebox.askyesnocancel(
-            "Beenden", 
-            "Möchten Sie vor dem Beenden speichern? \nNur das Speichern als Projekt (.akm) erhält alle aktuellen Einstellungen.",
+            i18n._t("msg_beenden"), 
+            i18n._t("msg_beenden_confirm"),
             icon='warning',
             default='yes'
         )
@@ -465,24 +468,24 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         """Starts or stops the activity pulse on the Task Indicator label."""
         if hasattr(self, 'task_indicator'):
             if busy:
-                self.task_indicator.config(text="TASK AKTIV", fg=ui_patterns.ACCENT)
+                self.task_indicator.config(text=i18n._t("task_active"), fg=ui_patterns.ACCENT)
                 self.task_indicator.start()
                 if hasattr(self, "header") and hasattr(self.header, "task_state_label"):
-                    self.header.task_state_label.config(text="Hintergrundjob läuft")
+                    self.header.task_state_label.config(text=i18n._t("task_busy_text"))
                 if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
                     self.header.task_detail_label.config(text="Import, Analyse oder Export arbeitet gerade.")
             else: 
-                self.task_indicator.config(text="SYSTEM BEREIT", fg="#94A3B8")
+                self.task_indicator.config(text=i18n._t("task_ready"), fg="#94A3B8")
                 self.task_indicator.stop()
                 if hasattr(self, "header") and hasattr(self.header, "task_state_label"):
-                    self.header.task_state_label.config(text="System bereit")
+                    self.header.task_state_label.config(text=i18n._t("task_idle_text"))
                 if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
                     dnd_text = self._get_drag_and_drop_status_text()
                     self.header.task_detail_label.config(text=f"Keine Hintergrundjobs aktiv | Drag & Drop: {dnd_text}")
 
     def status_text(self, status): 
         """Translated status text helper."""
-        return ui_patterns.get_status_chip_text(status, akm_core.get_lang())
+        return i18n.get_status_chip_text(status)
 
     # --- AUDIO HELPERS ---
     def open_audio_player_for_selected(self):

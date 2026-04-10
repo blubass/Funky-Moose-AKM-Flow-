@@ -11,6 +11,8 @@ from openpyxl.utils.exceptions import InvalidFileException
 
 from app_logic.config import cfg
 from app_logic.text_utils import clean_text as _clean_text
+from app_logic.models import TrackRecord
+from app_logic import i18n
 
 # Use Centralized Config Constants
 DATA_DIR = cfg.DATA_DIR
@@ -42,30 +44,38 @@ DEFAULT_SETTINGS = {
     "release_memory": dict(RELEASE_MEMORY_DEFAULTS),
 }
 
-LANGUAGES = {
-    "de": {
-        "status_map": {
-            "in_progress": "🟡 in Arbeit",
-            "ready": "🔵 bereit",
-            "submitted": "🟢 gemeldet",
-            "confirmed": "✅ bestätigt",
-        },
-        "status_keys": STATUS_KEYS,
-    },
-    "en": {
-        "status_map": {
-            "in_progress": "🟡 in progress",
-            "ready": "🔵 ready",
-            "submitted": "🟢 submitted",
-            "confirmed": "✅ confirmed",
-        },
-        "status_keys": STATUS_KEYS,
-    },
-}
-
 
 class DataFileError(RuntimeError):
     pass
+
+
+class ProjectRepository:
+    """
+    Handles all I/O operations for the project catalogue.
+    Decouples core logic from JSON storage.
+    """
+    def __init__(self, data_file: str):
+        self.data_file = data_file
+
+    def load_all(self, strict: bool = True) -> list[TrackRecord]:
+        raw_data = _read_json_list(self.data_file, strict=strict)
+        return [TrackRecord.from_dict(item) for item in raw_data if item.get("title")]
+
+    def save_all(self, records: list[TrackRecord]):
+        _ensure_storage_dir()
+        serialized = [r.to_dict() for r in records]
+        _write_json_atomic(self.data_file, serialized)
+
+    def find_by_title(self, records: list[TrackRecord], title: str):
+        norm = title.strip().lower()
+        for r in records:
+            if r.title.strip().lower() == norm:
+                return r
+        return None
+
+
+# Global Repository Instance for backward compatibility
+repo = ProjectRepository(DATA_FILE)
 
 
 def _today():
@@ -310,15 +320,18 @@ def get_lang():
     if os.path.exists(LANG_FILE):
         with open(LANG_FILE, "r", encoding="utf-8") as handle:
             lang = handle.read().strip()
-            if lang in LANGUAGES:
+            if lang in i18n.STRINGS:
+                i18n.set_language(lang)
                 return lang
+    i18n.set_language("de")
     return "de"
 
 
 def set_lang(lang):
     _ensure_storage_dir()
-    if lang not in LANGUAGES:
+    if lang not in i18n.STRINGS:
         lang = "de"
+    i18n.set_language(lang)
     _write_text_atomic(LANG_FILE, lang)
 
 
@@ -434,23 +447,26 @@ def remember_release_memory(values):
 
 
 def load_data(strict=False):
-    raw_data = _read_json_list(DATA_FILE, strict=strict)
-    data = []
-    for item in raw_data:
-        normalized = _normalize_entry(item)
-        if normalized["title"]:
-            data.append(normalized)
-    return data
+    """
+    Backward-compatible wrapper for repo.load_all().
+    Returns a list of dictionaries for now to avoid breaking existing code.
+    """
+    records = repo.load_all(strict=strict)
+    return [r.to_dict() for r in records]
 
 
 def save_data(data):
-    _ensure_storage_dir()
-    normalized = []
+    """
+    Backward-compatible wrapper for repo.save_all().
+    Accepts both list of dicts and list of TrackRecords.
+    """
+    records = []
     for item in data:
-        entry = _normalize_entry(item)
-        if entry["title"]:
-            normalized.append(entry)
-    _write_json_atomic(DATA_FILE, normalized)
+        if isinstance(item, TrackRecord):
+            records.append(item)
+        else:
+            records.append(TrackRecord.from_dict(item))
+    repo.save_all(records)
 
 
 def backup_data():
@@ -662,11 +678,13 @@ def import_excel(file_path):
 
 
 def get_status_map(lang):
-    return LANGUAGES[lang]["status_map"]
+    i18n.set_language(lang)
+    return {k: i18n.get_status_chip_text(k) for k in STATUS_KEYS}
 
 
 def get_status_keys(lang):
-    return LANGUAGES[lang]["status_keys"]
+    del lang
+    return STATUS_KEYS
 
 
 def get_all_entries():

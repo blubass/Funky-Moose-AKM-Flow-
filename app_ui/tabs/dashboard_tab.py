@@ -1,5 +1,6 @@
 import tkinter as tk
 from app_ui import ui_patterns
+from app_logic import i18n
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator, AkmScrollablePanel,
     ACCENT, PANEL_2, SPACE_MD, SPACE_SM, SPACE_XS,
@@ -38,10 +39,10 @@ class DashboardTab(AkmPanel):
         return scroll_root, scroll_root.scrollable_frame
 
     def _build_header(self, page):
-        AkmHeader(page, text="Dashboard").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        AkmHeader(page, text=i18n._t("dash_header_title")).pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             page,
-            text="Schneller Blick auf Status, Vollständigkeit und den aktuellen Arbeitsstand.",
+            text=i18n._t("dash_header_subtitle"),
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -57,10 +58,10 @@ class DashboardTab(AkmPanel):
         self._build_status_actions(status_right)
 
     def _build_status_summary(self, parent):
-        AkmLabel(parent, text="Operations Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmLabel(parent, text=i18n._t("dash_radar_title"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
         self.dashboard_status_label = AkmLabel(
             parent,
-            text="Noch keine Werke im Katalog",
+            text=i18n._t("dash_radar_empty"),
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
@@ -68,7 +69,7 @@ class DashboardTab(AkmPanel):
         self.dashboard_status_label.pack(fill="x", pady=(2, 2))
         self.dashboard_hint_label = AkmSubLabel(
             parent,
-            text="Importiere ein Werk oder lege direkt einen neuen Titel an, um loszulegen.",
+            text=i18n._t("dash_radar_hint"),
             bg=PANEL_2,
             anchor="w",
             justify="left",
@@ -77,14 +78,14 @@ class DashboardTab(AkmPanel):
         self.dashboard_hint_label.pack(fill="x")
         self.dashboard_meta_label = AkmSubLabel(
             parent,
-            text="Mit Produktion: 0   •   Mit Notizen: 0   •   Instrumental: 0",
+            text="", # Will be filled by render_dashboard_state
             bg=PANEL_2,
             anchor="w",
         )
         self.dashboard_meta_label.pack(fill="x", pady=(2, 0))
 
     def _build_status_actions(self, parent):
-        self._refresh_button = self.app.btn(parent, "Dashboard aktualisieren", self.app.refresh_dashboard, primary=True, width=186)
+        self._refresh_button = self.app.btn(parent, i18n._t("dash_btn_refresh"), self.app.refresh_dashboard, primary=True, width=186)
         self._refresh_button.pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(parent, bg=PANEL_2)
         action_row.pack(anchor="e")
@@ -102,7 +103,7 @@ class DashboardTab(AkmPanel):
         self._chip_row = chip_row
         self._chip_intro_label = AkmSubLabel(
             chip_row,
-            text="Statuschips springen direkt in die gefilterte Übersicht.",
+            text=i18n._t("dash_chip_hint"),
             justify="left",
         )
         self._chip_intro_label.pack(side="left", padx=(0, SPACE_SM))
@@ -134,19 +135,19 @@ class DashboardTab(AkmPanel):
         stats_grid = AkmPanel(page)
         stats_grid.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         self._stats_grid = stats_grid
-        for index, (key, label) in enumerate(
+        for index, (key, label_key) in enumerate(
             (
-                ("total", "Gesamt"),
-                ("open", "Offen"),
-                ("ready", "Bereit"),
-                ("submitted", "Gemeldet"),
-                ("confirmed", "Bestätigt"),
-                ("instrumental", "Instrumental"),
-                ("with_production", "Mit Produktion"),
-                ("with_notes", "Mit Notizen"),
+                ("total", "dash_stat_total"),
+                ("open", "dash_stat_open"),
+                ("ready", "dash_stat_ready"),
+                ("submitted", "dash_stat_submitted"),
+                ("confirmed", "dash_stat_confirmed"),
+                ("instrumental", "dash_stat_instrumental"),
+                ("with_production", "dash_stat_with_production"),
+                ("with_notes", "dash_stat_with_notes"),
             )
         ):
-            self._build_stat_card(stats_grid, key, label, index)
+            self._build_stat_card(stats_grid, key, i18n._t(label_key), index)
 
     def _build_stat_card(self, parent, key, label, index):
         card = AkmCard(parent)

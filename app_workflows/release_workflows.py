@@ -4,7 +4,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
-from app_logic import release_tools
+from app_logic import release_tools, i18n
 from app_logic.text_utils import clean_mapping_values, clean_text as _clean_text
 
 
@@ -311,10 +311,10 @@ def build_release_checklist_lines(cover_path, tracks, copied_audio, missing_audi
 
 
 def build_release_export_status_text(release_dir, tracks, copied_audio):
-    return (
-        f"Distro-Export bereit: {release_dir} | "
-        f"Tracks: {len(tracks or [])} | "
-        f"Audio kopiert: {copied_audio}"
+    return i18n._t("log_export_ready").format(
+        path=release_dir,
+        count=len(tracks or []),
+        copied=copied_audio
     )
 
 def start_distro_export(metadata, tracks):
@@ -385,4 +385,4 @@ def start_distro_export(metadata, tracks):
         return True, status
 
     except Exception as e:
-        return False, f"Fehler beim Export: {str(e)}"
+        return False, i18n._t("log_export_error").format(error=str(e))
