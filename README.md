@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/akmflow_header.png" alt="AKMFlow+ Header" width="100%">
+</p>
+
 # Funky Moose Release Forge
 ## The Release Forge for Humans Who Make Music
 
