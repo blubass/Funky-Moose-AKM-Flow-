@@ -296,16 +296,26 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
     def _build_overview_refresh_snapshot(self, filter_state=None, mtime=None):
         """Normalize overview filter state into a tracker-friendly snapshot."""
+        defaults = getattr(self, "OVERVIEW_FILTER_DEFAULTS", AKMApp.OVERVIEW_FILTER_DEFAULTS)
         if filter_state is not None:
             state = filter_state
         elif "tab_system" in self.__dict__:
-            state = self.get_overview_filter_state()
+            get_filter_state = getattr(self, "get_overview_filter_state", None)
+            if callable(get_filter_state):
+                state = get_filter_state()
+            else:
+                state = {
+                    "search": (self.search_var.get() if getattr(self, "search_var", None) else ""),
+                    "filter": (self.status_filter_var.get() if getattr(self, "status_filter_var", None) else defaults["filter"]),
+                    "sort": (self.sort_key_var.get() if getattr(self, "sort_key_var", None) else defaults["sort"]),
+                    "desc": bool(self.sort_desc_var.get()) if getattr(self, "sort_desc_var", None) else defaults["desc"],
+                }
         else:
-            state = dict(self.OVERVIEW_FILTER_DEFAULTS)
+            state = dict(defaults)
         return {
             "search": (state.get("search") or "").lower(),
-            "filter": state.get("filter") or self.OVERVIEW_FILTER_DEFAULTS["filter"],
-            "sort": state.get("sort") or self.OVERVIEW_FILTER_DEFAULTS["sort"],
+            "filter": state.get("filter") or defaults["filter"],
+            "sort": state.get("sort") or defaults["sort"],
             "desc": bool(state.get("desc")),
             "mtime": mtime,
         }
@@ -388,7 +398,11 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def refresh_all_tabs(self):
         """Standardized orchestrator to update all modular components and reset trackers."""
         current_mtime = self.state._get_data_mtime()
-        overview_snapshot = self._build_overview_refresh_snapshot(mtime=current_mtime)
+        snapshot_builder = getattr(self, "_build_overview_refresh_snapshot", None)
+        if callable(snapshot_builder):
+            overview_snapshot = snapshot_builder(mtime=current_mtime)
+        else:
+            overview_snapshot = AKMApp._build_overview_refresh_snapshot(self, mtime=current_mtime)
 
         self.overview_ctrl.refresh_list()
         self.overview_ctrl.refresh_dashboard()
