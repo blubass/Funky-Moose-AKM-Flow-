@@ -1,4 +1,5 @@
 import tkinter as tk
+import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmScrollablePanel,
     fit_wraplength,
@@ -7,6 +8,21 @@ from app_ui.ui_patterns import (
     FONT_BOLD, FONT_SM, FONT_MD_BOLD, FONT_XL, FONT_LG
 )
 from app_logic import akm_core
+
+
+RELEASE_FORM_FIELDS = (
+    ("title", "Release-Titel"),
+    ("artist", "Artist"),
+    ("type", "Typ"),
+    ("release_date", "Datum (JJJJ-MM-TT)"),
+    ("genre", "Genre"),
+    ("subgenre", "Subgenre"),
+    ("label", "Label"),
+    ("copyright_line", "Copyright"),
+    ("cover_path", "Cover-Bild (JPG/PNG)"),
+    ("export_dir", "Export-Ordner"),
+)
+
 
 class ReleaseTab(AkmPanel):
     STACK_BREAKPOINT = 1180
@@ -26,6 +42,13 @@ class ReleaseTab(AkmPanel):
         self._setup_dnd()
 
     def build_ui(self):
+        self._build_header_section()
+        self._build_status_card()
+        scroll_root, top = self._build_scroll_content()
+        self._build_release_cards(top, scroll_root)
+        self.after_idle(self._update_track_selection_hint)
+
+    def _build_header_section(self):
         AkmHeader(self, text="Release / Export").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             self,
@@ -34,6 +57,7 @@ class ReleaseTab(AkmPanel):
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
+    def _build_status_card(self):
         status_card = AkmCard(self, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
@@ -95,11 +119,14 @@ class ReleaseTab(AkmPanel):
             self.app.btn(action_row, "Finder", self.app.release_ctrl.open_cover_in_finder, quiet=True, width=84),
         )
 
+    def _build_scroll_content(self):
         scroll_root = AkmScrollablePanel(self)
         scroll_root.pack(fill="both", expand=True)
         top = scroll_root.scrollable_frame
         top.configure(padx=SPACE_MD, pady=0)
+        return scroll_root, top
 
+    def _build_release_cards(self, top, scroll_root):
         left_card = AkmCard(top)
         right_card = AkmCard(top)
         left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
@@ -108,6 +135,10 @@ class ReleaseTab(AkmPanel):
         scroll_root.canvas.bind("<Configure>", self._on_responsive_resize, add="+")
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
+        self._build_release_meta_card(left_card)
+        self._build_release_track_card(right_card)
+
+    def _build_release_meta_card(self, left_card):
         self._left_intro_label = AkmSubLabel(
             left_card.inner,
             text="Metadaten, Cover und Zielordner werden hier einmal sauber gesetzt.",
@@ -116,41 +147,44 @@ class ReleaseTab(AkmPanel):
             wraplength=360,
         )
         self._left_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
-        # LEFT FORM
+
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
         left_form.add_header("Release-Basis")
-        
-        fields = [
-            ("title", "Release-Titel"), ("artist", "Artist"), ("type", "Typ"),
-            ("release_date", "Datum (JJJJ-MM-TT)"), ("genre", "Genre"),
-            ("subgenre", "Subgenre"), ("label", "Label"), ("copyright_line", "Copyright"),
-            ("cover_path", "Cover-Bild (JPG/PNG)"), ("export_dir", "Export-Ordner"),
-        ]
+        self._build_release_form_rows(left_form)
+
+    def _build_release_form_rows(self, left_form):
         defaults = akm_core.get_release_memory()
 
-        for key, label in fields:
+        for key, label in RELEASE_FORM_FIELDS:
             var = self._create_release_var(key, defaults.get(key, ""))
-            
             if key == "cover_path":
-                def _create_cover_field(parent, v=var):
-                    wrap = tk.Frame(parent, bg=PANEL_2)
-                    AkmEntry(wrap, textvariable=v, font=FONT_SM).pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_cover, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
-                    self.app.btn(wrap, "Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
-                    return wrap
-                left_form.add_row(label, _create_cover_field)
+                left_form.add_row(
+                    label,
+                    lambda parent, current_var=var: self._create_cover_field(parent, current_var),
+                )
             elif key == "export_dir":
-                def _create_export_field(parent, v=var):
-                    wrap = tk.Frame(parent, bg=PANEL_2)
-                    AkmEntry(wrap, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_export_dir, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
-                    return wrap
-                left_form.add_row(label, _create_export_field)
+                left_form.add_row(
+                    label,
+                    lambda parent, current_var=var: self._create_export_field(parent, current_var),
+                )
             else:
                 left_form.add_entry(label, var, font=FONT_SM)
 
-        # RIGHT CARD: TRACK LIST & ASSEMBLY
+    def _create_cover_field(self, parent, variable):
+        wrap = tk.Frame(parent, bg=PANEL_2)
+        AkmEntry(wrap, textvariable=variable, font=FONT_SM).pack(side="left", fill="x", expand=True)
+        self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_cover, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(wrap, "Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+        return wrap
+
+    def _create_export_field(self, parent, variable):
+        wrap = tk.Frame(parent, bg=PANEL_2)
+        AkmEntry(wrap, textvariable=variable, font=FONT_SM).pack(side="left", fill="x", expand=True)
+        self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_export_dir, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+        return wrap
+
+    def _build_release_track_card(self, right_card):
         AkmLabel(right_card.inner, text="Release-Zusammenstellung", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_MD))
         self._right_intro_label = AkmSubLabel(
             right_card.inner,
@@ -161,6 +195,13 @@ class ReleaseTab(AkmPanel):
         )
         self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
+        self._build_drop_zone(right_card)
+        self._build_track_list(right_card)
+        self._build_track_actions(right_card)
+        right_card.bind("<Configure>", self._on_action_bar_resize, add="+")
+        self.after_idle(lambda: self._apply_release_action_layout(right_card.winfo_width()))
+
+    def _build_drop_zone(self, right_card):
         drop_zone = tk.Frame(right_card.inner, bg=FIELD_BG, highlightbackground="#2E323A", highlightthickness=1)
         drop_zone.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         AkmLabel(
@@ -178,7 +219,8 @@ class ReleaseTab(AkmPanel):
             wraplength=360,
         )
         self._drop_zone_hint_label.pack(anchor="w", padx=12, pady=(2, 10))
-        
+
+    def _build_track_list(self, right_card):
         list_frame = AkmPanel(right_card.inner, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
@@ -189,10 +231,11 @@ class ReleaseTab(AkmPanel):
         )
         self.release_track_listbox.pack(side="left", fill="both", expand=True)
         self.release_track_listbox.bind("<<ListboxSelect>>", lambda _event: self._update_track_selection_hint())
-        sb = tk.Scrollbar(list_frame, command=self.release_track_listbox.yview)
-        sb.pack(side="right", fill="y")
-        self.release_track_listbox.config(yscrollcommand=sb.set)
+        scrollbar = tk.Scrollbar(list_frame, command=self.release_track_listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.release_track_listbox.config(yscrollcommand=scrollbar.set)
 
+    def _build_track_actions(self, right_card):
         tk_actions = AkmPanel(right_card.inner, bg=PANEL_2)
         tk_actions.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._release_action_bar = tk_actions
@@ -210,9 +253,6 @@ class ReleaseTab(AkmPanel):
             wraplength=420,
         )
         self.release_selection_hint_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        right_card.bind("<Configure>", self._on_action_bar_resize, add="+")
-        self.after_idle(lambda: self._apply_release_action_layout(right_card.winfo_width()))
-        self.after_idle(self._update_track_selection_hint)
 
     def _create_release_var(self, key, default_value=""):
         cache = getattr(self.app, "release_state_cache", {}) or {}
@@ -250,23 +290,41 @@ class ReleaseTab(AkmPanel):
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)
 
+    def _apply_button_bar(self, container, buttons, width, breakpoint, state_attr, row_spacing=SPACE_XS, anchor="w"):
+        current_mode = getattr(self, state_attr, None)
+        mode = ui_patterns.apply_button_bar_layout(
+            container,
+            buttons,
+            width,
+            breakpoint,
+            current_mode,
+            row_spacing=row_spacing,
+            anchor=anchor,
+        )
+        setattr(self, state_attr, mode)
+        return mode
+
     def _apply_responsive_layout(self, width):
         if not hasattr(self, "_release_cards"):
             return
-        target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
-        if target_mode != self._release_layout_mode:
-            self._release_layout_mode = target_mode
-
-            left_card, right_card = self._release_cards
-            for card in self._release_cards:
-                card.pack_forget()
-
-            if target_mode == "stack":
-                left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
-                right_card.pack(fill="x", expand=False)
-            else:
-                left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-                right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        left_card, right_card = self._release_cards
+        self._release_layout_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.STACK_BREAKPOINT,
+            self._release_layout_mode,
+            {
+                "stack": (
+                    (left_card, {"fill": "x", "expand": False, "pady": (0, CARD_GAP)}),
+                    (right_card, {"fill": "x", "expand": False}),
+                ),
+                "split": (
+                    (left_card, {"side": "left", "fill": "both", "expand": True, "padx": (0, CARD_GAP // 2)}),
+                    (right_card, {"side": "left", "fill": "both", "expand": True, "padx": (CARD_GAP // 2, 0)}),
+                ),
+            },
+            narrow_mode="stack",
+            wide_mode="split",
+        )
 
         self._apply_status_actions_layout(width)
         self._update_wraplengths(width)
@@ -336,46 +394,42 @@ class ReleaseTab(AkmPanel):
     def _apply_release_action_layout(self, width):
         if not hasattr(self, "_release_action_buttons"):
             return
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if target_mode == self._release_action_mode:
-            return
-        self._release_action_mode = target_mode
-
-        for button in self._release_action_buttons:
-            button.pack_forget()
-
-        if target_mode == "stack":
-            for index, button in enumerate(self._release_action_buttons):
-                button.pack(fill="x", pady=(0, SPACE_XS if index < len(self._release_action_buttons) - 1 else 0))
-            return
-
-        for index, button in enumerate(self._release_action_buttons):
-            pad_left = 0 if index == 0 else SPACE_XS
-            button.pack(side="left", padx=(pad_left, 0))
+        self._apply_button_bar(
+            self._release_action_bar,
+            self._release_action_buttons,
+            width,
+            self.ACTION_STACK_BREAKPOINT,
+            "_release_action_mode",
+            row_spacing=SPACE_XS,
+        )
 
     def _apply_status_actions_layout(self, width):
         if not hasattr(self, "_status_action_buttons"):
             return
-        target_mode = "stack" if width and width < self.STATUS_ACTION_STACK_BREAKPOINT else "row"
+        target_mode = self._resolve_layout_mode(
+            width,
+            self.STATUS_ACTION_STACK_BREAKPOINT,
+        )
         if target_mode == self._status_action_mode:
             return
-        self._status_action_mode = target_mode
 
         self._status_primary_button.pack_forget()
-        for button in self._status_action_buttons:
-            button.pack_forget()
+        self._status_action_bar.pack_forget()
 
         if target_mode == "stack":
             self._status_primary_button.pack(anchor="e", fill="x", pady=(0, SPACE_XS))
-            self._status_action_bar.pack(anchor="e", fill="x")
-            for index, button in enumerate(self._status_action_buttons):
-                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
-            return
+        else:
+            self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
 
-        self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
-        self._status_action_bar.pack(anchor="e")
-        for index, button in enumerate(self._status_action_buttons):
-            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+        self._apply_button_bar(
+            self._status_action_bar,
+            self._status_action_buttons,
+            width,
+            self.STATUS_ACTION_STACK_BREAKPOINT,
+            "_status_action_mode",
+            row_spacing=SPACE_XS,
+            anchor="e",
+        )
 
     def _setup_dnd(self):
         try:

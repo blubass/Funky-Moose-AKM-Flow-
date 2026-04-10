@@ -5,12 +5,39 @@ from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
 from app_logic import release_tools
+from app_logic.text_utils import clean_mapping_values, clean_text as _clean_text
 
 
-def _clean_text(value):
-    if value is None:
-        return ""
-    return str(value).strip()
+RELEASE_TRACK_FIELDS = (
+    "title",
+    "duration",
+    "composer",
+    "production",
+    "year",
+    "notes",
+    "audio_path",
+    "source",
+)
+RELEASE_IMPORT_FIELDS = RELEASE_TRACK_FIELDS[:-1]
+RELEASE_INFO_FIELDS = (
+    ("title", "Release Title"),
+    ("artist", "Artist"),
+    ("type", "Type"),
+    ("release_date", "Release Date"),
+    ("genre", "Genre"),
+    ("subgenre", "Subgenre"),
+    ("label", "Label"),
+    ("copyright_line", "Copyright"),
+    ("cover_path", "Cover Path"),
+)
+RELEASE_INFO_KEYS = tuple(key for key, _label in RELEASE_INFO_FIELDS)
+
+
+def _build_release_track(base_track=None, **overrides):
+    track = clean_mapping_values(base_track, RELEASE_TRACK_FIELDS)
+    for key, value in overrides.items():
+        track[key] = _clean_text(value)
+    return track
 
 
 def clean_release_drop_paths(raw_paths):
@@ -26,30 +53,20 @@ def clean_release_drop_paths(raw_paths):
 
 
 def copy_work_to_release_track(item, audio_path=None, source="Werk"):
-    return {
-        "title": _clean_text((item or {}).get("title")),
-        "duration": _clean_text((item or {}).get("duration")),
-        "composer": _clean_text((item or {}).get("composer")),
-        "production": _clean_text((item or {}).get("production")),
-        "year": _clean_text((item or {}).get("year")),
-        "notes": _clean_text((item or {}).get("notes")),
-        "audio_path": _clean_text(audio_path) if audio_path is not None else _clean_text((item or {}).get("audio_path")),
-        "source": source,
-    }
+    track = _build_release_track(item, source=source)
+    if audio_path is not None:
+        track["audio_path"] = _clean_text(audio_path)
+    return track
 
 
 def build_file_release_track(path, duration=""):
     title = os.path.splitext(os.path.basename(path or ""))[0]
-    return {
-        "title": title,
-        "duration": _clean_text(duration),
-        "composer": "",
-        "production": "",
-        "year": "",
-        "notes": "",
-        "audio_path": _clean_text(path),
-        "source": "Datei",
-    }
+    return _build_release_track(
+        title=title,
+        duration=duration,
+        audio_path=path,
+        source="Datei",
+    )
 
 
 def build_release_track_from_match(path, exact_work=None, title_work=None, duration=""):
@@ -150,18 +167,8 @@ def build_release_info_lines(metadata):
 
 
 def build_release_info_rows(metadata):
-    values = metadata or {}
-    return [
-        ("Release Title", _clean_text(values.get("title"))),
-        ("Artist", _clean_text(values.get("artist"))),
-        ("Type", _clean_text(values.get("type"))),
-        ("Release Date", _clean_text(values.get("release_date"))),
-        ("Genre", _clean_text(values.get("genre"))),
-        ("Subgenre", _clean_text(values.get("subgenre"))),
-        ("Label", _clean_text(values.get("label"))),
-        ("Copyright", _clean_text(values.get("copyright_line"))),
-        ("Cover Path", _clean_text(values.get("cover_path"))),
-    ]
+    values = clean_mapping_values(metadata, RELEASE_INFO_KEYS)
+    return [(label, values[key]) for key, label in RELEASE_INFO_FIELDS]
 
 
 def build_release_track_csv_rows(tracks):
@@ -181,7 +188,7 @@ def build_release_track_csv_rows(tracks):
 
 
 def build_release_import_rows(metadata, tracks):
-    values = metadata or {}
+    values = clean_mapping_values(metadata, RELEASE_INFO_KEYS)
     rows = [[
         "Title",
         "Duration",
@@ -213,15 +220,15 @@ def build_release_import_rows(metadata, tracks):
                 _clean_text(item.get("notes")),
                 _clean_text(item.get("audio_path")),
                 index,
-                _clean_text(values.get("title")),
-                _clean_text(values.get("artist")),
-                _clean_text(values.get("type")),
-                _clean_text(values.get("release_date")),
-                _clean_text(values.get("genre")),
-                _clean_text(values.get("subgenre")),
-                _clean_text(values.get("label")),
-                _clean_text(values.get("copyright_line")),
-                _clean_text(values.get("cover_path")),
+                values["title"],
+                values["artist"],
+                values["type"],
+                values["release_date"],
+                values["genre"],
+                values["subgenre"],
+                values["label"],
+                values["copyright_line"],
+                values["cover_path"],
                 _clean_text(item.get("source")),
             ]
         )
@@ -234,17 +241,7 @@ def build_release_import_tracks(tracks):
         title = _clean_text((item or {}).get("title"))
         if not title:
             continue
-        importable_tracks.append(
-            {
-                "title": title,
-                "duration": _clean_text(item.get("duration")),
-                "composer": _clean_text(item.get("composer")),
-                "production": _clean_text(item.get("production")),
-                "year": _clean_text(item.get("year")),
-                "notes": _clean_text(item.get("notes")),
-                "audio_path": _clean_text(item.get("audio_path")),
-            }
-        )
+        importable_tracks.append(clean_mapping_values(item, RELEASE_IMPORT_FIELDS))
     return importable_tracks
 
 

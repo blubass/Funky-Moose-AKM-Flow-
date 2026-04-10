@@ -15,13 +15,17 @@ from app_logic import flow_tools
 from app_logic import loudness_tools
 from app_logic import overview_tools
 from app_logic import release_tools
+from app_logic import text_utils
 from app_logic import akm_core as package_akm_core
 from app_controllers import detail_controller_tools
+from app_ui import cover_action_tools
+from app_ui import cover_preview_tools
 from app_ui import cover_view_tools
 from app_ui import detail_view_tools
 from app_ui import loudness_view_tools
 from app_ui import path_ui_tools
 from app_ui import release_view_tools
+from app_ui import ui_patterns
 from app_ui import widgets
 from app_workflows import loudness_workflows
 from app_workflows import release_workflows
@@ -140,6 +144,18 @@ class FakeLabel:
 
     def config(self, **kwargs):
         self.options.update(kwargs)
+
+
+class FakePackWidget:
+    def __init__(self):
+        self.pack_calls = []
+        self.pack_forget_calls = 0
+
+    def pack(self, **kwargs):
+        self.pack_calls.append(kwargs)
+
+    def pack_forget(self):
+        self.pack_forget_calls += 1
 
 
 class FakeBatchView:
@@ -784,7 +800,7 @@ class DetailToolsTests(unittest.TestCase):
                 "instrumental": 1,
                 "status": "ready",
                 "notes": "Notiz",
-                "tags": [" synth ", "", "focus"],
+                "tags": [" synth ", float("nan"), "", "focus"],
             }
         )
 
@@ -863,8 +879,8 @@ class AssistantToolsTests(unittest.TestCase):
                 {
                     "title": "Song B",
                     "action": "unchanged",
-                    "duration": "",
-                    "composer": "",
+                    "duration": float("nan"),
+                    "composer": " nan ",
                 },
             ]
         )
@@ -922,6 +938,31 @@ class AssistantToolsTests(unittest.TestCase):
         self.assertIn("Excel-Import", empty["meta_text"])
         self.assertEqual("Bereit für neuen Titel: Neuer Song", filled["status_text"])
         self.assertIn("2 Wort/Wörter", filled["meta_text"])
+
+
+class TextUtilsTests(unittest.TestCase):
+    def test_clean_text_and_mapping_values_handle_nan_like_input(self):
+        values = text_utils.clean_mapping_values(
+            {
+                "title": "  Song A  ",
+                "duration": float("nan"),
+                "composer": " nan ",
+            },
+            ("title", "duration", "composer", "year"),
+        )
+
+        self.assertEqual("Song A", text_utils.clean_text("  Song A  "))
+        self.assertEqual("", text_utils.clean_text(float("nan")))
+        self.assertEqual("", text_utils.clean_text(" nan "))
+        self.assertEqual(
+            {
+                "title": "Song A",
+                "duration": "",
+                "composer": "",
+                "year": "",
+            },
+            values,
+        )
 
 
 class FlowToolsTests(unittest.TestCase):
@@ -1105,6 +1146,137 @@ class PathUiToolsTests(unittest.TestCase):
         )
 
 
+class UiPatternsTests(unittest.TestCase):
+    def test_apply_button_bar_layout_honors_custom_anchor_in_stack_and_row(self):
+        container = FakePackWidget()
+        buttons = (FakePackWidget(), FakePackWidget())
+
+        mode = ui_patterns.apply_button_bar_layout(
+            container,
+            buttons,
+            width=500,
+            breakpoint=600,
+            mode=None,
+            row_spacing=7,
+            anchor="e",
+        )
+
+        self.assertEqual("stack", mode)
+        self.assertEqual({"anchor": "e", "fill": "x"}, container.pack_calls[-1])
+        self.assertEqual({"fill": "x", "pady": (0, ui_patterns.SPACE_XS)}, buttons[0].pack_calls[-1])
+        self.assertEqual({"fill": "x", "pady": (0, 0)}, buttons[1].pack_calls[-1])
+
+        mode = ui_patterns.apply_button_bar_layout(
+            container,
+            buttons,
+            width=700,
+            breakpoint=600,
+            mode=mode,
+            row_spacing=7,
+            anchor="e",
+        )
+
+        self.assertEqual("row", mode)
+        self.assertEqual({"anchor": "e"}, container.pack_calls[-1])
+        self.assertEqual({"side": "left", "padx": (7, 0)}, buttons[1].pack_calls[-1])
+
+    def test_apply_widget_layout_repacks_each_widget_once_and_returns_mode(self):
+        left = FakePackWidget()
+        right = FakePackWidget()
+
+        mode = ui_patterns.apply_widget_layout(
+            width=540,
+            breakpoint=700,
+            mode=None,
+            layout_map={
+                "stack": (
+                    (left, {"fill": "x", "pady": (0, 8)}),
+                    (right, {"fill": "x"}),
+                ),
+                "row": (
+                    (left, {"side": "left"}),
+                    (right, {"side": "left"}),
+                ),
+            },
+        )
+
+        self.assertEqual("stack", mode)
+        self.assertEqual(1, left.pack_forget_calls)
+        self.assertEqual(1, right.pack_forget_calls)
+        self.assertEqual({"fill": "x", "pady": (0, 8)}, left.pack_calls[-1])
+
+        mode = ui_patterns.apply_widget_layout(
+            width=540,
+            breakpoint=700,
+            mode=mode,
+            layout_map={
+                "stack": (
+                    (left, {"fill": "x", "pady": (0, 8)}),
+                    (right, {"fill": "x"}),
+                ),
+                "row": (
+                    (left, {"side": "left"}),
+                    (right, {"side": "left"}),
+                ),
+            },
+        )
+
+        self.assertEqual("stack", mode)
+        self.assertEqual(1, left.pack_forget_calls)
+
+
+class CoverActionToolsTests(unittest.TestCase):
+    def test_analyze_cover_drop_files_prefers_first_supported_and_reports_ignored(self):
+        selected = cover_action_tools.analyze_cover_drop_files(
+            ["", "/tmp/cover.png", "/tmp/other.jpg"],
+            find_supported_artwork_path_fn=lambda paths: next(
+                (path for path in paths if path.endswith(".png")),
+                "",
+            ),
+        )
+        ignored = cover_action_tools.analyze_cover_drop_files(
+            ["/tmp/readme.txt", "/tmp/track.wav"],
+            find_supported_artwork_path_fn=lambda _paths: "",
+        )
+
+        self.assertEqual("/tmp/cover.png", selected["target_path"])
+        self.assertEqual("", selected["ignored_message"])
+        self.assertEqual("", ignored["target_path"])
+        self.assertIn("2 Datei(en)", ignored["ignored_message"])
+
+    def test_prepare_cover_load_assignment_and_export_requests_validate_paths(self):
+        load_state = cover_action_tools.prepare_cover_load(
+            " /tmp/cover.png ",
+            is_supported_path_fn=lambda path: path == "/tmp/cover.png",
+        )
+        assignment = cover_action_tools.prepare_cover_assignment(
+            "/tmp/cover.png",
+            exists_fn=lambda path: path == "/tmp/cover.png",
+        )
+        export_request = cover_action_tools.build_cover_export_request(
+            "/tmp/cover.png",
+            "Live Cover",
+            exists_fn=lambda path: path == "/tmp/cover.png",
+        )
+
+        self.assertTrue(load_state["ok"])
+        self.assertEqual("/tmp/cover.png", load_state["path"])
+        self.assertEqual("Cover geladen: cover.png", load_state["log_message"])
+        self.assertTrue(assignment["ok"])
+        self.assertEqual("/tmp/cover.png", assignment["path"])
+        self.assertTrue(export_request["ok"])
+        self.assertEqual("/tmp", export_request["dialog_options"]["initialdir"])
+        self.assertEqual("Cover_Live_Cover.jpg", export_request["dialog_options"]["initialfile"])
+
+    def test_build_cover_export_success_state_uses_exported_basename(self):
+        state = cover_action_tools.build_cover_export_success_state(
+            "/tmp/final-cover.png"
+        )
+
+        self.assertEqual("Cover exportiert: final-cover.png", state["log_message"])
+        self.assertEqual("COVER ERFOLGREICH EXPORTIERT", state["toast_message"])
+
+
 class CoverViewToolsTests(unittest.TestCase):
     def test_first_supported_artwork_path_picks_first_valid_image(self):
         with tempfile.TemporaryDirectory() as tempdir:
@@ -1152,6 +1324,128 @@ class CoverViewToolsTests(unittest.TestCase):
             self.assertIn("Stage: 640x360", state["info_text"])
             self.assertEqual("cover.png", state["asset_name"])
             self.assertIn("3000x3000 px", state["asset_meta"])
+
+
+class CoverPreviewToolsTests(unittest.TestCase):
+    def test_build_cover_render_payload_formats_text_and_manual_layers(self):
+        payload = cover_preview_tools.build_cover_render_payload(
+            {
+                "artwork_path": " /tmp/cover.png ",
+                "zoom": "1.25",
+                "layout": "top-left",
+                "bg_color": "#101010",
+                "accent_color": "#ffaa33",
+                "style": "cinematic",
+                "size_mode": "large",
+                "overlay": "strong",
+                "offset": "low",
+                "artist": "artist name",
+                "artist_case": "uppercase",
+                "artist_font": "Helvetica Neue",
+                "artist_color": "#ffffff",
+                "artist_bold": "true",
+                "artist_size": "72",
+                "artist_x": "880",
+                "artist_y": "1330",
+                "title": "Title Card",
+                "title_case": "normal",
+                "title_font": "Helvetica Neue",
+                "title_color": "#ffffff",
+                "title_bold": True,
+                "title_size": "140",
+                "title_x": "900",
+                "title_y": "1500",
+                "subtitle": " deluxe ",
+                "subtitle_case": "uppercase",
+                "subtitle_font": "Inter Mono",
+                "subtitle_color": "#d2d2d2",
+                "subtitle_bold": False,
+                "subtitle_size": "40",
+                "subtitle_x": "910",
+                "subtitle_y": "1610",
+            },
+            1800,
+        )
+
+        self.assertEqual("/tmp/cover.png", payload["artwork_path"])
+        self.assertEqual(1.25, payload["zoom"])
+        self.assertEqual("topleft", payload["layout"])
+        self.assertEqual("cinematic", payload["options"]["style"])
+        self.assertEqual("ARTIST NAME", payload["artist"])
+        self.assertEqual("DELUXE", payload["subtitle"])
+        self.assertEqual(3, len(payload["font_configs"]))
+        self.assertEqual("ARTIST NAME", payload["font_configs"][0]["text"])
+        self.assertTrue(payload["font_configs"][0]["bold"])
+        self.assertEqual(880, payload["font_configs"][0]["x"])
+        self.assertEqual(1610, payload["font_configs"][2]["y"])
+
+    def test_compute_preview_layout_helpers_keep_image_visible(self):
+        self.assertEqual(
+            340,
+            cover_preview_tools.compute_preview_stage_height(320),
+        )
+        self.assertEqual(
+            (180, 360),
+            cover_preview_tools.compute_preview_fit_size((1000, 2000), 220, 400, 360),
+        )
+
+    def test_read_artwork_meta_collects_size_and_dimensions(self):
+        class FakeImage:
+            size = (3000, 3000)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        details = cover_preview_tools.read_artwork_meta(
+            "/tmp/cover.png",
+            is_file_fn=lambda _path: True,
+            getsize_fn=lambda _path: 1536,
+            image_open=lambda _path: FakeImage(),
+        )
+
+        self.assertEqual("PNG", details["ext"])
+        self.assertEqual("1.5 KB", details["size_text"])
+        self.assertEqual((3000, 3000), details["dimensions"])
+
+    def test_resolve_preview_refresh_and_zoom_states_cover_busy_open_missing_and_render(self):
+        refresh_state = cover_preview_tools.resolve_preview_refresh_state(
+            " /tmp/cover.png ",
+            exists_fn=lambda path: path == "/tmp/cover.png",
+        )
+        busy = cover_preview_tools.resolve_preview_zoom_action(
+            is_rendering=True,
+            has_current_image=False,
+            artwork_path="/tmp/cover.png",
+            exists_fn=lambda _path: True,
+        )
+        open_state = cover_preview_tools.resolve_preview_zoom_action(
+            is_rendering=False,
+            has_current_image=True,
+            artwork_path="/tmp/cover.png",
+            exists_fn=lambda _path: True,
+        )
+        missing = cover_preview_tools.resolve_preview_zoom_action(
+            is_rendering=False,
+            has_current_image=False,
+            artwork_path="/tmp/missing.png",
+            exists_fn=lambda _path: False,
+        )
+        render_first = cover_preview_tools.resolve_preview_zoom_action(
+            is_rendering=False,
+            has_current_image=False,
+            artwork_path="/tmp/cover.png",
+            exists_fn=lambda path: path == "/tmp/cover.png",
+        )
+
+        self.assertEqual("/tmp/cover.png", refresh_state["artwork_path"])
+        self.assertTrue(refresh_state["can_render"])
+        self.assertEqual("busy", busy["action"])
+        self.assertEqual("open", open_state["action"])
+        self.assertEqual("missing", missing["action"])
+        self.assertEqual("render_first", render_first["action"])
 
 
 class DetailControllerToolsTests(unittest.TestCase):

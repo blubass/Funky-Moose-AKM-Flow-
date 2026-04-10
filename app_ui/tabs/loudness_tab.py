@@ -34,33 +34,48 @@ class LoudnessTab(AkmPanel):
         self._setup_dnd()
 
     def build_ui(self):
+        scroll_root, page = self._build_scroll_content()
+        self._build_waveform_card(page)
+        self._build_mid_row(page)
+        self._build_split_row(page)
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
+
+    def _build_scroll_content(self):
         scroll_root = AkmScrollablePanel(self)
         scroll_root.pack(fill="both", expand=True)
         self._page_scroll_root = scroll_root
         scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
-        page = scroll_root.scrollable_frame
+        return scroll_root, scroll_root.scrollable_frame
 
-        # --- 1. WAVEFORM PROMINENCE (TOP) ---
+    def _build_waveform_card(self, page):
         self.preview_card = AkmCard(page, height=240)
         self.preview_card.pack(fill="x", padx=SPACE_MD, pady=(SPACE_MD, SPACE_SM))
-        
+
         inlay = tk.Frame(self.preview_card.inner, bg="#050507", padx=2, pady=2)
         inlay.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=CARD_PAD_Y)
-        
+
         self.waveform_container = tk.Frame(inlay, bg="#0A0A0E")
         self.waveform_container.pack(fill="both", expand=True)
         tk.Frame(inlay, bg="#1E1E22", height=1).place(relx=0, rely=0, relwidth=1)
-        
-        self.waveform_label = tk.Label(self.waveform_container, bg="#0A0A0E", fg=ui_patterns.ACCENT, 
-                                      font=("Inter", 14, "bold"), text="WELLENFORM MASTER DISPLAY") 
+
+        self.waveform_label = tk.Label(
+            self.waveform_container,
+            bg="#0A0A0E",
+            fg=ui_patterns.ACCENT,
+            font=("Inter", 14, "bold"),
+            text="WELLENFORM MASTER DISPLAY",
+        )
         self.waveform_label.pack(fill="both", expand=True)
 
-        # --- 2. MIDDLE ROW (Workflow | Status) ---
+    def _build_mid_row(self, page):
         mid_row = tk.Frame(page, bg=BG)
         mid_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         self._mid_row = mid_row
-        
-        # Workflow (Narrower)
+
+        self._build_workflow_card(mid_row)
+        self._build_status_log_card(mid_row)
+
+    def _build_workflow_card(self, mid_row):
         action_card = AkmCard(mid_row, min_height=140)
         action_card.pack(side="left", fill="both", expand=True, padx=(0, SPACE_XS))
         self._workflow_card = action_card
@@ -73,7 +88,7 @@ class LoudnessTab(AkmPanel):
             justify="left",
         )
         self._workflow_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(2, 6))
-        
+
         controls = AkmPanel(action_card.inner, bg=PANEL_2)
         controls.pack(fill="x", padx=CARD_PAD_X, pady=(2, 4))
         self._workflow_action_bar = controls
@@ -95,7 +110,7 @@ class LoudnessTab(AkmPanel):
             self.app.btn(aux_controls, "Löschen", self.app.loudness_ctrl.delete_files, quiet=True, width=96),
         )
 
-        # Status / Log (Side-by-side with Workflow)
+    def _build_status_log_card(self, mid_row):
         log_card = AkmCard(mid_row, min_height=140)
         log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
         self._status_log_card = log_card
@@ -114,17 +129,23 @@ class LoudnessTab(AkmPanel):
         self.loudness_log = tk.Text(log_card.inner, height=3, bg=LOG_BG, fg=LOG_FG, relief="flat", font=("Courier", 9))
         self.loudness_log.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(2, 10))
 
-        # --- 3. BOTTOM ROW (Settings | List) ---
+    def _build_split_row(self, page):
         split_frame = tk.Frame(page, bg=BG)
         split_frame.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
         self._split_frame = split_frame
-        
-        # Left: Settings
+
         left_p = tk.Frame(split_frame, bg=BG)
         left_p.pack(side="left", fill="both", expand=True, padx=(0, SPACE_SM))
         self._settings_panel = left_p
-        
-        settings_card = AkmCard(left_p)
+        self._build_settings_card(left_p)
+
+        right_p = tk.Frame(split_frame, bg=BG)
+        right_p.pack(side="left", fill="both", expand=True)
+        self._tree_panel = right_p
+        self._build_tree_card(right_p)
+
+    def _build_settings_card(self, left_panel):
+        settings_card = AkmCard(left_panel)
         settings_card.pack(fill="both", expand=True)
         settings_form = AkmForm(settings_card.inner, padx=CARD_PAD_X, pady=CARD_PAD_Y)
         settings_form.pack(fill="both")
@@ -133,7 +154,7 @@ class LoudnessTab(AkmPanel):
         settings_form.add_entry("True Peak", self.peak_var, width=8)
         settings_form.add_row(
             "Export-Ziel",
-            lambda parent: self._create_dir_row(parent, self.output_dir_var),
+            lambda parent: self._create_output_dir_field(parent),
         )
         settings_form.add_checkbox("Limiter", self.use_limiter_var)
         settings_form.add_checkbox("Auto-Link", self.auto_link_var)
@@ -146,11 +167,8 @@ class LoudnessTab(AkmPanel):
         )
         self._settings_hint_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
-        # Right: Treeview
-        right_p = tk.Frame(split_frame, bg=BG)
-        right_p.pack(side="left", fill="both", expand=True)
-        self._tree_panel = right_p
-        tree_card = AkmCard(right_p)
+    def _build_tree_card(self, right_panel):
+        tree_card = AkmCard(right_panel)
         tree_card.pack(fill="both", expand=True)
         AkmLabel(tree_card.inner, text="Analyse-Matrix", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._tree_intro_label = AkmSubLabel(
@@ -163,7 +181,9 @@ class LoudnessTab(AkmPanel):
 
         tree_wrap = tk.Frame(tree_card.inner, bg=PANEL_2)
         tree_wrap.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-        
+        self._build_loudness_tree(tree_wrap)
+
+    def _build_loudness_tree(self, tree_wrap):
         cols = ("filename", "duration", "lufs", "peak", "sample", "gain", "predicted_tp", "status", "limit", "export_info")
         self.loudness_tree = ttk.Treeview(tree_wrap, columns=cols, show="headings", height=8, selectmode="extended")
         headers = {
@@ -196,7 +216,6 @@ class LoudnessTab(AkmPanel):
         self.loudness_tree.config(yscrollcommand=sb.set)
         self.loudness_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.loudness_tree.bind("<Double-1>", self.app.loudness_ctrl.on_tree_activate)
-        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)
@@ -209,18 +228,21 @@ class LoudnessTab(AkmPanel):
         self._update_wraplengths(width)
 
     def _apply_mid_layout(self, width):
-        target_mode = "stack" if width and width < self.MID_STACK_BREAKPOINT else "row"
-        if target_mode == self._mid_layout_mode:
-            return
-        self._mid_layout_mode = target_mode
-        self._workflow_card.pack_forget()
-        self._status_log_card.pack_forget()
-        if target_mode == "stack":
-            self._workflow_card.pack(fill="x", expand=False, pady=(0, SPACE_SM))
-            self._status_log_card.pack(fill="x", expand=False)
-            return
-        self._workflow_card.pack(side="left", fill="both", expand=True, padx=(0, SPACE_XS))
-        self._status_log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
+        self._mid_layout_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.MID_STACK_BREAKPOINT,
+            self._mid_layout_mode,
+            {
+                "stack": (
+                    (self._workflow_card, {"fill": "x", "expand": False, "pady": (0, SPACE_SM)}),
+                    (self._status_log_card, {"fill": "x", "expand": False}),
+                ),
+                "row": (
+                    (self._workflow_card, {"side": "left", "fill": "both", "expand": True, "padx": (0, SPACE_XS)}),
+                    (self._status_log_card, {"side": "left", "fill": "both", "expand": True, "padx": (SPACE_XS, 0)}),
+                ),
+            },
+        )
 
     def _apply_button_bar(self, container, buttons, width, state_attr):
         current_mode = getattr(self, state_attr, None)
@@ -238,18 +260,21 @@ class LoudnessTab(AkmPanel):
         )
 
     def _apply_split_layout(self, width):
-        target_mode = "stack" if width and width < self.MID_STACK_BREAKPOINT else "row"
-        if target_mode == self._split_layout_mode:
-            return
-        self._split_layout_mode = target_mode
-        self._settings_panel.pack_forget()
-        self._tree_panel.pack_forget()
-        if target_mode == "stack":
-            self._settings_panel.pack(fill="x", expand=False, pady=(0, SPACE_SM))
-            self._tree_panel.pack(fill="both", expand=True)
-            return
-        self._settings_panel.pack(side="left", fill="both", expand=True, padx=(0, SPACE_SM))
-        self._tree_panel.pack(side="left", fill="both", expand=True)
+        self._split_layout_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.MID_STACK_BREAKPOINT,
+            self._split_layout_mode,
+            {
+                "stack": (
+                    (self._settings_panel, {"fill": "x", "expand": False, "pady": (0, SPACE_SM)}),
+                    (self._tree_panel, {"fill": "both", "expand": True}),
+                ),
+                "row": (
+                    (self._settings_panel, {"side": "left", "fill": "both", "expand": True, "padx": (0, SPACE_SM)}),
+                    (self._tree_panel, {"side": "left", "fill": "both", "expand": True}),
+                ),
+            },
+        )
 
     def _update_wraplengths(self, width):
         upper_width = width if self._mid_layout_mode == "stack" else max(340, (width - SPACE_XS) // 2)
@@ -296,9 +321,9 @@ class LoudnessTab(AkmPanel):
 
         self.app.tasks.run(_bg, _done, busy_text="Erzeuge Grafik...")
 
-    def _create_dir_row(self, parent, var):
+    def _create_output_dir_field(self, parent):
         frame = tk.Frame(parent, bg=PANEL_2)
-        AkmEntry(frame, textvariable=var, font=FONT_SM).pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
+        AkmEntry(frame, textvariable=self.output_dir_var, font=FONT_SM).pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
         self.app.btn(frame, "Wählen", self.app.loudness_ctrl.choose_output_dir, quiet=True, width=86).pack(side="right")
         return frame
 

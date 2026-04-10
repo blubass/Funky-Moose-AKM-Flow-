@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
 from app_logic.config import cfg
+from app_logic.text_utils import clean_text as _clean_text
 
 # Use Centralized Config Constants
 DATA_DIR = cfg.DATA_DIR
@@ -117,17 +118,6 @@ def _write_json_atomic(path, payload):
         except OSError:
             pass
         raise
-
-
-def _clean_text(value):
-    if value is None:
-        return ""
-
-    if value != value:
-        return ""
-
-    text = str(value).strip()
-    return "" if text.lower() == "nan" else text
 
 
 def _read_json_list(path, strict=False):

@@ -1,14 +1,11 @@
+from app_logic.text_utils import clean_text as _clean_text
+
+
 BATCH_STATUSES = {"in_progress", "ready"}
 DEFAULT_COPY_STAGE = "title"
 EMPTY_FLOW_TITLE = "Keine offenen Meldungen"
 EMPTY_FLOW_META = "Importiere Excel oder lege neue Werke an."
 EMPTY_COPY_LABEL = "Titel kopieren"
-
-
-def _clean_text(value):
-    if value is None:
-        return ""
-    return str(value).strip()
 
 
 def filter_batch_entries(entries):

@@ -5,7 +5,7 @@ class Config:
     """Centralized Configuration and Path Management for the Funky Moose Forge."""
     
     APP_NAME = "Funky Moose Release Forge"
-    VERSION = "1.0.3"
+    VERSION = "1.0.4"
     YEAR = "2026"
     
     # Paths

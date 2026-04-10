@@ -1,14 +1,11 @@
+from app_logic.text_utils import clean_text as _clean_text
+
+
 ASSISTANT_STATUS_ACTIONS = [
     ("Bereit", "ready"),
     ("Gemeldet", "submitted"),
     ("Bestätigt", "confirmed"),
 ]
-
-
-def _clean_text(value):
-    if value is None:
-        return ""
-    return str(value).strip()
 
 
 def normalize_assistant_title(value):

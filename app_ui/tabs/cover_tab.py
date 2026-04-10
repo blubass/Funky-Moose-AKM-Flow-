@@ -3,6 +3,8 @@ from tkinter import filedialog, ttk
 import os
 from PIL import Image, ImageTk
 import app_ui.ui_patterns as ui_patterns
+from app_ui import cover_action_tools
+from app_ui import cover_preview_tools
 from app_ui import cover_view_tools
 from app_ui import path_ui_tools
 from app_ui.ui_patterns import (
@@ -131,7 +133,17 @@ class CoverTab(AkmPanel):
         self._page_scroll_root = scroll_root
         scroll_root.canvas.bind("<Configure>", self._on_page_resize, add="+")
         page = scroll_root.scrollable_frame
-        
+
+        self._build_header_section(page)
+        self._build_status_card(page)
+        content, left_side, right_side = self._build_content_columns(page, scroll_root)
+        self._build_media_section(left_side)
+        self._build_meta_section(right_side, sys_fonts, content)
+
+        self._show_placeholders()
+        self._update_cover_dashboard()
+
+    def _build_header_section(self, page):
         AkmHeader(page, text="Cover Forge").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             page,
@@ -140,6 +152,7 @@ class CoverTab(AkmPanel):
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
+    def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
@@ -183,21 +196,22 @@ class CoverTab(AkmPanel):
             self.app.btn(status_action_row, "Finder", self._open_artwork_in_finder, quiet=True, width=86),
         )
 
+    def _build_content_columns(self, page, scroll_root):
         content = AkmPanel(page)
         content.pack(fill="both", expand=True, padx=SPACE_MD, pady=0)
 
         left_side = AkmPanel(content)
-        # Use scrollable panel for the right side
-        scroll_container = AkmScrollablePanel(content, bg=PANEL) 
+        scroll_container = AkmScrollablePanel(content, bg=PANEL)
         right_side = scroll_container.scrollable_frame
-        
+
         left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
         scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
         self._cover_split_widgets = (left_side, scroll_container)
         content.bind("<Configure>", self._on_responsive_resize, add="+")
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
+        return content, left_side, right_side
 
-        # LEFT: PREVIEW & MASTER ASSET
+    def _build_media_section(self, left_side):
         media_row = AkmPanel(left_side)
         media_row.pack(fill="x", pady=(0, CARD_GAP))
         preview_card = AkmCard(media_row)
@@ -205,7 +219,11 @@ class CoverTab(AkmPanel):
         self._cover_media_widgets = (preview_card, asset_card)
         media_row.bind("<Configure>", self._on_cover_media_resize, add="+")
         self.after_idle(lambda: self._apply_cover_media_layout(media_row.winfo_width()))
-        
+
+        self._build_preview_card(preview_card)
+        self._build_asset_card(asset_card)
+
+    def _build_preview_card(self, preview_card):
         AkmLabel(preview_card.inner, text="Live-Vorschau", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self.cover_preview_caption = AkmSubLabel(
             preview_card.inner,
@@ -215,7 +233,7 @@ class CoverTab(AkmPanel):
             wraplength=420,
         )
         self.cover_preview_caption.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
-        
+
         preview_shell = tk.Frame(
             preview_card.inner,
             bg="#0A0A0D",
@@ -227,8 +245,7 @@ class CoverTab(AkmPanel):
         self.preview_box = AkmPanel(preview_shell, bg="#111111", height=280)
         self.preview_box.pack(fill="both", expand=True, padx=10, pady=10)
         self.preview_box.pack_propagate(False)
-        
-        # Inner container for actual image/placeholders
+
         self.preview_inner = tk.Frame(self.preview_box, bg="#111111")
         self.preview_inner.pack(fill="both", expand=True)
         self.preview_box.bind("<Configure>", self._on_preview_box_configure, add="+")
@@ -254,6 +271,7 @@ class CoverTab(AkmPanel):
         )
         self.cover_preview_hint_label.pack(fill="x", pady=(2, 0))
 
+    def _build_asset_card(self, asset_card):
         AkmLabel(asset_card.inner, text="Master Asset", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self.cover_asset_name_label = AkmLabel(
             asset_card.inner,
@@ -297,74 +315,13 @@ class CoverTab(AkmPanel):
         )
         self.cover_asset_hint_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
-        # RIGHT: METADATA & FILES
+    def _build_meta_section(self, right_side, sys_fonts, content):
         meta_card = AkmCard(right_side)
         meta_card.pack(fill="both", expand=True)
 
         form = AkmForm(meta_card.inner, padx=CARD_PAD_X, pady=CARD_PAD_Y)
         form.pack(fill="both", expand=True)
         self._meta_card = meta_card
-        
-        # TYPOGRAPHY & POSITIONS (COMPACT VERSION)
-        def _add_pos_form(header, font_var, color_var, size_var, bold_var, case_var, x_var, y_var):
-            form.add_header(header, color=ACCENT if header == "Title Layer" else SUBTLE)
-            
-            # Row 1: Font & Size & Color
-            row_main = tk.Frame(form, bg=PANEL_2)
-            row_main.grid(row=form._current_row, column=0, columnspan=2, sticky="ew", pady=(0, 2))
-            
-            tk.Label(row_main, text="Font:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
-            ttk.Combobox(row_main, textvariable=font_var, values=sys_fonts, width=16).pack(side="left", padx=5)
-            
-            tk.Label(row_main, text="Size:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(5, 0))
-            tk.Entry(row_main, textvariable=size_var, width=4, bg=FIELD_BG, fg=FIELD_FG, bd=0).pack(side="left", padx=5)
-            
-            def _pick():
-                from tkinter import colorchooser
-                c = colorchooser.askcolor(title=f"Farbe {header}")
-                if c[1]: color_var.set(c[1])
-            
-            btn = tk.Label(row_main, text="Color", bg=PANEL_2, fg=ACCENT, cursor="hand2", font=FONT_SM)
-            btn.pack(side="left", padx=5)
-            btn.bind("<Button-1>", lambda e: _pick())
-            
-            # Add a small preview of the color
-            color_preview = tk.Frame(row_main, width=12, height=12, bg=color_var.get(), highlightthickness=1, highlightbackground=SUBTLE)
-            color_preview.pack(side="left", padx=2)
-            def _update_cp(*a): color_preview.config(bg=color_var.get())
-            color_var.trace_add("write", _update_cp)
-            
-            # --- BOLD & CAPS ---
-            tk.Label(row_main, text="Bold:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(10, 0))
-            tk.Checkbutton(row_main, variable=bold_var, bg=PANEL_2, activebackground=PANEL_2, selectcolor="#111111", bd=0).pack(side="left")
-            
-            tk.Label(row_main, text="ABC:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(5, 0))
-            ttk.Combobox(row_main, textvariable=case_var, values=["normal", "uppercase"], width=6).pack(side="left", padx=2)
-            
-            form._current_row += 1
-            
-            # Row 2: X & Y Sliders (Compact side-by-side)
-            row_coords = tk.Frame(form, bg=PANEL_2)
-            row_coords.grid(row=form._current_row, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-            
-            # X
-            tk.Label(row_coords, text="X", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
-            tk.Scale(row_coords, from_=0, to=1800, variable=x_var, orient="horizontal", 
-                     bg=PANEL_2, fg=TEXT, highlightthickness=0, resolution=10,
-                     showvalue=False, length=80).pack(side="left", padx=(2, 10))
-            
-            # Y
-            tk.Label(row_coords, text="Y", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
-            tk.Scale(row_coords, from_=0, to=1800, variable=y_var, orient="horizontal", 
-                     bg=PANEL_2, fg=TEXT, highlightthickness=0, resolution=10,
-                     showvalue=False, length=80).pack(side="left", padx=2)
-            
-            # Value display labels
-            tk.Label(row_coords, textvariable=x_var, bg=PANEL_2, fg=ACCENT, font=FONT_SM, width=4).pack(side="left", padx=(5, 0))
-            tk.Label(row_coords, text=",", bg=PANEL_2, fg=SUBTLE).pack(side="left")
-            tk.Label(row_coords, textvariable=y_var, bg=PANEL_2, fg=ACCENT, font=FONT_SM, width=4).pack(side="left")
-
-            form._current_row += 1
 
         form.add_header("Art Direction")
         form.add_row("Artwork", self._create_artwork_row)
@@ -389,38 +346,158 @@ class CoverTab(AkmPanel):
         self._typography_hint_label.grid(row=form._current_row, column=0, columnspan=2, sticky="w", pady=(0, SPACE_SM))
         form._current_row += 1
 
-        _add_pos_form("Artist Layer", self.artist_font_var, self.artist_color_var, self.artist_size_var, self.artist_bold_var, self.artist_case_var, self.artist_x_var, self.artist_y_var)
-        _add_pos_form("Title Layer", self.title_font_var, self.title_color_var, self.title_size_var, self.title_bold_var, self.title_case_var, self.title_x_var, self.title_y_var)
-        _add_pos_form("Subtitle Layer", self.subtitle_font_var, self.subtitle_color_var, self.subtitle_size_var, self.subtitle_bold_var, self.subtitle_case_var, self.subtitle_x_var, self.subtitle_y_var)
+        self._add_typography_layer_form(
+            form,
+            "Artist Layer",
+            self.artist_font_var,
+            self.artist_color_var,
+            self.artist_size_var,
+            self.artist_bold_var,
+            self.artist_case_var,
+            self.artist_x_var,
+            self.artist_y_var,
+            sys_fonts,
+        )
+        self._add_typography_layer_form(
+            form,
+            "Title Layer",
+            self.title_font_var,
+            self.title_color_var,
+            self.title_size_var,
+            self.title_bold_var,
+            self.title_case_var,
+            self.title_x_var,
+            self.title_y_var,
+            sys_fonts,
+        )
+        self._add_typography_layer_form(
+            form,
+            "Subtitle Layer",
+            self.subtitle_font_var,
+            self.subtitle_color_var,
+            self.subtitle_size_var,
+            self.subtitle_bold_var,
+            self.subtitle_case_var,
+            self.subtitle_x_var,
+            self.subtitle_y_var,
+            sys_fonts,
+        )
 
-        # QUALITY CHECK & MONITOR
+        self._build_quality_monitor(form)
+        self._build_meta_action_bar(meta_card)
+        self.after_idle(lambda: self._update_wraplengths(content.winfo_width(), meta_card.winfo_width()))
+
+    def _add_typography_layer_form(self, form, header, font_var, color_var, size_var, bold_var, case_var, x_var, y_var, sys_fonts):
+        form.add_header(header, color=ACCENT if header == "Title Layer" else SUBTLE)
+
+        row_main = tk.Frame(form, bg=PANEL_2)
+        row_main.grid(row=form._current_row, column=0, columnspan=2, sticky="ew", pady=(0, 2))
+
+        tk.Label(row_main, text="Font:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
+        ttk.Combobox(row_main, textvariable=font_var, values=sys_fonts, width=16).pack(side="left", padx=5)
+
+        tk.Label(row_main, text="Size:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(5, 0))
+        tk.Entry(row_main, textvariable=size_var, width=4, bg=FIELD_BG, fg=FIELD_FG, bd=0).pack(side="left", padx=5)
+
+        def _pick():
+            from tkinter import colorchooser
+
+            color = colorchooser.askcolor(title=f"Farbe {header}")
+            if color[1]:
+                color_var.set(color[1])
+
+        btn = tk.Label(row_main, text="Color", bg=PANEL_2, fg=ACCENT, cursor="hand2", font=FONT_SM)
+        btn.pack(side="left", padx=5)
+        btn.bind("<Button-1>", lambda _event: _pick())
+
+        color_preview = tk.Frame(
+            row_main,
+            width=12,
+            height=12,
+            bg=color_var.get(),
+            highlightthickness=1,
+            highlightbackground=SUBTLE,
+        )
+        color_preview.pack(side="left", padx=2)
+
+        def _update_cp(*_args):
+            color_preview.config(bg=color_var.get())
+
+        color_var.trace_add("write", _update_cp)
+
+        tk.Label(row_main, text="Bold:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(10, 0))
+        tk.Checkbutton(row_main, variable=bold_var, bg=PANEL_2, activebackground=PANEL_2, selectcolor="#111111", bd=0).pack(side="left")
+
+        tk.Label(row_main, text="ABC:", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(5, 0))
+        ttk.Combobox(row_main, textvariable=case_var, values=["normal", "uppercase"], width=6).pack(side="left", padx=2)
+
+        form._current_row += 1
+
+        row_coords = tk.Frame(form, bg=PANEL_2)
+        row_coords.grid(row=form._current_row, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+
+        tk.Label(row_coords, text="X", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
+        tk.Scale(
+            row_coords,
+            from_=0,
+            to=1800,
+            variable=x_var,
+            orient="horizontal",
+            bg=PANEL_2,
+            fg=TEXT,
+            highlightthickness=0,
+            resolution=10,
+            showvalue=False,
+            length=80,
+        ).pack(side="left", padx=(2, 10))
+
+        tk.Label(row_coords, text="Y", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
+        tk.Scale(
+            row_coords,
+            from_=0,
+            to=1800,
+            variable=y_var,
+            orient="horizontal",
+            bg=PANEL_2,
+            fg=TEXT,
+            highlightthickness=0,
+            resolution=10,
+            showvalue=False,
+            length=80,
+        ).pack(side="left", padx=2)
+
+        tk.Label(row_coords, textvariable=x_var, bg=PANEL_2, fg=ACCENT, font=FONT_SM, width=4).pack(side="left", padx=(5, 0))
+        tk.Label(row_coords, text=",", bg=PANEL_2, fg=SUBTLE).pack(side="left")
+        tk.Label(row_coords, textvariable=y_var, bg=PANEL_2, fg=ACCENT, font=FONT_SM, width=4).pack(side="left")
+
+        form._current_row += 1
+
+    def _build_quality_monitor(self, form):
         form.add_header("Technische Abnahme & Monitor")
-        
-        # Design Health Monitor (The Cool Feature)
+
         monitor_frame = tk.Frame(form, bg=PANEL_2)
         monitor_frame.grid(row=form._current_row, column=0, columnspan=2, sticky="w", pady=(0, SPACE_SM))
         form._current_row += 1
-        
-        b1 = AkmBadge(monitor_frame, "3000px")
-        b1.pack(side="left", padx=(0, 4))
-        b2 = AkmBadge(monitor_frame, "RGB")
-        b2.pack(side="left", padx=4)
-        b3 = AkmBadge(monitor_frame, "Bleed")
-        b3.pack(side="left", padx=4)
-        
-        v1 = tk.BooleanVar()
-        v2 = tk.BooleanVar()
-        v3 = tk.BooleanVar()
-        form.add_checkbox("3000 x 3000 px @ 300 DPI", variable=v1)
-        form.add_checkbox("RGB Farbraum (Digital)", variable=v2)
-        form.add_checkbox("Keine Anschnittfehler", variable=v3)
 
-        # Linking
-        v1.trace_add("write", lambda *a: b1.set_active(v1.get()))
-        v2.trace_add("write", lambda *a: b2.set_active(v2.get()))
-        v3.trace_add("write", lambda *a: b3.set_active(v3.get()))
+        badge_3000 = AkmBadge(monitor_frame, "3000px")
+        badge_3000.pack(side="left", padx=(0, 4))
+        badge_rgb = AkmBadge(monitor_frame, "RGB")
+        badge_rgb.pack(side="left", padx=4)
+        badge_bleed = AkmBadge(monitor_frame, "Bleed")
+        badge_bleed.pack(side="left", padx=4)
 
-        # BUTTON BAR
+        check_3000 = tk.BooleanVar()
+        check_rgb = tk.BooleanVar()
+        check_bleed = tk.BooleanVar()
+        form.add_checkbox("3000 x 3000 px @ 300 DPI", variable=check_3000)
+        form.add_checkbox("RGB Farbraum (Digital)", variable=check_rgb)
+        form.add_checkbox("Keine Anschnittfehler", variable=check_bleed)
+
+        check_3000.trace_add("write", lambda *_args: badge_3000.set_active(check_3000.get()))
+        check_rgb.trace_add("write", lambda *_args: badge_rgb.set_active(check_rgb.get()))
+        check_bleed.trace_add("write", lambda *_args: badge_bleed.set_active(check_bleed.get()))
+
+    def _build_meta_action_bar(self, meta_card):
         btn_bar = AkmPanel(meta_card.inner, bg=PANEL_2)
         btn_bar.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._cover_button_bar = btn_bar
@@ -432,10 +509,6 @@ class CoverTab(AkmPanel):
         )
         meta_card.bind("<Configure>", self._on_action_bar_resize, add="+")
         self.after_idle(lambda: self._apply_cover_action_layout(meta_card.winfo_width()))
-        self.after_idle(lambda: self._update_wraplengths(content.winfo_width(), meta_card.winfo_width()))
-
-        self._show_placeholders()
-        self._update_cover_dashboard()
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)
@@ -446,23 +519,41 @@ class CoverTab(AkmPanel):
     def _on_cover_media_resize(self, event):
         self._apply_cover_media_layout(event.width)
 
+    def _apply_button_bar(self, container, buttons, width, state_attr, row_spacing=SPACE_XS, anchor="w"):
+        current_mode = getattr(self, state_attr, None)
+        mode = ui_patterns.apply_button_bar_layout(
+            container,
+            buttons,
+            width,
+            self.ACTION_STACK_BREAKPOINT,
+            current_mode,
+            row_spacing=row_spacing,
+            anchor=anchor,
+        )
+        setattr(self, state_attr, mode)
+        return mode
+
     def _apply_responsive_layout(self, width):
         if not hasattr(self, "_cover_split_widgets"):
             return
-        target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
-        if target_mode != self._cover_layout_mode:
-            self._cover_layout_mode = target_mode
-
-            left_side, scroll_container = self._cover_split_widgets
-            left_side.pack_forget()
-            scroll_container.pack_forget()
-
-            if target_mode == "stack":
-                left_side.pack(side="top", fill="x", expand=False, pady=(0, CARD_GAP))
-                scroll_container.pack(side="top", fill="both", expand=True)
-            else:
-                left_side.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-                scroll_container.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        left_side, scroll_container = self._cover_split_widgets
+        self._cover_layout_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.STACK_BREAKPOINT,
+            self._cover_layout_mode,
+            {
+                "stack": (
+                    (left_side, {"side": "top", "fill": "x", "expand": False, "pady": (0, CARD_GAP)}),
+                    (scroll_container, {"side": "top", "fill": "both", "expand": True}),
+                ),
+                "split": (
+                    (left_side, {"side": "left", "fill": "both", "expand": True, "padx": (0, CARD_GAP // 2)}),
+                    (scroll_container, {"side": "left", "fill": "both", "expand": True, "padx": (CARD_GAP // 2, 0)}),
+                ),
+            },
+            narrow_mode="stack",
+            wide_mode="split",
+        )
 
         meta_width = self._meta_card.winfo_width() if hasattr(self, "_meta_card") else width
         self._apply_status_actions_layout(width)
@@ -471,22 +562,22 @@ class CoverTab(AkmPanel):
     def _apply_cover_media_layout(self, width):
         if not hasattr(self, "_cover_media_widgets"):
             return
-        target_mode = "stack" if width and width < self.MEDIA_STACK_BREAKPOINT else "row"
-        if target_mode == self._cover_media_mode:
-            return
-        self._cover_media_mode = target_mode
-
         preview_card, asset_card = self._cover_media_widgets
-        preview_card.pack_forget()
-        asset_card.pack_forget()
-
-        if target_mode == "stack":
-            preview_card.pack(fill="x", pady=(0, CARD_GAP))
-            asset_card.pack(fill="x")
-            return
-
-        preview_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-        asset_card.pack(side="left", fill="both", expand=False, padx=(CARD_GAP // 2, 0))
+        self._cover_media_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.MEDIA_STACK_BREAKPOINT,
+            self._cover_media_mode,
+            {
+                "stack": (
+                    (preview_card, {"fill": "x", "pady": (0, CARD_GAP)}),
+                    (asset_card, {"fill": "x"}),
+                ),
+                "row": (
+                    (preview_card, {"side": "left", "fill": "both", "expand": True, "padx": (0, CARD_GAP // 2)}),
+                    (asset_card, {"side": "left", "fill": "both", "expand": False, "padx": (CARD_GAP // 2, 0)}),
+                ),
+            },
+        )
 
     def _on_action_bar_resize(self, event):
         content_width = self._cover_split_widgets[0].master.winfo_width() if hasattr(self, "_cover_split_widgets") else event.width
@@ -496,46 +587,37 @@ class CoverTab(AkmPanel):
     def _apply_cover_action_layout(self, width):
         if not hasattr(self, "_cover_button_widgets"):
             return
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if target_mode == self._cover_action_mode:
-            return
-        self._cover_action_mode = target_mode
-
-        for button in self._cover_button_widgets:
-            button.pack_forget()
-
-        if target_mode == "stack":
-            for index, button in enumerate(self._cover_button_widgets):
-                button.pack(fill="x", pady=(0, SPACE_XS if index < len(self._cover_button_widgets) - 1 else 0))
-            return
-
-        for index, button in enumerate(self._cover_button_widgets):
-            pad_left = 0 if index == 0 else SPACE_SM
-            button.pack(side="left", padx=(pad_left, 0))
+        self._apply_button_bar(
+            self._cover_button_bar,
+            self._cover_button_widgets,
+            width,
+            "_cover_action_mode",
+            row_spacing=SPACE_SM,
+        )
 
     def _apply_status_actions_layout(self, width):
         if not hasattr(self, "_status_action_buttons"):
             return
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
+        target_mode = self._resolve_layout_mode(width, self.ACTION_STACK_BREAKPOINT)
         if target_mode == self._status_action_mode:
             return
-        self._status_action_mode = target_mode
 
         self._status_primary_button.pack_forget()
-        for button in self._status_action_buttons:
-            button.pack_forget()
+        self._status_action_bar.pack_forget()
 
         if target_mode == "stack":
             self._status_primary_button.pack(anchor="e", fill="x", pady=(0, SPACE_XS))
-            self._status_action_bar.pack(anchor="e", fill="x")
-            for index, button in enumerate(self._status_action_buttons):
-                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
-            return
+        else:
+            self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
 
-        self._status_primary_button.pack(anchor="e", pady=(0, SPACE_XS))
-        self._status_action_bar.pack(anchor="e")
-        for index, button in enumerate(self._status_action_buttons):
-            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+        self._apply_button_bar(
+            self._status_action_bar,
+            self._status_action_buttons,
+            width,
+            "_status_action_mode",
+            row_spacing=SPACE_XS,
+            anchor="e",
+        )
 
     def _update_wraplengths(self, content_width, meta_width):
         split_mode = self._cover_layout_mode or "split"
@@ -734,96 +816,22 @@ class CoverTab(AkmPanel):
     def _sync_preview_stage_height(self):
         if not hasattr(self, "preview_box"):
             return
-        target_h = max(220, int(self.ui_preview_zoom_var.get()))
-        stage_h = max(280, target_h + 20)
+        stage_h = cover_preview_tools.compute_preview_stage_height(
+            self.ui_preview_zoom_var.get()
+        )
         current_h = int(self.preview_box.cget("height"))
         if current_h != stage_h:
             self.preview_box.configure(height=stage_h)
 
     def _read_artwork_meta(self, path):
-        if not path or not os.path.isfile(path):
-            self._artwork_meta_path = path
-            self._artwork_meta = None
-            return None
-        if path == self._artwork_meta_path:
+        normalized = (path or "").strip()
+        if normalized == self._artwork_meta_path:
             return self._artwork_meta
 
-        details = {
-            "ext": os.path.splitext(path)[1].replace(".", "").upper() or "Datei",
-            "size_text": "",
-            "dimensions": None,
-        }
-        try:
-            size_bytes = os.path.getsize(path)
-            details["size_text"] = cover_view_tools.format_file_size(size_bytes)
-        except Exception:
-            details["size_text"] = ""
-        try:
-            with Image.open(path) as image:
-                details["dimensions"] = image.size
-        except Exception:
-            details["dimensions"] = None
-
-        self._artwork_meta_path = path
+        details = cover_preview_tools.read_artwork_meta(normalized)
+        self._artwork_meta_path = normalized
         self._artwork_meta = details
         return details
-
-    def _build_cover_options(self):
-        return cover_view_tools.build_cover_render_options(
-            self.bg_color_var.get(),
-            self.accent_color_var.get(),
-            self.style_var.get(),
-            self.size_mode_var.get(),
-            self.overlay_var.get(),
-            self.offset_var.get(),
-        )
-
-    def _safe_int(self, value, fallback):
-        try:
-            return int(float(value))
-        except Exception:
-            return fallback
-
-    def _build_font_configs(self, target_size):
-        scale = target_size / 1800.0
-        return [
-            {
-                "text": cover_view_tools.format_cover_text(
-                    self.artist_var.get(),
-                    self.artist_case_var.get(),
-                ),
-                "size": max(12, int(self._safe_int(self.artist_size_var.get(), 60) * scale)),
-                "font": self.artist_font_var.get(),
-                "bold": self.artist_bold_var.get(),
-                "color": self.artist_color_var.get(),
-                "x": int(self._safe_int(self.artist_x_var.get(), 900) * scale),
-                "y": int(self._safe_int(self.artist_y_var.get(), 1400) * scale),
-            },
-            {
-                "text": cover_view_tools.format_cover_text(
-                    self.title_var.get(),
-                    self.title_case_var.get(),
-                ),
-                "size": max(12, int(self._safe_int(self.title_size_var.get(), 140) * scale)),
-                "font": self.title_font_var.get(),
-                "bold": self.title_bold_var.get(),
-                "color": self.title_color_var.get(),
-                "x": int(self._safe_int(self.title_x_var.get(), 900) * scale),
-                "y": int(self._safe_int(self.title_y_var.get(), 1500) * scale),
-            },
-            {
-                "text": cover_view_tools.format_cover_text(
-                    self.subtitle_var.get(),
-                    self.subtitle_case_var.get(),
-                ),
-                "size": max(12, int(self._safe_int(self.subtitle_size_var.get(), 40) * scale)),
-                "font": self.subtitle_font_var.get(),
-                "bold": self.subtitle_bold_var.get(),
-                "color": self.subtitle_color_var.get(),
-                "x": int(self._safe_int(self.subtitle_x_var.get(), 900) * scale),
-                "y": int(self._safe_int(self.subtitle_y_var.get(), 1600) * scale),
-            },
-        ]
 
     def _render_cover_image(self, target_size, output_path=None):
         from PIL import ImageDraw
@@ -832,51 +840,41 @@ class CoverTab(AkmPanel):
         if not cover_tools.have_pillow():
             raise RuntimeError("Pillow ist fuer das Cover-Rendering nicht verfuegbar.")
 
-        path = self.artwork_path_var.get().strip()
+        payload = cover_preview_tools.build_cover_render_payload(
+            self.get_state(),
+            target_size,
+        )
+        path = payload["artwork_path"]
         if not path or not os.path.isfile(path):
             raise FileNotFoundError("Kein gueltiges Master-Artwork vorhanden.")
 
-        zoom_val = self.zoom_var.get()
-        layout = cover_view_tools.normalize_cover_layout(self.layout_var.get())
-        options = self._build_cover_options()
-        title = cover_view_tools.format_cover_text(
-            self.title_var.get(),
-            self.title_case_var.get(),
-        )
-        artist = cover_view_tools.format_cover_text(
-            self.artist_var.get(),
-            self.artist_case_var.get(),
-        )
-        subtitle = (
-            cover_view_tools.format_cover_text(
-                self.subtitle_var.get(),
-                self.subtitle_case_var.get(),
-            )
-            or None
-        )
-
         with Image.open(path) as original:
-            base = cover_tools.resize_cover_canvas(original, target_size, target_size, zoom=zoom_val)
-            if layout == "manual":
+            base = cover_tools.resize_cover_canvas(
+                original,
+                target_size,
+                target_size,
+                zoom=payload["zoom"],
+            )
+            if payload["layout"] == "manual":
                 image = base.convert("RGBA")
                 draw = ImageDraw.Draw(image, "RGBA")
                 cover_tools.render_manual_layout(
                     draw,
                     target_size,
                     target_size,
-                    self._build_font_configs(target_size),
-                    zoom=zoom_val,
+                    payload["font_configs"],
+                    zoom=payload["zoom"],
                 )
                 return cover_tools.save_release_cover_variant(image, output_path)
 
             image = cover_tools.build_release_cover_variant(
-                layout,
+                payload["layout"],
                 base,
-                title,
-                artist,
+                payload["title"],
+                payload["artist"],
                 output_path,
-                options,
-                subtitle=subtitle,
+                payload["options"],
+                subtitle=payload["subtitle"],
             )
             return image.convert("RGB") if image.mode != "RGB" else image
 
@@ -934,11 +932,21 @@ class CoverTab(AkmPanel):
         else:
             AkmToast(self, "Master-Speicherung nicht verfügbar")
 
+    def _clear_preview_inner(self):
+        for child in self.preview_inner.winfo_children():
+            child.destroy()
+
+    def _reset_preview_state(self, *, error_message="", clear_zoom_request=False):
+        self._is_rendering = False
+        if clear_zoom_request:
+            self._open_zoom_when_ready = False
+        self._current_image = None
+        self._last_preview_error = error_message
+
     def _show_placeholders(self):
         """Restores the industrial placeholder view."""
         self._sync_preview_stage_height()
-        for child in self.preview_inner.winfo_children():
-            child.destroy()
+        self._clear_preview_inner()
         self._photo = None
         AkmLabel(self.preview_inner, text="3000 x 3000 px", bg="#111111", fg="#2a2a2a", font=FONT_XXL).pack(expand=True)
         AkmSubLabel(self.preview_inner, text="Bild hier hineinziehen", bg="#111111", fg=SUBTLE).pack(pady=(0, 20))
@@ -964,12 +972,12 @@ class CoverTab(AkmPanel):
 
         try:
             files = self.app.tasks.parse_dnd_files(data)
-            target = cover_view_tools.first_supported_artwork_path(files)
-            if target:
-                self.load_cover(target)
+            drop_state = cover_action_tools.analyze_cover_drop_files(files)
+            if drop_state["target_path"]:
+                self.load_cover(drop_state["target_path"])
                 return
-            if files:
-                self.app.append_log(f"Artwork-DnD ignoriert: kein gueltiges Bild in {len(files)} Datei(en).")
+            if drop_state["ignored_message"]:
+                self.app.append_log(drop_state["ignored_message"])
         except Exception as e:
             self.app.append_log(f"Internal DnD Error: {e}")
             import traceback
@@ -977,15 +985,16 @@ class CoverTab(AkmPanel):
 
     def load_cover(self, path):
         """Simplest path to set the base artwork and start previewing."""
-        if not cover_view_tools.is_supported_artwork_path(path):
-            AkmToast(self, "ARTWORK NICHT GEFUNDEN", color=ui_patterns.FLAVOR_ERROR)
+        load_state = cover_action_tools.prepare_cover_load(path)
+        if not load_state["ok"]:
+            AkmToast(self, load_state["error_message"], color=ui_patterns.FLAVOR_ERROR)
             return
 
         self._artwork_meta_path = None
         self._artwork_meta = None
-        self.artwork_path_var.set(path)
+        self.artwork_path_var.set(load_state["path"])
         self._last_preview_error = ""
-        self.app.append_log(f"Cover geladen: {os.path.basename(path)}")
+        self.app.append_log(load_state["log_message"])
         self._schedule_preview_refresh(delay_ms=40)
 
     def _setup_traces(self):
@@ -996,11 +1005,11 @@ class CoverTab(AkmPanel):
     def refresh_preview(self):
         """Renders the current text onto the cover image for preview."""
         self._preview_refresh_after = None
-        path = self.artwork_path_var.get()
-        if not path or not os.path.exists(path):
-            self._current_image = None
-            self._is_rendering = False
-            self._last_preview_error = ""
+        refresh_state = cover_preview_tools.resolve_preview_refresh_state(
+            self.artwork_path_var.get()
+        )
+        if not refresh_state["can_render"]:
+            self._reset_preview_state()
             self._show_placeholders()
             self._update_cover_dashboard()
             return
@@ -1031,24 +1040,28 @@ class CoverTab(AkmPanel):
             self._open_preview_zoom()
 
     def _open_preview_zoom(self, _event=None):
-        if self._is_rendering:
-            AkmToast(self, "VORSCHAU WIRD GERADE AKTUALISIERT", color=ACCENT)
+        zoom_action = cover_preview_tools.resolve_preview_zoom_action(
+            is_rendering=self._is_rendering,
+            has_current_image=self._current_image is not None,
+            artwork_path=self.artwork_path_var.get(),
+        )
+        if zoom_action["action"] == "busy":
+            AkmToast(self, zoom_action["toast_message"], color=ACCENT)
             return
 
-        if self._current_image is not None:
+        if zoom_action["action"] == "open":
             from app_ui.dialogs import AkmRenderedImageZoomDialog
 
             title = self.title_var.get().strip() or "Cover"
             AkmRenderedImageZoomDialog(self, self._current_image, title=f"{title} Zoom")
             return
 
-        artwork_path = self.artwork_path_var.get().strip()
-        if not artwork_path or not os.path.exists(artwork_path):
-            AkmToast(self, "KEIN COVER FUER ZOOM GELADEN", color=ui_patterns.FLAVOR_ERROR)
+        if zoom_action["action"] == "missing":
+            AkmToast(self, zoom_action["toast_message"], color=ui_patterns.FLAVOR_ERROR)
             return
 
         self._open_zoom_when_ready = True
-        AkmToast(self, "VORSCHAU WIRD ZUERST GERENDERT", color=ACCENT)
+        AkmToast(self, zoom_action["toast_message"], color=ACCENT)
         self.refresh_preview()
 
     def _display_preview_image(self):
@@ -1059,42 +1072,41 @@ class CoverTab(AkmPanel):
         self._sync_preview_stage_height()
         stage_w = self.preview_inner.winfo_width() or self.preview_box.winfo_width()
         stage_h = self.preview_inner.winfo_height() or self.preview_box.winfo_height()
-        stage_w = max(1, int(stage_w) - 8)
-        stage_h = max(1, int(stage_h) - 8)
-
-        target_h = max(1, int(self.ui_preview_zoom_var.get()))
-        w, h = self._current_image.size
-        fit_ratio = min(stage_w / w, stage_h / h, target_h / h)
-        fit_ratio = max(fit_ratio, 1 / max(w, h))
-        new_w = max(1, int(w * fit_ratio))
-        new_h = max(1, int(h * fit_ratio))
+        new_w, new_h = cover_preview_tools.compute_preview_fit_size(
+            self._current_image.size,
+            stage_w,
+            stage_h,
+            self.ui_preview_zoom_var.get(),
+        )
 
         preview_img = self._current_image.resize((new_w, new_h), Image.Resampling.LANCZOS)
         self._photo = ImageTk.PhotoImage(preview_img)
 
-        for child in self.preview_inner.winfo_children():
-            child.destroy()
+        self._clear_preview_inner()
 
         image_label = tk.Label(self.preview_inner, image=self._photo, bg="#111111", bd=0, highlightthickness=0)
         image_label.pack(expand=True)
         image_label.bind("<Double-Button-1>", self._open_preview_zoom, add="+")
 
     def _on_preview_error(self, error_msg):
-        self._is_rendering = False
-        self._open_zoom_when_ready = False
-        self._current_image = None
-        self._last_preview_error = error_msg
+        self._reset_preview_state(
+            error_message=error_msg,
+            clear_zoom_request=True,
+        )
         self.app.append_log(f"Preview-Rendering fehlgeschlagen: {error_msg}")
         self._show_placeholders()
         self._update_cover_dashboard()
 
     def _assign_to_release(self):
         """Transfers the current artwork path to the Release tab's metadata."""
-        path = self.artwork_path_var.get()
-        if not path or not os.path.exists(path):
-            AkmToast(self, "KEIN ARTWORK ZUM ZUWEISEN", color="#FF3B30")
+        assignment = cover_action_tools.prepare_cover_assignment(
+            self.artwork_path_var.get()
+        )
+        if not assignment["ok"]:
+            AkmToast(self, assignment["error_message"], color="#FF3B30")
             return
 
+        path = assignment["path"]
         if hasattr(self.app, "release_state_cache"):
             self.app.release_state_cache["cover_path"] = path
         release_tab = self._get_release_tab()
@@ -1107,17 +1119,15 @@ class CoverTab(AkmPanel):
 
     def export_cover(self):
         """Final high-quality render and save to file."""
-        path = self.artwork_path_var.get()
-        if not path or not os.path.exists(path):
-            AkmToast(self, "KEIN MASTER-ARTWORK GELADEN", color="#FF3B30")
+        export_request = cover_action_tools.build_cover_export_request(
+            self.artwork_path_var.get(),
+            self.title_var.get(),
+        )
+        if not export_request["ok"]:
+            AkmToast(self, export_request["error_message"], color="#FF3B30")
             return
 
-        out_path = filedialog.asksaveasfilename(
-            defaultextension=".jpg",
-            filetypes=[("JPEG", "*.jpg"), ("PNG", "*.png")],
-            initialdir=os.path.dirname(path),
-            initialfile=f"Cover_{self.title_var.get().replace(' ', '_')}.jpg"
-        )
+        out_path = filedialog.asksaveasfilename(**export_request["dialog_options"])
         
         if not out_path:
             return
@@ -1128,8 +1138,9 @@ class CoverTab(AkmPanel):
 
         def _done(res):
             if res:
-                self.app.append_log(f"Cover exportiert: {os.path.basename(res)}")
-                AkmToast(self, "COVER ERFOLGREICH EXPORTIERT")
+                success_state = cover_action_tools.build_cover_export_success_state(res)
+                self.app.append_log(success_state["log_message"])
+                AkmToast(self, success_state["toast_message"])
             else:
                 AkmToast(self, "FEHLER BEIM EXPORT", color="#FF3B30")
 

@@ -28,12 +28,21 @@ class OverviewTab(AkmPanel):
         self.build_ui()
 
     def build_ui(self):
+        scroll_root, page = self._build_scroll_content()
+        self._build_header_section(page)
+        self._build_status_card(page)
+        self._build_controls_card(page)
+        self._build_list_card(page)
+        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
+
+    def _build_scroll_content(self):
         scroll_root = AkmScrollablePanel(self)
         scroll_root.pack(fill="both", expand=True)
         self._page_scroll_root = scroll_root
         scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
-        page = scroll_root.scrollable_frame
+        return scroll_root, scroll_root.scrollable_frame
 
+    def _build_header_section(self, page):
         AkmHeader(page, text="Übersicht aller Werke").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             page,
@@ -42,6 +51,7 @@ class OverviewTab(AkmPanel):
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
+    def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
@@ -79,9 +89,15 @@ class OverviewTab(AkmPanel):
             self.app.btn(action_row, "Lautheit", self.app.loudness_ctrl.import_selected_work, quiet=True, width=96),
         )
 
+    def _build_controls_card(self, page):
         controls_card = AkmCard(page)
         controls_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._build_filter_strip(controls_card)
+        self._build_sort_row(controls_card)
+        self.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
+        self.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
+    def _build_filter_strip(self, controls_card):
         filter_strip = AkmPanel(controls_card.inner, bg=PANEL_2)
         filter_strip.pack(fill="x", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
         self._filter_strip = filter_strip
@@ -91,8 +107,7 @@ class OverviewTab(AkmPanel):
         self._search_wrap = search_wrap
         AkmLabel(search_wrap, text="Suche:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
-        self.search_var.trace_add("write", lambda *args: self.app._schedule_refresh_list())
-
+        self.search_var.trace_add("write", lambda *_args: self.app._schedule_refresh_list())
         search_entry = AkmEntry(search_wrap, textvariable=self.search_var, width=26)
         search_entry.pack(side="left", ipady=2)
 
@@ -106,24 +121,23 @@ class OverviewTab(AkmPanel):
                 padx=10, pady=4, bd=1, relief="solid", cursor="hand2"
             )
             chip.pack(side="left", padx=(0, 4))
-            chip.bind("<Button-1>", lambda _e, v=value: self.app._set_overview_status_filter(v))
+            chip.bind("<Button-1>", lambda _event, status=value: self.app._set_overview_status_filter(status))
             self.filter_chips[value] = chip
 
+    def _build_sort_row(self, controls_card):
         sort_row = AkmPanel(controls_card.inner, bg=PANEL_2)
         sort_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         AkmLabel(sort_row, text="Sortierung:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
         sort_options = [("Titel", "title"), ("Status", "status"), ("Jahr", "year"), ("Änderung", "last_change")]
-        sort_menu = tk.OptionMenu(sort_row, self.sort_key_var, *[v for _, v in sort_options], command=lambda _v: self.app.refresh_list())
+        sort_menu = tk.OptionMenu(sort_row, self.sort_key_var, *[value for _label, value in sort_options], command=lambda _value: self.app.refresh_list())
         sort_menu.config(bg=PANEL_2, fg=TEXT, activebackground="#3a3a3a", activeforeground=TEXT, relief="flat", highlightthickness=0)
         sort_menu["menu"].config(bg=PANEL_2, fg=TEXT, activebackground=ACCENT, activeforeground="black")
         sort_menu.pack(side="left", padx=(0, SPACE_XS))
 
         AkmCheckbutton(sort_row, text="Absteigend", variable=self.sort_desc_var, command=self.app.refresh_list, bg=PANEL_2).pack(side="left")
 
-        self.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
-        self.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
-
+    def _build_list_card(self, page):
         list_card = AkmCard(page)
         list_card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
         AkmLabel(list_card.inner, text="Katalogliste", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
@@ -136,6 +150,11 @@ class OverviewTab(AkmPanel):
         )
         self._list_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
 
+        self._build_list_frame(list_card)
+        self._build_empty_state(list_card)
+        self._build_bottom_actions(list_card)
+
+    def _build_list_frame(self, list_card):
         list_frame = AkmPanel(list_card.inner, bg=PANEL_2)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, SPACE_XS))
 
@@ -148,10 +167,11 @@ class OverviewTab(AkmPanel):
         self.listbox.bind("<Double-1>", self.app.on_listbox_activate)
         self.listbox.bind("<Return>", lambda _event: self.app.load_selected_into_details())
 
-        sb = tk.Scrollbar(list_frame, command=self.listbox.yview)
-        sb.pack(side="right", fill="y")
-        self.listbox.config(yscrollcommand=sb.set)
+        scrollbar = tk.Scrollbar(list_frame, command=self.listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.listbox.config(yscrollcommand=scrollbar.set)
 
+    def _build_empty_state(self, list_card):
         self.overview_empty_label = AkmSubLabel(
             list_card.inner,
             text="Noch keine sichtbaren Werke.",
@@ -160,6 +180,7 @@ class OverviewTab(AkmPanel):
             wraplength=760,
         )
 
+    def _build_bottom_actions(self, list_card):
         bottom_actions = AkmPanel(list_card.inner, bg=PANEL_2)
         self.overview_bottom_actions = bottom_actions
         bottom_actions.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
@@ -169,10 +190,23 @@ class OverviewTab(AkmPanel):
             self.app.btn(bottom_actions, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
             self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_ctrl.import_selected_work, quiet=True, width=164),
         )
-        self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
     def _on_resize(self, event):
         self._apply_responsive_layout(event.width)
+
+    def _apply_button_bar(self, container, buttons, width, state_attr, row_spacing=SPACE_XS, anchor="w"):
+        current_mode = getattr(self, state_attr, None)
+        mode = ui_patterns.apply_button_bar_layout(
+            container,
+            buttons,
+            width,
+            self.ACTION_STACK_BREAKPOINT,
+            current_mode,
+            row_spacing=row_spacing,
+            anchor=anchor,
+        )
+        setattr(self, state_attr, mode)
+        return mode
 
     def _apply_responsive_layout(self, width):
         self._apply_filter_layout(width)
@@ -183,56 +217,46 @@ class OverviewTab(AkmPanel):
     def _apply_filter_layout(self, width):
         if not hasattr(self, "_filter_strip"):
             return
-        target_mode = "stack" if width and width < self.FILTER_STACK_BREAKPOINT else "row"
-        if target_mode == self._filter_layout_mode:
-            return
-        self._filter_layout_mode = target_mode
-
-        self._search_wrap.pack_forget()
-        self._filter_chips_wrap.pack_forget()
-        if target_mode == "stack":
-            self._search_wrap.pack(anchor="w", pady=(0, SPACE_XS))
-            self._filter_chips_wrap.pack(anchor="w")
-            return
-        self._search_wrap.pack(side="left", padx=(0, SPACE_MD))
-        self._filter_chips_wrap.pack(side="left")
+        self._filter_layout_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.FILTER_STACK_BREAKPOINT,
+            self._filter_layout_mode,
+            {
+                "stack": (
+                    (self._search_wrap, {"anchor": "w", "pady": (0, SPACE_XS)}),
+                    (self._filter_chips_wrap, {"anchor": "w"}),
+                ),
+                "row": (
+                    (self._search_wrap, {"side": "left", "padx": (0, SPACE_MD)}),
+                    (self._filter_chips_wrap, {"side": "left"}),
+                ),
+            },
+        )
 
     def _apply_status_actions_layout(self, width):
         if not hasattr(self, "_status_action_buttons"):
             return
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if target_mode == self._status_action_mode:
-            return
-        self._status_action_mode = target_mode
-
-        for button in self._status_action_buttons:
-            button.pack_forget()
-        if target_mode == "stack":
-            self._status_action_bar.pack(anchor="e", fill="x")
-            for index, button in enumerate(self._status_action_buttons):
-                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
-            return
-        self._status_action_bar.pack(anchor="e")
-        for index, button in enumerate(self._status_action_buttons):
-            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+        self._status_action_mode = ui_patterns.apply_button_bar_layout(
+            self._status_action_bar,
+            self._status_action_buttons,
+            width,
+            self.ACTION_STACK_BREAKPOINT,
+            self._status_action_mode,
+            row_spacing=SPACE_XS,
+            anchor="e",
+        )
 
     def _apply_bottom_actions_layout(self, width):
         if not hasattr(self, "_bottom_action_buttons"):
             return
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if target_mode == self._bottom_action_mode:
-            return
-        self._bottom_action_mode = target_mode
-
-        for button in self._bottom_action_buttons:
-            button.pack_forget()
-        if target_mode == "stack":
-            for index, button in enumerate(self._bottom_action_buttons):
-                button.pack(fill="x", pady=(0, SPACE_XS if index < len(self._bottom_action_buttons) - 1 else 0))
-            return
-        for index, button in enumerate(self._bottom_action_buttons):
-            pad_left = 0 if index == 0 else SPACE_XS
-            button.pack(side="left", padx=(pad_left, 0))
+        self._bottom_action_mode = ui_patterns.apply_button_bar_layout(
+            self._bottom_action_bar,
+            self._bottom_action_buttons,
+            width,
+            self.ACTION_STACK_BREAKPOINT,
+            self._bottom_action_mode,
+            row_spacing=SPACE_XS,
+        )
 
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=320, maximum=880)

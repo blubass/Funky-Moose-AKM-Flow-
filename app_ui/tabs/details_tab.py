@@ -12,6 +12,7 @@ from app_ui.ui_patterns import (
 )
 from app_logic import akm_core, detail_tools
 
+
 class DetailsTab(AkmPanel):
     STACK_BREAKPOINT = 1180
     ACTION_STACK_BREAKPOINT = 760
@@ -52,6 +53,13 @@ class DetailsTab(AkmPanel):
         except Exception: pass
 
     def build_ui(self):
+        self._build_header_section()
+        self._build_status_card()
+        scroll_root, content = self._build_scroll_content()
+        self._build_detail_cards(content, scroll_root)
+        self._build_bottom_actions()
+
+    def _build_header_section(self):
         AkmHeader(self, text="Werkdetails").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             self,
@@ -60,6 +68,7 @@ class DetailsTab(AkmPanel):
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
 
+    def _build_status_card(self):
         status_card = AkmCard(self, min_height=118)
         status_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         status_left = tk.Frame(status_card.inner, bg=PANEL_2)
@@ -105,11 +114,14 @@ class DetailsTab(AkmPanel):
             self.app.btn(action_row, "Zurück", self.app.details_ctrl.clear_details_form, quiet=True, width=84),
         )
 
+    def _build_scroll_content(self):
         scroll_root = AkmScrollablePanel(self)
         scroll_root.pack(fill="both", expand=True)
         content = scroll_root.scrollable_frame
         content.configure(padx=SPACE_MD, pady=0)
+        return scroll_root, content
 
+    def _build_detail_cards(self, content, scroll_root):
         left_card = AkmCard(content)
         right_card = AkmCard(content)
         left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
@@ -118,7 +130,10 @@ class DetailsTab(AkmPanel):
         scroll_root.canvas.bind("<Configure>", self._on_responsive_resize, add="+")
         self.after_idle(lambda: self._apply_responsive_layout(scroll_root.canvas.winfo_width()))
 
-        # LEFT FORM
+        self._build_detail_form_card(left_card)
+        self._build_notes_card(right_card)
+
+    def _build_detail_form_card(self, left_card):
         detail_defaults = akm_core.get_detail_memory()
         self._left_intro_label = AkmSubLabel(
             left_card.inner,
@@ -131,51 +146,54 @@ class DetailsTab(AkmPanel):
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
         left_form.add_header("Werksteuerung")
+        self._build_detail_form_rows(left_form, detail_defaults)
 
+    def _build_detail_form_rows(self, left_form, detail_defaults):
         for key, label in detail_tools.DETAIL_FIELD_LABELS:
             var = tk.StringVar(value=detail_defaults.get(key, ""))
             self.detail_vars[key] = var
-            
+
             if key == "title":
-                # Special Case: Title is a Combobox for quick selection/search
                 self.detail_title_combo = left_form.add_combobox(label, var, [])
-                self.detail_title_combo.bind("<<ComboboxSelected>>", lambda e: self.app.details_ctrl.load_selected_title())
+                self.detail_title_combo.bind("<<ComboboxSelected>>", lambda _event: self.app.details_ctrl.load_selected_title())
             elif key == "audio_path":
-                def _create_audio_field(parent):
-                    wrap = tk.Frame(parent, bg=PANEL_2)
-                    entry = AkmEntry(wrap, textvariable=var)
-                    entry.pack(side="left", fill="x", expand=True)
-                    self.app.btn(wrap, "Wählen", self.app.details_ctrl.choose_audio_path, primary=True).pack(side="left", padx=(SPACE_XS, 0))
-                    self.app.btn(wrap, "Finder", self.app.details_ctrl.open_audio_path_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
-                    return wrap
-                left_form.add_row(label, _create_audio_field)
+                left_form.add_row(
+                    label,
+                    lambda parent, current_var=var: self._create_audio_field(parent, current_var),
+                )
             else:
                 left_form.add_entry(label, var)
 
         self.detail_instrumental_var = tk.BooleanVar(value=False)
         left_form.add_checkbox("Instrumental", self.detail_instrumental_var)
+        left_form.add_row("Status", self._create_status_row)
 
-        # Status Chip Row (Custom row in form)
-        def _create_status_row(parent):
-            wrap = tk.Frame(parent, bg=PANEL_2)
-            self.detail_status_var = tk.StringVar(value="—")
-            self.detail_status_chip = tk.Label(
-                wrap, textvariable=self.detail_status_var,
-                fg=TEXT, bg=PANEL, font=FONT_BOLD,
-                padx=12, pady=5, bd=1, relief="solid"
-            )
-            self.detail_status_chip.pack(anchor="w", pady=(0, SPACE_SM))
-            
-            btn_row = tk.Frame(wrap, bg=PANEL_2)
-            btn_row.pack(anchor="w")
-            self.app.btn(btn_row, "In Arbeit", lambda: self.app.details_ctrl.set_status_chip("in_progress"), quiet=True).pack(side="left", padx=(0, SPACE_XS))
-            self.app.btn(btn_row, "Bereit", lambda: self.app.details_ctrl.set_status_chip("ready")).pack(side="left", padx=SPACE_XS)
-            self.app.btn(btn_row, "Bestätigt", lambda: self.app.details_ctrl.set_status_chip("confirmed")).pack(side="left", padx=SPACE_XS)
-            return wrap
-        
-        left_form.add_row("Status", _create_status_row)
+    def _create_audio_field(self, parent, variable):
+        wrap = tk.Frame(parent, bg=PANEL_2)
+        entry = AkmEntry(wrap, textvariable=variable)
+        entry.pack(side="left", fill="x", expand=True)
+        self.app.btn(wrap, "Wählen", self.app.details_ctrl.choose_audio_path, primary=True).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(wrap, "Finder", self.app.details_ctrl.open_audio_path_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
+        return wrap
 
-        # RIGHT FORM
+    def _create_status_row(self, parent):
+        wrap = tk.Frame(parent, bg=PANEL_2)
+        self.detail_status_var = tk.StringVar(value="—")
+        self.detail_status_chip = tk.Label(
+            wrap, textvariable=self.detail_status_var,
+            fg=TEXT, bg=PANEL, font=FONT_BOLD,
+            padx=12, pady=5, bd=1, relief="solid"
+        )
+        self.detail_status_chip.pack(anchor="w", pady=(0, SPACE_SM))
+
+        btn_row = tk.Frame(wrap, bg=PANEL_2)
+        btn_row.pack(anchor="w")
+        self.app.btn(btn_row, "In Arbeit", lambda: self.app.details_ctrl.set_status_chip("in_progress"), quiet=True).pack(side="left", padx=(0, SPACE_XS))
+        self.app.btn(btn_row, "Bereit", lambda: self.app.details_ctrl.set_status_chip("ready")).pack(side="left", padx=SPACE_XS)
+        self.app.btn(btn_row, "Bestätigt", lambda: self.app.details_ctrl.set_status_chip("confirmed")).pack(side="left", padx=SPACE_XS)
+        return wrap
+
+    def _build_notes_card(self, right_card):
         AkmLabel(right_card.inner, text="Tags & Notizen", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._right_intro_label = AkmSubLabel(
             right_card.inner,
@@ -190,7 +208,7 @@ class DetailsTab(AkmPanel):
         self.detail_tags = right_form.add_text("Tags (Kommata)", height=4)
         self.detail_notes = right_form.add_text("Notizen", height=12)
 
-        # GLOBAL ACTIONS
+    def _build_bottom_actions(self):
         actions = AkmPanel(self)
         actions.pack(anchor="w", padx=SPACE_MD, pady=SPACE_SM)
         self.app.btn(actions, "Speichern", self.app.details_ctrl.save_details, primary=True, width=118).pack(side="left", padx=(0, SPACE_XS))
@@ -202,20 +220,24 @@ class DetailsTab(AkmPanel):
     def _apply_responsive_layout(self, width):
         if not hasattr(self, "_detail_cards"):
             return
-        target_mode = "stack" if width and width < self.STACK_BREAKPOINT else "split"
-        if target_mode != self._detail_layout_mode:
-            self._detail_layout_mode = target_mode
-
-            left_card, right_card = self._detail_cards
-            for card in self._detail_cards:
-                card.pack_forget()
-
-            if target_mode == "stack":
-                left_card.pack(fill="x", expand=False, pady=(0, CARD_GAP))
-                right_card.pack(fill="x", expand=False)
-            else:
-                left_card.pack(side="left", fill="both", expand=True, padx=(0, CARD_GAP // 2))
-                right_card.pack(side="left", fill="both", expand=True, padx=(CARD_GAP // 2, 0))
+        left_card, right_card = self._detail_cards
+        self._detail_layout_mode = ui_patterns.apply_widget_layout(
+            width,
+            self.STACK_BREAKPOINT,
+            self._detail_layout_mode,
+            {
+                "stack": (
+                    (left_card, {"fill": "x", "expand": False, "pady": (0, CARD_GAP)}),
+                    (right_card, {"fill": "x", "expand": False}),
+                ),
+                "split": (
+                    (left_card, {"side": "left", "fill": "both", "expand": True, "padx": (0, CARD_GAP // 2)}),
+                    (right_card, {"side": "left", "fill": "both", "expand": True, "padx": (CARD_GAP // 2, 0)}),
+                ),
+            },
+            narrow_mode="stack",
+            wide_mode="split",
+        )
 
         self._apply_status_actions_layout(width)
         self._update_wraplengths(width)
@@ -223,21 +245,15 @@ class DetailsTab(AkmPanel):
     def _apply_status_actions_layout(self, width):
         if not hasattr(self, "_status_action_buttons"):
             return
-        target_mode = "stack" if width and width < self.ACTION_STACK_BREAKPOINT else "row"
-        if target_mode == self._status_action_mode:
-            return
-        self._status_action_mode = target_mode
-
-        for button in self._status_action_buttons:
-            button.pack_forget()
-        if target_mode == "stack":
-            self._status_action_bar.pack(anchor="e", fill="x")
-            for index, button in enumerate(self._status_action_buttons):
-                button.pack(anchor="e", fill="x", pady=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
-            return
-        self._status_action_bar.pack(anchor="e")
-        for index, button in enumerate(self._status_action_buttons):
-            button.pack(side="left", padx=(0, SPACE_XS if index < len(self._status_action_buttons) - 1 else 0))
+        self._status_action_mode = ui_patterns.apply_button_bar_layout(
+            self._status_action_bar,
+            self._status_action_buttons,
+            width,
+            self.ACTION_STACK_BREAKPOINT,
+            self._status_action_mode,
+            row_spacing=SPACE_XS,
+            anchor="e",
+        )
 
     def _update_wraplengths(self, width):
         column_width = width if self._detail_layout_mode == "stack" else max(340, (width - CARD_GAP) // 2)

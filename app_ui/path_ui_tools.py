@@ -1,5 +1,7 @@
 import os
 
+from app_logic.text_utils import clean_text as _clean_text
+
 
 AUDIO_FILETYPES = [
     ("Audio", "*.wav *.aiff *.aif *.mp3 *.flac *.m4a"),
@@ -9,12 +11,6 @@ IMAGE_FILETYPES = [
     ("Bilder", "*.jpg *.jpeg *.png *.bmp *.tiff *.webp"),
     ("Alle Dateien", "*.*"),
 ]
-
-
-def _clean_text(value):
-    if value is None:
-        return ""
-    return str(value).strip()
 
 
 def validate_existing_path(path, empty_message, missing_prefix, exists_fn=os.path.exists):

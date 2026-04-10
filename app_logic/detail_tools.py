@@ -1,3 +1,6 @@
+from app_logic.text_utils import clean_mapping_values, clean_text as _clean_text
+
+
 DETAIL_FIELD_LABELS = [
     ("title", "Titel"),
     ("duration", "Dauer"),
@@ -8,12 +11,6 @@ DETAIL_FIELD_LABELS = [
 ]
 DETAIL_FIELD_KEYS = tuple(key for key, _label in DETAIL_FIELD_LABELS)
 DEFAULT_DETAIL_STATUS = "in_progress"
-
-
-def _clean_text(value):
-    if value is None:
-        return ""
-    return str(value).strip()
 
 
 def empty_detail_item(title=""):
@@ -44,7 +41,7 @@ def find_detail_item(entries, title):
 
 def detail_form_state_from_item(item=None):
     source = item or {}
-    values = {key: _clean_text(source.get(key)) for key in DETAIL_FIELD_KEYS}
+    values = clean_mapping_values(source, DETAIL_FIELD_KEYS)
 
     raw_tags = source.get("tags") or []
     if isinstance(raw_tags, (str, bytes)):
@@ -73,10 +70,7 @@ def parse_detail_tags(tags_text):
 
 
 def build_detail_updates(detail_values, tags_text, notes_text, status, instrumental):
-    updates = {
-        key: _clean_text(detail_values.get(key))
-        for key in DETAIL_FIELD_KEYS
-    }
+    updates = clean_mapping_values(detail_values, DETAIL_FIELD_KEYS)
     updates["status"] = status or DEFAULT_DETAIL_STATUS
     updates["instrumental"] = bool(instrumental)
     updates["notes"] = _clean_text(notes_text)
