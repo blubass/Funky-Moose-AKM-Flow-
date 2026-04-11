@@ -10,29 +10,44 @@ def apply_ttk_styles():
     # Global root style refresh
     style.configure(".", background=BG, foreground=TEXT, font=FONT_MD)
     
-    style.configure("TNotebook", background=BG, borderwidth=0, padding=0)
-    style.map("TNotebook", background=[("active", BG), ("!active", BG)]) # Force background
+    style.configure(
+        "TNotebook",
+        background=blend_color(PANEL, METAL_HI, 0.10),
+        borderwidth=0,
+        padding=0,
+        tabmargins=(SPACE_MD, SPACE_SM, SPACE_MD, 0),
+    )
+    style.map(
+        "TNotebook",
+        background=[
+            ("active", blend_color(PANEL, METAL_HI, 0.10)),
+            ("!active", blend_color(PANEL, METAL_HI, 0.10)),
+        ],
+    )
     
     style.configure(
         "TNotebook.Tab",
-        background=PANEL,
-        foreground=TEXT,
-        padding=(16, 10),
+        background=PANEL_2,
+        foreground=SUBTLE,
+        padding=(20, 13),
         font=FONT_MD_BOLD,
-        borderwidth=0
+        borderwidth=0,
     )
     style.map(
         "TNotebook.Tab",
-        background=[("selected", ACCENT), ("active", PANEL_2)],
-        foreground=[("selected", "#000000"), ("active", TEXT)],
+        background=[
+            ("selected", blend_color(PANEL_3, ACCENT_COOL, 0.18)),
+            ("active", blend_color(PANEL_2, "#FFFFFF", 0.10)),
+        ],
+        foreground=[("selected", ACCENT_COOL_GLOW), ("active", TEXT)],
     )
     
     style.configure(
         "TProgressbar",
-        thickness=8,
-        troughcolor="#333333",
-        background=ACCENT,
-        borderwidth=0
+        thickness=10,
+        troughcolor=blend_color(PANEL_2, BG, 0.28),
+        background=blend_color(ACCENT_COOL, ACCENT, 0.42),
+        borderwidth=0,
     )
     
     style.configure(
@@ -40,9 +55,10 @@ def apply_ttk_styles():
         background=FIELD_BG,
         fieldbackground=FIELD_BG,
         foreground=FIELD_FG,
-        rowheight=24,
+        rowheight=28,
         borderwidth=0,
         font=FONT_SM,
+        relief="flat",
     )
     style.configure(
         "Treeview.Heading",
@@ -50,16 +66,17 @@ def apply_ttk_styles():
         foreground=TEXT,
         relief="flat",
         font=FONT_BOLD,
+        padding=(10, 8),
     )
     style.map(
         "Treeview",
-        background=[("selected", ACCENT)],
-        foreground=[("selected", "black")],
+        background=[("selected", blend_color(FIELD_BG, ACCENT_COOL, 0.32))],
+        foreground=[("selected", TEXT)],
     )
     style.map(
         "Treeview.Heading",
-        background=[("active", ACCENT)],
-        foreground=[("active", "black")],
+        background=[("active", blend_color(PANEL_2, ACCENT_COOL, 0.14))],
+        foreground=[("active", ACCENT_COOL_GLOW)],
     )
     
     style.configure(
@@ -67,15 +84,31 @@ def apply_ttk_styles():
         fieldbackground=FIELD_BG,
         background=PANEL_2,
         foreground=FIELD_FG,
-        arrowcolor=ACCENT,
+        arrowcolor=ACCENT_COOL,
         arrowsize=18,
         borderwidth=0,
-        relief="flat"
+        relief="flat",
+        padding=6,
     )
     style.map(
         "TCombobox",
         fieldbackground=[("readonly", FIELD_BG)],
         foreground=[("readonly", FIELD_FG)],
+        background=[("readonly", PANEL)],
+    )
+
+    style.configure(
+        "Vertical.TScrollbar",
+        background=PANEL_2,
+        troughcolor=BG,
+        borderwidth=0,
+        arrowcolor=SUBTLE,
+        gripcount=0,
+    )
+    style.map(
+        "Vertical.TScrollbar",
+        background=[("active", blend_color(PANEL_2, ACCENT_COOL, 0.20))],
+        arrowcolor=[("active", ACCENT_COOL_GLOW)],
     )
 
     style.configure(
@@ -152,5 +185,3 @@ def apply_ttk_styles():
             ("active", "black"),
         ],
     )
-
-

@@ -35,6 +35,7 @@ class LoudnessTab(AkmPanel):
 
     def build_ui(self):
         scroll_root, page = self._build_scroll_content()
+        self._build_header(page)
         self._build_waveform_card(page)
         self._build_mid_row(page)
         self._build_split_row(page)
@@ -46,6 +47,21 @@ class LoudnessTab(AkmPanel):
         self._page_scroll_root = scroll_root
         scroll_root.canvas.bind("<Configure>", self._on_resize, add="+")
         return scroll_root, scroll_root.scrollable_frame
+
+    def _build_header(self, page):
+        AkmHeader(page, text="Lautheit / Match").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        self._header_intro_label = AkmSubLabel(
+            page,
+            text="Analyse, Gain-Vorhersage und Export laufen hier wie ein kleines Mastering-Deck zusammen.",
+            justify="left",
+        )
+        self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(page)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Analyze", "Match", "Limiter", "Export")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
 
     def _build_waveform_card(self, page):
         self.preview_card = AkmCard(page, height=240)
@@ -115,6 +131,12 @@ class LoudnessTab(AkmPanel):
         log_card.pack(side="left", fill="both", expand=True, padx=(SPACE_XS, 0))
         self._status_log_card = log_card
         AkmLabel(log_card.inner, text="Systemstatus", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(10, 0))
+        AkmSubLabel(
+            log_card.inner,
+            text="MASTER DESK  •  Current result state, hints and protocol output",
+            bg=PANEL_2,
+            justify="left",
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(2, 2))
         self.loudness_status_label = AkmLabel(log_card.inner, text="Bereit", bg=PANEL_2, anchor="w", font=FONT_BOLD)
         self.loudness_status_label.pack(fill="x", padx=CARD_PAD_X, pady=(2, 0))
         self.loudness_hint_label = AkmSubLabel(
@@ -211,7 +233,16 @@ class LoudnessTab(AkmPanel):
         self.loudness_tree.tag_configure("peak_warn", background=ui_patterns.blend_color(FIELD_BG, ui_patterns.FLAVOR_WARN, 0.2))
         self.loudness_tree.tag_configure("match_ok", background=ui_patterns.get_row_color("ready", ratio=0.18))
         self.loudness_tree.pack(side="left", fill="both", expand=True)
-        sb = tk.Scrollbar(tree_wrap, command=self.loudness_tree.yview)
+        sb = tk.Scrollbar(
+            tree_wrap,
+            command=self.loudness_tree.yview,
+            bg=ui_patterns.PANEL_2,
+            activebackground=ui_patterns.blend_color(ui_patterns.PANEL_2, ui_patterns.ACCENT, 0.18),
+            troughcolor=ui_patterns.BG,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        )
         sb.pack(side="right", fill="y")
         self.loudness_tree.config(yscrollcommand=sb.set)
         self.loudness_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
@@ -279,6 +310,7 @@ class LoudnessTab(AkmPanel):
     def _update_wraplengths(self, width):
         upper_width = width if self._mid_layout_mode == "stack" else max(340, (width - SPACE_XS) // 2)
         lower_width = width if self._split_layout_mode == "stack" else max(320, (width - SPACE_SM) // 2)
+        fit_wraplength(self._header_intro_label, width, padding=120, minimum=280, maximum=860)
         fit_wraplength(self._workflow_intro_label, upper_width, padding=90, minimum=260, maximum=420)
         fit_wraplength(self.loudness_hint_label, upper_width, padding=90, minimum=260, maximum=420)
         fit_wraplength(self._settings_hint_label, lower_width, padding=90, minimum=240, maximum=320)

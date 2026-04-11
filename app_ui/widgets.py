@@ -13,9 +13,12 @@ def style_chip_label(widget, status, text, active=False):
         widget.config(
             text=text,
             bg=palette["accent"],
-            fg="#141414",
+            fg="#111111",
             relief="flat",
             bd=0,
+            highlightthickness=1,
+            highlightbackground=blend_color(palette["accent"], "#FFFFFF", 0.12),
+            highlightcolor=blend_color(palette["accent"], "#FFFFFF", 0.12),
         )
         return
 
@@ -23,8 +26,11 @@ def style_chip_label(widget, status, text, active=False):
         text=text,
         bg=palette["bg"],
         fg=palette["fg"],
-        relief="solid",
-        bd=1,
+        relief="flat",
+        bd=0,
+        highlightthickness=1,
+        highlightbackground=blend_color(palette["bg"], "#FFFFFF", 0.08),
+        highlightcolor=blend_color(palette["accent"], "#FFFFFF", 0.10),
     )
 
 def copy_to_clipboard(text):
@@ -72,10 +78,121 @@ class AkmRoundedFrame(tk.Canvas):
     def _redraw(self, event=None):
         self.delete("all")
         w, h = self.winfo_width(), self.winfo_height()
-        if w < self.radius*2 or h < self.radius*2: return
-        # Bevel highlight & Shadow
-        draw_rounded_rect(self, 2, 2, w-2, h-2, self.radius, fill=self.border_color)
-        draw_rounded_rect(self, 1, 1, w-1, h-2, self.radius, fill=self.bg_color)
+        radius = min(self.radius, max(8, min((w - 10) // 2, (h - 12) // 2)))
+        if w < radius * 2 + 8 or h < radius * 2 + 12:
+            return
+
+        drop_far = blend_color(self.bg_color, BG, 0.82)
+        drop_mid = blend_color(self.bg_color, BG, 0.70)
+        drop_near = blend_color(self.bg_color, BG, 0.58)
+        seam_outer = blend_color(self.border_color, "#FFFFFF", 0.14)
+        seam_inner = blend_color(self.bg_color, "#FFFFFF", 0.08)
+        face_lift = blend_color(self.bg_color, "#FFFFFF", 0.04)
+        lower_lip = blend_color(self.bg_color, BG, 0.28)
+        top_glow = blend_color(self.bg_color, "#FFFFFF", 0.16)
+        accent_glow = blend_color(ACCENT, self.bg_color, 0.76)
+        cool_glow = blend_color(self.bg_color, ACCENT_COOL, 0.20)
+        cool_trace = blend_color(self.bg_color, ACCENT_COOL, 0.14)
+        grid_trace = blend_color(self.bg_color, GRID_LINE, 0.26)
+        warm_trace = blend_color(self.bg_color, ACCENT, 0.16)
+
+        draw_rounded_rect(self, 6, 11, w - 5, h - 1, radius, fill=drop_far, outline="")
+        draw_rounded_rect(self, 4, 8, w - 4, h - 3, radius, fill=drop_mid, outline="")
+        draw_rounded_rect(self, 2, 5, w - 2, h - 5, radius, fill=drop_near, outline="")
+        draw_rounded_rect(self, 1, 1, w - 1, h - 7, radius, fill=seam_outer, outline="")
+        draw_rounded_rect(self, 2, 2, w - 2, h - 8, radius, fill=seam_inner, outline="")
+        draw_rounded_rect(self, 3, 3, w - 3, h - 9, radius, fill=face_lift, outline="")
+        draw_rounded_rect(self, 3, 4, w - 3, h - 10, radius, fill=self.bg_color, outline="")
+        self.create_line(
+            radius + 4,
+            8,
+            w - radius - 4,
+            8,
+            fill=top_glow,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            radius + 12,
+            11,
+            w - radius - 12,
+            11,
+            fill=accent_glow,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            radius + 20,
+            14,
+            w - radius - 32,
+            14,
+            fill=cool_glow,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            9,
+            radius + 4,
+            9,
+            h - radius - 14,
+            fill=blend_color(self.bg_color, "#FFFFFF", 0.06),
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            radius + 10,
+            h - 16,
+            w - radius - 10,
+            h - 16,
+            fill=lower_lip,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            16,
+            16,
+            30,
+            16,
+            fill=cool_trace,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            16,
+            16,
+            16,
+            30,
+            fill=cool_trace,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            w - 16,
+            h - 18,
+            w - 30,
+            h - 18,
+            fill=warm_trace,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            w - 16,
+            h - 18,
+            w - 16,
+            h - 32,
+            fill=warm_trace,
+            width=1,
+            capstyle="round",
+        )
+        self.create_line(
+            22,
+            h - 26,
+            w - 22,
+            h - 26,
+            fill=grid_trace,
+            width=1,
+            capstyle="round",
+        )
 
 class AkmPanel(tk.Frame):
     """Base layout frame."""
@@ -93,7 +210,12 @@ class AkmCard(AkmRoundedFrame):
         self._inner_pad_top = CARD_PAD_Y + 4
         self._inner_pad_bottom = CARD_PAD_Y
         self._auto_height_after = None
-        self.inner = tk.Frame(self, bg=self.bg_color)
+        self.inner = tk.Frame(
+            self,
+            bg=self.bg_color,
+            highlightthickness=1,
+            highlightbackground=blend_color(self.bg_color, METAL_HI, 0.16),
+        )
         # Use fixed insets instead of relative percentages so large forms can define
         # their own natural height and the card can grow with them when needed.
         self.inner.place(
@@ -106,10 +228,24 @@ class AkmCard(AkmRoundedFrame):
         )
         
         # Add a subtle light-reflect edge at the top
-        self.line = tk.Frame(self, bg="#1E1E22", height=1)
+        self.line = tk.Frame(self, bg=blend_color(self.bg_color, ACCENT, 0.22), height=1)
         self.line.place(
             x=self._inner_pad_x,
             y=CARD_PAD_Y // 2,
+            relwidth=1.0,
+            width=-(self._inner_pad_x * 2),
+        )
+        self.line_cool = tk.Frame(self, bg=blend_color(self.bg_color, ACCENT_COOL, 0.22), height=1)
+        self.line_cool.place(
+            x=self._inner_pad_x,
+            y=(CARD_PAD_Y // 2) + 1,
+            relwidth=1.0,
+            width=-(self._inner_pad_x * 2),
+        )
+        self.line_shadow = tk.Frame(self, bg=blend_color(self.bg_color, BG, 0.26), height=1)
+        self.line_shadow.place(
+            x=self._inner_pad_x,
+            y=(CARD_PAD_Y // 2) + 3,
             relwidth=1.0,
             width=-(self._inner_pad_x * 2),
         )
@@ -143,9 +279,18 @@ class AkmScrollablePanel(tk.Frame):
         super().__init__(parent, bg=bg_target, **kwargs)
         
         self.canvas = tk.Canvas(self, bg=bg_target, highlightthickness=0, bd=0)
-        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, 
-                                     bg=bg_target, troughcolor="#111111",
-                                     width=10, relief="flat")
+        self.scrollbar = tk.Scrollbar(
+            self,
+            orient="vertical",
+            command=self.canvas.yview,
+            bg=PANEL_2,
+            activebackground=blend_color(PANEL_2, ACCENT_COOL, 0.20),
+            troughcolor=BG,
+            width=10,
+            relief="flat",
+            highlightthickness=0,
+            bd=0,
+        )
         self.scrollable_frame = tk.Frame(self.canvas, bg=bg_target)
 
         self.scrollable_frame.bind(
@@ -228,9 +373,20 @@ class PulseLabel(tk.Label):
 class AkmToast(tk.Label):
     """A self-dismissing popup notification."""
     def __init__(self, parent, text, duration=2500, color=ACCENT, **kwargs):
-        super().__init__(parent, text=text, bg=PANEL_2, fg=color, 
-                         font=FONT_MD_BOLD, padx=20, pady=10, 
-                         relief="solid", bd=1, **kwargs)
+        super().__init__(
+            parent,
+            text=text,
+            bg=PANEL,
+            fg=color,
+            font=FONT_MD_BOLD,
+            padx=20,
+            pady=10,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=blend_color(color, "#FFFFFF", 0.14),
+            **kwargs,
+        )
         self.place(relx=0.5, rely=0.1, anchor="center")
         self.after(duration, self.destroy)
 
@@ -242,20 +398,26 @@ def add_hover(widget, enter_color, leave_color):
 class AkmBadge(tk.Label):
     """A small glowing status indicator badge."""
     def __init__(self, parent, text, **kwargs):
-        kwargs.setdefault("bg", "#111111")
-        kwargs.setdefault("fg", "#333333")
-        kwargs.setdefault("font", ("Helvetica", 9, "bold"))
-        kwargs.setdefault("padx", 8)
-        kwargs.setdefault("pady", 2)
+        kwargs.setdefault("bg", FIELD_BG)
+        kwargs.setdefault("fg", SUBTLE)
+        kwargs.setdefault("font", FONT_BOLD)
+        kwargs.setdefault("padx", 9)
+        kwargs.setdefault("pady", 3)
         kwargs.setdefault("relief", "flat")
         super().__init__(parent, text=text.upper(), **kwargs)
         self.active_color = ACCENT
-        self.inactive_color = "#333333"
+        self.inactive_color = SUBTLE
 
     def set_active(self, active=True):
         self.config(fg=self.active_color if active else self.inactive_color)
-        if active: self.config(highlightbackground=ACCENT, highlightthickness=1)
-        else: self.config(highlightthickness=0)
+        if active:
+            self.config(
+                bg=blend_color(FIELD_BG, ACCENT, 0.16),
+                highlightbackground=blend_color(ACCENT, "#FFFFFF", 0.10),
+                highlightthickness=1,
+            )
+        else:
+            self.config(bg=FIELD_BG, highlightthickness=0)
 
 class AkmSuccessIndicator(tk.Label):
     """A small glowing green dot (indicator) for successful states."""
@@ -271,7 +433,17 @@ class AkmEntry(tk.Entry):
         kwargs.setdefault("bg", FIELD_BG)
         kwargs.setdefault("fg", FIELD_FG)
         kwargs.setdefault("relief", "flat")
-        kwargs.setdefault("insertbackground", "black")
+        kwargs.setdefault("insertbackground", FIELD_FG)
+        kwargs.setdefault("insertwidth", 2)
+        kwargs.setdefault("bd", 0)
+        kwargs.setdefault("highlightthickness", 1)
+        kwargs.setdefault("highlightbackground", blend_color(BORDER, FIELD_BG, 0.22))
+        kwargs.setdefault("highlightcolor", blend_color(ACCENT, "#FFFFFF", 0.18))
+        kwargs.setdefault("selectbackground", blend_color(ACCENT, BG, 0.34))
+        kwargs.setdefault("selectforeground", TEXT)
+        kwargs.setdefault("disabledbackground", blend_color(FIELD_BG, BG, 0.08))
+        kwargs.setdefault("disabledforeground", SUBTLE)
+        kwargs.setdefault("readonlybackground", blend_color(FIELD_BG, "#FFFFFF", 0.04))
         kwargs.setdefault("font", FONT_MD)
         super().__init__(parent, **kwargs)
 
@@ -280,10 +452,17 @@ class AkmText(tk.Text):
         kwargs.setdefault("bg", FIELD_BG)
         kwargs.setdefault("fg", FIELD_FG)
         kwargs.setdefault("relief", "flat")
-        kwargs.setdefault("insertbackground", "black")
+        kwargs.setdefault("insertbackground", FIELD_FG)
+        kwargs.setdefault("insertwidth", 2)
+        kwargs.setdefault("bd", 0)
+        kwargs.setdefault("highlightthickness", 1)
+        kwargs.setdefault("highlightbackground", blend_color(BORDER, FIELD_BG, 0.22))
+        kwargs.setdefault("highlightcolor", blend_color(ACCENT, "#FFFFFF", 0.18))
+        kwargs.setdefault("selectbackground", blend_color(ACCENT, BG, 0.34))
+        kwargs.setdefault("selectforeground", TEXT)
         kwargs.setdefault("font", FONT_SM)
-        kwargs.setdefault("padx", 4)
-        kwargs.setdefault("pady", 4)
+        kwargs.setdefault("padx", 8)
+        kwargs.setdefault("pady", 8)
         super().__init__(parent, **kwargs)
 
 class AkmCheckbutton(tk.Checkbutton):
@@ -292,7 +471,8 @@ class AkmCheckbutton(tk.Checkbutton):
         kwargs.setdefault("fg", TEXT)
         kwargs.setdefault("activebackground", PANEL_2)
         kwargs.setdefault("activeforeground", TEXT)
-        kwargs.setdefault("selectcolor", "#111111")
+        kwargs.setdefault("selectcolor", FIELD_BG)
+        kwargs.setdefault("highlightthickness", 0)
         kwargs.setdefault("font", FONT_SM)
         super().__init__(parent, **kwargs)
 

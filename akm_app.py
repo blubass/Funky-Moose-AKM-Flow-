@@ -141,7 +141,10 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
     def _init_refresh_trackers(self):
         """Track refresh-sensitive state separately."""
-        self._last_overview_refresh = self._build_overview_refresh_snapshot()
+        mtime = self.state._get_data_mtime() if hasattr(self.state, "_get_data_mtime") else None
+        self._last_overview_refresh = self._build_overview_refresh_snapshot(mtime=mtime)
+        self._last_dashboard_refresh = {"mtime": mtime}
+        self._last_batch_refresh = {"mtime": mtime}
         self._refresh_timer = None
         self._prev_selected_path = None
         
@@ -407,7 +410,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
     def refresh_all_tabs(self):
         """Standardized orchestrator to update all modular components."""
-        overview_snapshot = self._build_overview_refresh_snapshot()
+        mtime = self.state._get_data_mtime() if hasattr(self.state, "_get_data_mtime") else None
+        overview_snapshot = AKMApp._build_overview_refresh_snapshot(self, mtime=mtime)
 
         self.overview_ctrl.refresh_list()
         self.overview_ctrl.refresh_dashboard()
@@ -418,6 +422,10 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         if cover_tab is not None and hasattr(cover_tab, "refresh_view"):
             cover_tab.refresh_view()
         self._last_overview_refresh.update(overview_snapshot)
+        if hasattr(self, "_last_dashboard_refresh"):
+            self._last_dashboard_refresh["mtime"] = mtime
+        if hasattr(self, "_last_batch_refresh"):
+            self._last_batch_refresh["mtime"] = mtime
 
     def on_closing(self):
         """Asks for confirmation before exiting."""

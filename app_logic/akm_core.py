@@ -78,6 +78,13 @@ class ProjectRepository:
 repo = ProjectRepository(DATA_FILE)
 
 
+def _get_repo() -> ProjectRepository:
+    """Keep the legacy global repository aligned with the current data path."""
+    if repo.data_file != DATA_FILE:
+        repo.data_file = DATA_FILE
+    return repo
+
+
 def _today():
     return datetime.now().strftime("%Y-%m-%d")
 
@@ -451,7 +458,7 @@ def load_data(strict=False):
     Backward-compatible wrapper for repo.load_all().
     Returns a list of dictionaries for now to avoid breaking existing code.
     """
-    records = repo.load_all(strict=strict)
+    records = _get_repo().load_all(strict=strict)
     return [r.to_dict() for r in records]
 
 
@@ -466,7 +473,7 @@ def save_data(data):
             records.append(item)
         else:
             records.append(TrackRecord.from_dict(item))
-    repo.save_all(records)
+    _get_repo().save_all(records)
 
 
 def backup_data():

@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton, AkmScrollablePanel,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton, AkmScrollablePanel, AkmBadge,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_XL, FONT_LG, fit_wraplength
@@ -50,6 +50,12 @@ class OverviewTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(page)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Search", "Filter", "Details", "Loudness")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
 
     def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
@@ -60,6 +66,12 @@ class OverviewTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Catalog Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmSubLabel(
+            status_left,
+            text="CATALOG DESK  •  Browse the whole workspace without losing the current thread",
+            bg=PANEL_2,
+            anchor="w",
+        ).pack(fill="x", pady=(1, 1))
         self.overview_status_label = AkmLabel(
             status_left,
             text="Noch keine Werke im Katalog",
@@ -92,6 +104,13 @@ class OverviewTab(AkmPanel):
     def _build_controls_card(self, page):
         controls_card = AkmCard(page)
         controls_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        AkmLabel(controls_card.inner, text="Filter & Sortierung", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmSubLabel(
+            controls_card.inner,
+            text="Finde schnell die richtigen Werke und halte die Liste im passenden Arbeitsmodus.",
+            bg=PANEL_2,
+            justify="left",
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         self._build_filter_strip(controls_card)
         self._build_sort_row(controls_card)
         self.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
@@ -149,6 +168,12 @@ class OverviewTab(AkmPanel):
             wraplength=760,
         )
         self._list_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        list_strip = tk.Frame(list_card.inner, bg=PANEL_2)
+        list_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Multi-select", "Double-click", "Preview", "Detail jump")):
+            badge = AkmBadge(list_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index in {0, 3})
 
         self._build_list_frame(list_card)
         self._build_empty_state(list_card)
@@ -167,7 +192,16 @@ class OverviewTab(AkmPanel):
         self.listbox.bind("<Double-1>", self.app.on_listbox_activate)
         self.listbox.bind("<Return>", lambda _event: self.app.load_selected_into_details())
 
-        scrollbar = tk.Scrollbar(list_frame, command=self.listbox.yview)
+        scrollbar = tk.Scrollbar(
+            list_frame,
+            command=self.listbox.yview,
+            bg=PANEL_2,
+            activebackground=ui_patterns.blend_color(PANEL_2, ACCENT, 0.18),
+            troughcolor=ui_patterns.BG,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        )
         scrollbar.pack(side="right", fill="y")
         self.listbox.config(yscrollcommand=scrollbar.set)
 

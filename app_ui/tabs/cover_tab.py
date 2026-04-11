@@ -151,6 +151,12 @@ class CoverTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(page)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Master art", "Typography", "Preset layout", "Export ready")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index in {0, 2})
 
     def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
@@ -161,6 +167,12 @@ class CoverTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Cover Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmSubLabel(
+            status_left,
+            text="ART DIRECTION DESK  •  One live stage for artwork, type and export polish",
+            bg=PANEL_2,
+            anchor="w",
+        ).pack(fill="x", pady=(1, 1))
         self.cover_status_label = AkmLabel(
             status_left,
             text="Kein Master-Artwork geladen",
@@ -233,6 +245,12 @@ class CoverTab(AkmPanel):
             wraplength=420,
         )
         self.cover_preview_caption.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        preview_strip = tk.Frame(preview_card.inner, bg=PANEL_2)
+        preview_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Stage", "Preview", "Zoom", "Balance")):
+            badge = AkmBadge(preview_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
 
         preview_shell = tk.Frame(
             preview_card.inner,
@@ -298,6 +316,12 @@ class CoverTab(AkmPanel):
             justify="left",
         )
         self.cover_asset_path_label.pack(fill="x", padx=CARD_PAD_X, pady=(SPACE_XS, SPACE_SM))
+        asset_strip = tk.Frame(asset_card.inner, bg=PANEL_2)
+        asset_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("3000 px", "RGB", "Clean edges")):
+            badge = AkmBadge(asset_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index == 0)
 
         asset_button_bar = tk.Frame(asset_card.inner, bg=PANEL_2)
         asset_button_bar.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
@@ -318,8 +342,21 @@ class CoverTab(AkmPanel):
     def _build_meta_section(self, right_side, sys_fonts, content):
         meta_card = AkmCard(right_side)
         meta_card.pack(fill="both", expand=True)
+        AkmLabel(meta_card.inner, text="Art Direction", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmSubLabel(
+            meta_card.inner,
+            text="Preset logic, text layers and export checks stay on one continuous control surface.",
+            bg=PANEL_2,
+            justify="left",
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        meta_strip = tk.Frame(meta_card.inner, bg=PANEL_2)
+        meta_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Preset", "Manual", "Typography", "Export")):
+            badge = AkmBadge(meta_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index in {1, 3})
 
-        form = AkmForm(meta_card.inner, padx=CARD_PAD_X, pady=CARD_PAD_Y)
+        form = AkmForm(meta_card.inner, padx=CARD_PAD_X, pady=0)
         form.pack(fill="both", expand=True)
         self._meta_card = meta_card
 

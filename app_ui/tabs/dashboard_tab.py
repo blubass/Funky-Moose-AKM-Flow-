@@ -2,7 +2,7 @@ import tkinter as tk
 from app_ui import ui_patterns
 from app_logic import i18n
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator, AkmScrollablePanel,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmSuccessIndicator, AkmScrollablePanel, AkmBadge,
     ACCENT, PANEL_2, SPACE_MD, SPACE_SM, SPACE_XS,
     CARD_PAD_X, CARD_PAD_Y, FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_LG, FONT_XXL, fit_wraplength
 )
@@ -46,6 +46,14 @@ class DashboardTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(page)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._dashboard_signal_badges = []
+        for index, text in enumerate(("Catalog Live", "Batch Flow", "Cover Forge", "Release Desk")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
+            self._dashboard_signal_badges.append(badge)
 
     def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
@@ -59,6 +67,13 @@ class DashboardTab(AkmPanel):
 
     def _build_status_summary(self, parent):
         AkmLabel(parent, text=i18n._t("dash_radar_title"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        self._dashboard_mode_label = AkmSubLabel(
+            parent,
+            text="CONTROL ROOM  •  Live catalog pulse and release readiness",
+            bg=PANEL_2,
+            anchor="w",
+        )
+        self._dashboard_mode_label.pack(fill="x", pady=(1, 1))
         self.dashboard_status_label = AkmLabel(
             parent,
             text=i18n._t("dash_radar_empty"),
@@ -134,6 +149,12 @@ class DashboardTab(AkmPanel):
     def _build_stats_grid(self, page):
         stats_grid = AkmPanel(page)
         stats_grid.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        self._stats_intro_label = AkmSubLabel(
+            stats_grid,
+            text="Die Metriken unten zeigen dir sofort, wo der Katalog Luft braucht und wo der Release-Flow schon sauber steht.",
+            justify="left",
+        )
+        self._stats_intro_label.grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=(0, SPACE_SM))
         self._stats_grid = stats_grid
         for index, (key, label_key) in enumerate(
             (
@@ -151,14 +172,19 @@ class DashboardTab(AkmPanel):
 
     def _build_stat_card(self, parent, key, label, index):
         card = AkmCard(parent)
-        card.grid(row=index // 4, column=index % 4, sticky="nsew", padx=5, pady=5)
+        card.grid(row=(index // 4) + 1, column=index % 4, sticky="nsew", padx=5, pady=5)
         header = tk.Frame(card.inner, bg=ui_patterns.PANEL_2)
         header.pack(fill="x", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 0))
         AkmSubLabel(header, text=label, bg=ui_patterns.PANEL_2).pack(side="left")
         if key in {"submitted", "confirmed"}:
             AkmSuccessIndicator(header, bg=ui_patterns.PANEL_2).pack(side="right")
         value_label = tk.Label(card.inner, text="0", fg=ui_patterns.ACCENT, bg=ui_patterns.PANEL_2, font=FONT_XXL)
-        value_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
+        value_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
+        AkmSubLabel(
+            card.inner,
+            text="live status signal",
+            bg=ui_patterns.PANEL_2,
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self.dashboard_labels[key] = value_label
         self._stat_cards.append(card)
 
@@ -223,6 +249,7 @@ class DashboardTab(AkmPanel):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=320, maximum=860)
         fit_wraplength(self.dashboard_hint_label, width, padding=260, minimum=260, maximum=620)
         fit_wraplength(self._chip_intro_label, width, padding=140, minimum=260, maximum=420)
+        fit_wraplength(self._stats_intro_label, width, padding=120, minimum=280, maximum=820)
 
     def render_dashboard_state(self, stats, status_text, hint_text, meta_text, chip_counts, status_text_fn):
         for key, label in self.dashboard_labels.items():

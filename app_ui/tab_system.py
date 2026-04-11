@@ -23,8 +23,54 @@ class AppTabs:
     """
     def __init__(self, parent, app):
         self.app = app
-        self.notebook = ttk.Notebook(parent)
-        self.notebook.pack(fill="both", expand=True)
+        shell = tk.Frame(parent, bg=ui_patterns.blend_color(ui_patterns.PANEL, ui_patterns.BG, 0.18))
+        shell.pack(fill="both", expand=True)
+        tk.Frame(shell, bg=ui_patterns.blend_color(ui_patterns.PANEL, "#FFFFFF", 0.08), height=1).pack(fill="x")
+        tk.Frame(shell, bg=ui_patterns.blend_color(ui_patterns.PANEL, ui_patterns.ACCENT_COOL, 0.16), height=1).pack(fill="x")
+        tk.Frame(shell, bg=ui_patterns.blend_color(ui_patterns.ACCENT, ui_patterns.PANEL, 0.72), height=1).pack(fill="x")
+
+        stage = tk.Frame(
+            shell,
+            bg=ui_patterns.blend_color(ui_patterns.PANEL_2, ui_patterns.BG, 0.12),
+            highlightthickness=1,
+            highlightbackground=ui_patterns.blend_color(ui_patterns.BORDER, "#FFFFFF", 0.10),
+            padx=3,
+            pady=3,
+        )
+        stage.pack(fill="both", expand=True, pady=(0, 8))
+
+        notebook_stage = tk.Frame(stage, bg=ui_patterns.PANEL)
+        notebook_stage.pack(fill="both", expand=True)
+        tk.Frame(notebook_stage, bg=ui_patterns.blend_color(ui_patterns.PANEL, "#FFFFFF", 0.05), height=1).pack(fill="x")
+        tk.Frame(notebook_stage, bg=ui_patterns.blend_color(ui_patterns.PANEL, ui_patterns.ACCENT_COOL, 0.12), height=1).pack(fill="x")
+
+        hud_bar = tk.Frame(
+            notebook_stage,
+            bg=ui_patterns.blend_color(ui_patterns.PANEL, ui_patterns.METAL_LOW, 0.18),
+            padx=12,
+            pady=8,
+            highlightthickness=1,
+            highlightbackground=ui_patterns.blend_color(ui_patterns.BORDER, "#FFFFFF", 0.06),
+        )
+        hud_bar.pack(fill="x", padx=8, pady=(8, 6))
+        tk.Label(
+            hud_bar,
+            text="GRID ACTIVE",
+            bg=hud_bar["bg"],
+            fg=ui_patterns.ACCENT_COOL_GLOW,
+            font=ui_patterns.FONT_BOLD,
+        ).pack(side="left")
+        tk.Label(
+            hud_bar,
+            text="FORGE BUS 01",
+            bg=hud_bar["bg"],
+            fg=ui_patterns.blend_color(ui_patterns.ACCENT, "#FFFFFF", 0.18),
+            font=ui_patterns.FONT_BOLD,
+        ).pack(side="right")
+
+        self.notebook = ttk.Notebook(notebook_stage)
+        self.notebook.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        tk.Frame(shell, bg=ui_patterns.blend_color(ui_patterns.PANEL, ui_patterns.BG, 0.60), height=6).pack(fill="x")
 
         # Registry for tab frames (placeholders)
         self.map = {
@@ -53,14 +99,14 @@ class AppTabs:
         }
 
         TAB_LABELS = {
-            "dashboard": "📊  Dashboard",
-            "assistant": "⚡  Schnellstart",
-            "batch":     "⚡  Batch",
-            "overview":  "📋  Übersicht",
-            "details":   "✏️  Details",
-            "cover":     "🎨  Cover",
-            "release":   "🚀  Release",
-            "loudness":  "🎚  Lautheit",
+            "dashboard": "Dashboard",
+            "assistant": "Schnellstart",
+            "batch":     "Batch",
+            "overview":  "Katalog",
+            "details":   "Details",
+            "cover":     "Cover",
+            "release":   "Release",
+            "loudness":  "Lautheit",
         }
 
         # Initial notebook population (empty frames)

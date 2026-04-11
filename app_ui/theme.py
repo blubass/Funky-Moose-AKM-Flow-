@@ -2,28 +2,35 @@ import os
 import tkinter.font as tkfont
 import platform
 
-# --- THEME (PERMANENT OBSIDIAN 2026) ---
+# --- THEME (FORGE CONTROL ROOM 2026) ---
 
-BG = "#040405"          # Absolute Pitch Black
-PANEL = "#1A1A1D"       # Deep Iron Gray (Cards)
-PANEL_2 = "#222225"     # Sub-Panels
-BORDER = "#2D2D33"      # Machine Seams
-TEXT = "#CBD5E1"        # Slated Steel (Muted)
-SUBTLE = "#64748B"      # Darkened Industrial Slate
+BG = "#070A0F"          # Furnace Black
+PANEL = "#131820"       # Gunmetal Surface
+PANEL_2 = "#1B212B"     # Raised Control Surface
+PANEL_3 = "#232A35"     # Upper Bezel
+BORDER = "#2A3442"      # Brushed Steel Seam
+TEXT = "#E2E8F0"        # Frosted Steel
+SUBTLE = "#8C98AB"      # Desaturated Slate
 
-ACCENT = "#FF8C00"      # Hyper-Orange
-FLAVOR_INFO = "#22D3EE" # Cyan-Glow
+ACCENT = "#F59E0B"      # Forge Amber
+ACCENT_COOL = "#45E6FF" # Tron Cyan
+ACCENT_COOL_GLOW = "#A5F3FC"
+ACCENT_COOL_SOFT = "#102A35"
+FLAVOR_INFO = "#38BDF8" # Console Cyan
 FLAVOR_WARN = "#FBBF24"
 FLAVOR_SUCCESS = "#10B981"
 FLAVOR_ERROR = "#F43F5E"
 
-FIELD_BG = "#0D0D0F"
-FIELD_FG = "#CBD5E1"
-LOG_BG = "#020202"
-LOG_FG = "#22D3EE"
+FIELD_BG = "#0C1118"
+FIELD_FG = "#E2E8F0"
+LOG_BG = "#06090F"
+LOG_FG = "#7DD3FC"
+METAL_HI = "#3B4758"
+METAL_LOW = "#0F141B"
+GRID_LINE = "#133548"
 
 # Fallbacks for runtime
-ACCENT_SOFT = "#2A1B0A"
+ACCENT_SOFT = "#2A1F10"
 
 # STATUS PALETTES
 STATUS_PALETTES = {
@@ -71,8 +78,8 @@ SPACE_MD = 14
 SPACE_LG = 18
 SPACE_XL = 24
 CARD_GAP = 10
-CARD_PAD_X = 14
-CARD_PAD_Y = 12
+CARD_PAD_X = 16
+CARD_PAD_Y = 14
 
 def get_font(size, bold=False, italic=False):
     """Factory for modern variables fonts."""
@@ -109,6 +116,12 @@ def blend_color(base_color, target_color, ratio):
         for base, target in zip(base_rgb, target_rgb)
     )
     return rgb_to_hex(mixed)
+
+def lighten_color(base_color, ratio):
+    return blend_color(base_color, "#FFFFFF", ratio)
+
+def darken_color(base_color, ratio, target_color=BG):
+    return blend_color(base_color, target_color, ratio)
 
 def get_status_chip_text(status, lang="de"):
     return STATUS_LABELS.get(lang, STATUS_LABELS["de"]).get(status, status)

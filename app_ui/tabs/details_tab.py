@@ -3,7 +3,7 @@ import tkinter as tk
 import app_ui.ui_patterns as ui_patterns
 from app_ui import detail_view_tools
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmBadge,
     AkmEntry, AkmText, AkmCheckbutton, AkmScrollablePanel,
     fit_wraplength,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
@@ -67,6 +67,12 @@ class DetailsTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(self)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Metadata", "Audio", "Status", "Notes")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
 
     def _build_status_card(self):
         status_card = AkmCard(self, min_height=118)
@@ -77,6 +83,12 @@ class DetailsTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Werk Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmSubLabel(
+            status_left,
+            text="DETAIL DESK  •  One record, all metadata, no context switching",
+            bg=PANEL_2,
+            anchor="w",
+        ).pack(fill="x", pady=(1, 1))
         self.details_status_label = AkmLabel(
             status_left,
             text="Noch kein Werk geladen",
@@ -203,6 +215,12 @@ class DetailsTab(AkmPanel):
             wraplength=360,
         )
         self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        notes_signal = tk.Frame(right_card.inner, bg=PANEL_2)
+        notes_signal.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Search tags", "Production notes", "Handoff ready")):
+            badge = AkmBadge(notes_signal, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index == 2)
         right_form = AkmForm(right_card.inner, padx=CARD_PAD_X, pady=0)
         right_form.pack(fill="both", expand=True)
         self.detail_tags = right_form.add_text("Tags (Kommata)", height=4)

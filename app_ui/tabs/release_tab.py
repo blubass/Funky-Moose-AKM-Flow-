@@ -1,7 +1,7 @@
 import tkinter as tk
 import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmScrollablePanel,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmEntry, AkmScrollablePanel, AkmBadge,
     fit_wraplength,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
@@ -56,6 +56,12 @@ class ReleaseTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(self)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Metadata", "Cover", "Tracks", "Export")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index >= 2)
 
     def _build_status_card(self):
         status_card = AkmCard(self, min_height=118)
@@ -66,6 +72,12 @@ class ReleaseTab(AkmPanel):
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
         AkmLabel(status_left, text="Release Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmSubLabel(
+            status_left,
+            text="RELEASE DESK  •  Preflight, package build and AKM handoff in one lane",
+            bg=PANEL_2,
+            anchor="w",
+        ).pack(fill="x", pady=(1, 1))
         self.release_status_label = AkmLabel(
             status_left,
             text="0 Tracks im Release | Cover: Nein | Export-Ordner: Nein | Drag&Drop aktiv",
@@ -139,6 +151,7 @@ class ReleaseTab(AkmPanel):
         self._build_release_track_card(right_card)
 
     def _build_release_meta_card(self, left_card):
+        AkmLabel(left_card.inner, text="Release-Basis", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._left_intro_label = AkmSubLabel(
             left_card.inner,
             text="Metadaten, Cover und Zielordner werden hier einmal sauber gesetzt.",
@@ -146,7 +159,13 @@ class ReleaseTab(AkmPanel):
             justify="left",
             wraplength=360,
         )
-        self._left_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
+        self._left_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        base_strip = tk.Frame(left_card.inner, bg=PANEL_2)
+        base_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Title", "Artist", "Cover", "Export dir")):
+            badge = AkmBadge(base_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
 
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
@@ -194,6 +213,12 @@ class ReleaseTab(AkmPanel):
             wraplength=380,
         )
         self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        track_strip = tk.Frame(right_card.inner, bg=PANEL_2)
+        track_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Drop zone", "Auto-match", "Reorder", "Export handoff")):
+            badge = AkmBadge(track_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index >= 2)
 
         self._build_drop_zone(right_card)
         self._build_track_list(right_card)
@@ -202,7 +227,12 @@ class ReleaseTab(AkmPanel):
         self.after_idle(lambda: self._apply_release_action_layout(right_card.winfo_width()))
 
     def _build_drop_zone(self, right_card):
-        drop_zone = tk.Frame(right_card.inner, bg=FIELD_BG, highlightbackground="#2E323A", highlightthickness=1)
+        drop_zone = tk.Frame(
+            right_card.inner,
+            bg=FIELD_BG,
+            highlightbackground=ui_patterns.blend_color(ACCENT, ui_patterns.BORDER, 0.35),
+            highlightthickness=1,
+        )
         drop_zone.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         AkmLabel(
             drop_zone,
@@ -219,6 +249,12 @@ class ReleaseTab(AkmPanel):
             wraplength=360,
         )
         self._drop_zone_hint_label.pack(anchor="w", padx=12, pady=(2, 10))
+        drop_zone_strip = tk.Frame(drop_zone, bg=FIELD_BG)
+        drop_zone_strip.pack(anchor="w", padx=12, pady=(0, 12))
+        for index, text in enumerate(("drag ready", "dedupe", "title match")):
+            badge = AkmBadge(drop_zone_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index == 0)
 
     def _build_track_list(self, right_card):
         list_frame = AkmPanel(right_card.inner, bg=PANEL_2)
@@ -231,7 +267,16 @@ class ReleaseTab(AkmPanel):
         )
         self.release_track_listbox.pack(side="left", fill="both", expand=True)
         self.release_track_listbox.bind("<<ListboxSelect>>", lambda _event: self._update_track_selection_hint())
-        scrollbar = tk.Scrollbar(list_frame, command=self.release_track_listbox.yview)
+        scrollbar = tk.Scrollbar(
+            list_frame,
+            command=self.release_track_listbox.yview,
+            bg=PANEL_2,
+            activebackground=ui_patterns.blend_color(PANEL_2, ACCENT, 0.18),
+            troughcolor=ui_patterns.BG,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        )
         scrollbar.pack(side="right", fill="y")
         self.release_track_listbox.config(yscrollcommand=scrollbar.set)
 

@@ -69,7 +69,7 @@ class AppState:
             
         try:
             # Use Repository directly
-            records = akm_core.repo.load_all(strict=True)
+            records = akm_core._get_repo().load_all(strict=True)
             self.all_records = records
             self.current_mtime = mtime
             return copy.deepcopy(self.all_records) if copy_data else self.all_records
@@ -79,7 +79,7 @@ class AppState:
     def _get_data_mtime(self) -> Optional[float]:
         try:
             # Use Repository path property
-            return os.path.getmtime(akm_core.repo.data_file)
+            return os.path.getmtime(akm_core._get_repo().data_file)
         except OSError:
             return None
 

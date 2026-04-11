@@ -3,7 +3,7 @@ from tkinter import ttk
 from app_logic import flow_tools
 import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator, AkmScrollablePanel,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator, AkmScrollablePanel, AkmBadge,
     ACCENT, PANEL, PANEL_2, TEXT,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_XL, FONT_LG, FONT_XXL, fit_wraplength, apply_button_bar_layout
@@ -51,6 +51,12 @@ class BatchTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(page)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Queue", "Clipboard", "Submit", "Next")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index < 2)
 
     def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
@@ -64,6 +70,12 @@ class BatchTab(AkmPanel):
 
     def _build_status_summary(self, parent):
         AkmLabel(parent, text="Flow Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmSubLabel(
+            parent,
+            text="BATCH CONTROL  •  One title in focus, one clean move after another",
+            bg=PANEL_2,
+            anchor="w",
+        ).pack(fill="x", pady=(1, 1))
         self.batch_status_label = AkmLabel(
             parent,
             text="Keine offenen Batch-Werke",
@@ -107,6 +119,12 @@ class BatchTab(AkmPanel):
         AkmLabel(focus_card.inner, text="Aktuelles Werk", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(
             anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 0)
         )
+        self._focus_strip = tk.Frame(focus_card.inner, bg=PANEL_2)
+        self._focus_strip.pack(fill="x", padx=CARD_PAD_X, pady=(SPACE_XS, SPACE_XS))
+        for index, text in enumerate(("Title", "Duration", "Submit", "Advance")):
+            badge = AkmBadge(self._focus_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index == 0)
         self.flow_title = AkmHeader(focus_card.inner, text="Lade Werk...", fg=ACCENT, bg=PANEL_2)
         self.flow_title.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         meta_row = tk.Frame(focus_card.inner, bg=PANEL_2)
@@ -139,6 +157,12 @@ class BatchTab(AkmPanel):
         AkmLabel(progress_card.inner, text="Fortschritt", fg=ACCENT, bg=PANEL_2, font=FONT_BOLD).pack(
             anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS)
         )
+        AkmSubLabel(
+            progress_card.inner,
+            text="Queue-Tempo und Durchlauf bleiben hier sofort sichtbar.",
+            bg=PANEL_2,
+            justify="left",
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         self.progress_label = AkmLabel(progress_card.inner, text="0 / 0", fg=TEXT, bg=PANEL_2, font=FONT_BOLD)
         self.progress_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         self.progress = ttk.Progressbar(progress_card.inner, length=420)

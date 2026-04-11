@@ -65,10 +65,10 @@ class AkmSaveDialog(tk.Toplevel):
         
         btn_row = tk.Frame(self, bg=BG)
         btn_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
-        
-        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True).pack(side="left")
-        create_btn(btn_row, "SPEICHERN", self._save, primary=True).pack(side="right")
-        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True).pack(side="right", padx=SPACE_SM)
+
+        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, "SPEICHERN", self._save, primary=True, width=220).pack(fill="x")
 
     def _browse(self):
         path = filedialog.asksaveasfilename(
@@ -159,9 +159,9 @@ class AkmLoadDialog(tk.Toplevel):
         btn_row = tk.Frame(self, bg=BG)
         btn_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
         
-        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True).pack(side="left")
-        create_btn(btn_row, "LADEN", self._load, primary=True).pack(side="right")
-        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True).pack(side="right", padx=SPACE_SM)
+        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, "LADEN", self._load, primary=True, width=220).pack(fill="x")
 
     def _browse(self):
         path = filedialog.askopenfilename(

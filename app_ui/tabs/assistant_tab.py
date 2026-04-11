@@ -1,6 +1,6 @@
 import tkinter as tk
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmText, AkmScrollablePanel,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmText, AkmScrollablePanel, AkmBadge,
     ACCENT, PANEL, PANEL_2, SUBTLE, SPACE_MD, SPACE_SM, SPACE_XS, 
     CARD_PAD_X, CARD_PAD_Y, FONT_LG, FONT_MD, FONT_XL, LOG_BG, LOG_FG, FONT_LOG, fit_wraplength,
     apply_button_bar_layout,
@@ -44,6 +44,12 @@ class AssistantTab(AkmPanel):
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
+        signal_row = AkmPanel(page)
+        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Intake", "Catalog", "Import", "Loudness")):
+            badge = AkmBadge(signal_row, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index == 0)
 
     def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
@@ -57,6 +63,12 @@ class AssistantTab(AkmPanel):
 
     def _build_status_summary(self, parent):
         AkmLabel(parent, text=i18n._t("ash_radar_title"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmSubLabel(
+            parent,
+            text="INTAKE DESK  •  Fast capture for titles, imports and next actions",
+            bg=PANEL_2,
+            anchor="w",
+        ).pack(fill="x", pady=(1, 1))
         self.assistant_status_label = AkmLabel(
             parent,
             text=i18n._t("ash_radar_ready"),
@@ -104,6 +116,12 @@ class AssistantTab(AkmPanel):
             justify="left",
         )
         self._intake_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        self._intake_strip = tk.Frame(intake_card.inner, bg=PANEL_2)
+        self._intake_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        for index, text in enumerate(("Quick title", "One-key create", "Import handoff")):
+            badge = AkmBadge(self._intake_strip, text)
+            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+            badge.set_active(index == 0)
         self.assistant_entry_var = tk.StringVar()
         self.assistant_entry = AkmEntry(intake_card.inner, textvariable=self.assistant_entry_var, width=50, font=FONT_MD)
         self.assistant_entry.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM), ipady=5)
@@ -141,6 +159,12 @@ class AssistantTab(AkmPanel):
             justify="left",
         )
         self._log_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
+        AkmSubLabel(
+            log_card.inner,
+            text="Live protocol for imports, analysis and release-side actions",
+            bg=PANEL_2,
+            justify="left",
+        ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         self.log_widget = AkmText(log_card.inner, height=10, bg=LOG_BG, fg=LOG_FG, insertbackground=LOG_FG)
         self.log_widget.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self.app.log = self.log_widget
