@@ -22,12 +22,18 @@ class AkmCanvasButton(tk.Canvas):
             self._base_bg = blend_color(PANEL_2, "#FFFFFF", 0.02)
             self._base_fg = TEXT
 
-        self._fixed_width = width if width else (200 if not self._quiet else 160)
         self._font = FONT_BOLD if not (primary or accent_color) else FONT_MD_BOLD
         if len(text) > 18:
             self._font = FONT_SM
-            if not width:
-                self._fixed_width = 220
+
+        _fallback_w = width if width else (200 if not self._quiet else 160)
+        try:
+            import tkinter.font as tkfont
+            _f = tkfont.Font(font=self._font)
+            _calc_w = _f.measure(str(text or "").upper()) + 36
+            self._fixed_width = max(_calc_w, _fallback_w)
+        except Exception:
+            self._fixed_width = _fallback_w
 
         super().__init__(
             parent,
@@ -261,6 +267,13 @@ class AkmCanvasButton(tk.Canvas):
         if "text" in options:
             self._text = options.pop("text")
             redraw = True
+            try:
+                import tkinter.font as tkfont
+                _calc_w = tkfont.Font(font=self._font).measure(str(self._text or "").upper()) + 36
+                if _calc_w > self._fixed_width and "width" not in options:
+                    self._fixed_width = _calc_w
+            except Exception:
+                pass
         if "state" in options:
             self._state = options.pop("state")
             redraw = True
