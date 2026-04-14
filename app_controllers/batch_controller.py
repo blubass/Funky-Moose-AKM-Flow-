@@ -1,5 +1,7 @@
+import os
+
 from .base_controller import BaseController
-from app_logic import akm_core, flow_tools
+from app_logic import akm_core, flow_tools, loudness_tools
 from app_logic.text_utils import clean_text as _clean_text
 
 
@@ -27,6 +29,36 @@ class BatchController(BaseController):
             return None
         return self.state.batch_queue[self.state.batch_index % len(self.state.batch_queue)]
 
+    def _ensure_item_duration(self, item):
+        if not item:
+            return ""
+
+        duration = _clean_text(item.get("duration"))
+        if duration:
+            return duration
+
+        audio_path = _clean_text(item.get("audio_path"))
+        title = _clean_text(item.get("title"))
+        if not audio_path or not title:
+            return ""
+
+        try:
+            seconds = loudness_tools.probe_duration(audio_path)
+        except Exception:
+            seconds = None
+
+        formatted_duration = loudness_tools.format_seconds(seconds)
+        if not formatted_duration:
+            return ""
+
+        ok, _payload = akm_core.update_entry(title, {"duration": formatted_duration})
+        if ok:
+            item["duration"] = formatted_duration
+            if hasattr(self.state, "invalidate_cache"):
+                self.state.invalidate_cache()
+            self.log(f"Dauer automatisch nacherfasst: {title} ({formatted_duration})")
+        return _clean_text(item.get("duration"))
+
     def reload_flow_data(self, preferred_index=None):
         """Re-synchronizes the Batch Queue with current state."""
         previous_title = getattr(self.app, "current_title", None)
@@ -42,6 +74,7 @@ class BatchController(BaseController):
 
     def update_flow(self):
         """Updates the visual state of the Batch Tab."""
+        self._ensure_item_duration(self._get_current_batch_item())
         flow_state = flow_tools.build_flow_state(
             self.state.batch_queue,
             self.state.batch_index,
@@ -84,8 +117,17 @@ class BatchController(BaseController):
         it = self._get_current_batch_item()
         if not it:
             return
+        self._ensure_item_duration(it)
         copy_stage = stage or self._get_batch_copy_stage()
         if copy_stage == "duration" and not _clean_text(it.get("duration")):
+            title = _clean_text(it.get("title")) or "Unbekanntes Werk"
+            audio_path = _clean_text(it.get("audio_path"))
+            if not audio_path:
+                self.log(f"Dauer nicht verfügbar: Kein Audio-Pfad für {title} hinterlegt.")
+            elif not os.path.exists(audio_path):
+                self.log(f"Dauer nicht verfügbar: Audio-Datei nicht erreichbar für {title}.")
+            else:
+                self.log(f"Dauer konnte nicht aus Audio gelesen werden: {title}.")
             return
         res = flow_tools.resolve_copy_action(it, copy_stage)
         self.app.clipboard_clear()

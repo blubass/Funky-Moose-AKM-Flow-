@@ -1885,6 +1885,60 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("title", batch_view.copy_stage)
         self.assertEqual("Song B", batch_view.flow_state["title_text"])
 
+    def test_batch_controller_update_flow_backfills_missing_duration_from_audio(self):
+        app = self.make_app_stub()
+        app.state.batch_queue = [
+            {
+                "title": "Song A",
+                "duration": "",
+                "audio_path": "/tmp/song-a.wav",
+            }
+        ]
+        batch_view = FakeBatchView(copy_stage="title")
+        app.tab_system._instances["batch"] = batch_view
+
+        controller = BatchController(app)
+        with mock.patch.object(loudness_tools, "probe_duration", return_value=191.0) as probe_duration:
+            with mock.patch.object(akm_core, "update_entry", return_value=(True, {"duration": "3:11"})) as update_entry:
+                controller.update_flow()
+
+        probe_duration.assert_called_once_with("/tmp/song-a.wav")
+        update_entry.assert_called_once_with("Song A", {"duration": "3:11"})
+        self.assertEqual("3:11", app.state.batch_queue[0]["duration"])
+        self.assertIn("Dauer: 3:11", batch_view.flow_state["meta_text"])
+        self.assertTrue(app.state.invalidated)
+
+    def test_batch_controller_flow_copy_duration_probes_audio_when_duration_missing(self):
+        app = self.make_app_stub()
+        app.state.batch_queue = [
+            {
+                "title": "Song A",
+                "duration": "",
+                "audio_path": "/tmp/song-a.wav",
+            },
+            {
+                "title": "Song B",
+                "duration": "4:22",
+            },
+        ]
+        app.state.batch_index = 0
+        app.clipboard_value = None
+        app.clipboard_clear = lambda: setattr(app, "clipboard_value", "")
+        app.clipboard_append = lambda value: setattr(app, "clipboard_value", value)
+        batch_view = FakeBatchView(copy_stage="duration")
+        app.tab_system._instances["batch"] = batch_view
+
+        controller = BatchController(app)
+        with mock.patch.object(loudness_tools, "probe_duration", return_value=191.0) as probe_duration:
+            with mock.patch.object(akm_core, "update_entry", return_value=(True, {"duration": "3:11"})) as update_entry:
+                controller.flow_copy_duration()
+
+        probe_duration.assert_called_once_with("/tmp/song-a.wav")
+        update_entry.assert_called_once_with("Song A", {"duration": "3:11"})
+        self.assertEqual("3:11", app.clipboard_value)
+        self.assertEqual(1, app.state.batch_index)
+        self.assertEqual("Song B", batch_view.flow_state["title_text"])
+
     def test_project_controller_import_done_logs_summary_and_refreshes_overview(self):
         app = self.make_app_stub()
         app.overview_ctrl = SimpleNamespace(
