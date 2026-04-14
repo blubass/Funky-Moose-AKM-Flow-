@@ -8,19 +8,20 @@ from app_ui.ui_patterns import (
     FONT_BOLD, FONT_SM, FONT_MD_BOLD, FONT_XL, FONT_LG
 )
 from app_logic import akm_core
+from app_logic import i18n
 
 
 RELEASE_FORM_FIELDS = (
-    ("title", "Release-Titel"),
-    ("artist", "Artist"),
-    ("type", "Typ"),
+    ("title", i18n._t("det_label_title", default="Release-Titel")),
+    ("artist", i18n._t("det_label_artist", default="Artist")),
+    ("type", i18n._t("ovw_sort_key_type", default="Typ")),
     ("release_date", "Datum (JJJJ-MM-TT)"),
     ("genre", "Genre"),
     ("subgenre", "Subgenre"),
     ("label", "Label"),
     ("copyright_line", "Copyright"),
-    ("cover_path", "Cover-Bild (JPG/PNG)"),
-    ("export_dir", "Export-Ordner"),
+    ("cover_path", i18n._t("rel_btn_cover", default="Cover-Bild")),
+    ("export_dir", i18n._t("rel_status_exporting", default="Export-Ordner").split(" ")[0]),
 )
 
 
@@ -49,10 +50,10 @@ class ReleaseTab(AkmPanel):
         self.after_idle(self._update_track_selection_hint)
 
     def _build_header_section(self):
-        AkmHeader(self, text="Release / Export").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        AkmHeader(self, text=i18n._t("rel_header_title")).pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             self,
-            text="Baue aus Werken, gematchten Dateien und Cover-Varianten ein sauberes Release-Paket und gib die Titel direkt weiter in AKM Batch / Schnellstart.",
+            text=i18n._t("rel_header_subtitle"),
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -71,7 +72,7 @@ class ReleaseTab(AkmPanel):
         status_right = tk.Frame(status_card.inner, bg=PANEL_2)
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
-        AkmLabel(status_left, text="Release Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmLabel(status_left, text=i18n._t("rel_radar_title"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
         AkmSubLabel(
             status_left,
             text="RELEASE DESK  •  Preflight, package build and AKM handoff in one lane",
@@ -80,7 +81,7 @@ class ReleaseTab(AkmPanel):
         ).pack(fill="x", pady=(1, 1))
         self.release_status_label = AkmLabel(
             status_left,
-            text="0 Tracks im Release | Cover: Nein | Export-Ordner: Nein | Drag&Drop aktiv",
+            text=i18n._t("rel_radar_empty"),
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
@@ -106,7 +107,7 @@ class ReleaseTab(AkmPanel):
         self.release_action_hint_label.pack(fill="x")
         self.release_flow_hint_label = AkmSubLabel(
             status_left,
-            text="Ziehe Audiodateien hinein oder setze zuerst den Release-Titel, damit der Flow direkt weiterlaufen kann.",
+            text=i18n._t("rel_radar_hint"),
             bg=PANEL_2,
             anchor="w",
             justify="left",
@@ -116,7 +117,7 @@ class ReleaseTab(AkmPanel):
 
         self._status_primary_button = self.app.btn(
             status_right,
-            "Distro-Export starten",
+            i18n._t("rel_btn_export"),
             self.app.release_ctrl.build_export,
             primary=True,
             width=190,
@@ -127,8 +128,8 @@ class ReleaseTab(AkmPanel):
         self._status_action_bar = action_row
         self._status_action_buttons = (
             self.app.btn(action_row, "In AKM laden", lambda: self.app.release_ctrl.import_release_to_batch(open_batch=True), quiet=True, width=122),
-            self.app.btn(action_row, "Cover-Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=122),
-            self.app.btn(action_row, "Finder", self.app.release_ctrl.open_cover_in_finder, quiet=True, width=84),
+            self.app.btn(action_row, "Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=122),
+            self.app.btn(action_row, i18n._t("det_btn_finder"), self.app.release_ctrl.open_cover_in_finder, quiet=True, width=84),
         )
 
     def _build_scroll_content(self):
@@ -151,7 +152,7 @@ class ReleaseTab(AkmPanel):
         self._build_release_track_card(right_card)
 
     def _build_release_meta_card(self, left_card):
-        AkmLabel(left_card.inner, text="Release-Basis", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(left_card.inner, text=i18n._t("rel_label_meta"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._left_intro_label = AkmSubLabel(
             left_card.inner,
             text="Metadaten, Cover und Zielordner werden hier einmal sauber gesetzt.",
@@ -169,7 +170,7 @@ class ReleaseTab(AkmPanel):
 
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
-        left_form.add_header("Release-Basis")
+        left_form.add_header(i18n._t("rel_label_meta"))
         self._build_release_form_rows(left_form)
 
     def _build_release_form_rows(self, left_form):
@@ -193,18 +194,18 @@ class ReleaseTab(AkmPanel):
     def _create_cover_field(self, parent, variable):
         wrap = tk.Frame(parent, bg=PANEL_2)
         AkmEntry(wrap, textvariable=variable, font=FONT_SM).pack(side="left", fill="x", expand=True)
-        self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_cover, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(wrap, i18n._t("ui_btn_browse", default="Wählen"), self.app.release_ctrl.choose_cover, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
         self.app.btn(wrap, "Preview", self.app.release_ctrl.open_cover_dialog, quiet=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
         return wrap
 
     def _create_export_field(self, parent, variable):
         wrap = tk.Frame(parent, bg=PANEL_2)
         AkmEntry(wrap, textvariable=variable, font=FONT_SM).pack(side="left", fill="x", expand=True)
-        self.app.btn(wrap, "Wählen", self.app.release_ctrl.choose_export_dir, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(wrap, i18n._t("ui_btn_browse", default="Wählen"), self.app.release_ctrl.choose_export_dir, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
         return wrap
 
     def _build_release_track_card(self, right_card):
-        AkmLabel(right_card.inner, text="Release-Zusammenstellung", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_MD))
+        AkmLabel(right_card.inner, text=i18n._t("rel_label_tracks"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_MD))
         self._right_intro_label = AkmSubLabel(
             right_card.inner,
             text="Ziehe fertige Audiodateien direkt in die Liste. Exakte Titel werden automatisch auf Werke gemappt.",
@@ -285,13 +286,13 @@ class ReleaseTab(AkmPanel):
         tk_actions.pack(anchor="w", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._release_action_bar = tk_actions
         self._release_action_buttons = (
-            self.app.btn(tk_actions, "Nach oben", self.app.release_ctrl.move_track_up, quiet=True, width=108),
-            self.app.btn(tk_actions, "Nach unten", self.app.release_ctrl.move_track_down, quiet=True, width=108),
-            self.app.btn(tk_actions, "Entfernen", self.app.release_ctrl.remove_track, quiet=True, width=108),
+            self.app.btn(tk_actions, i18n._t("ui_btn_up", default="Nach oben"), self.app.release_ctrl.move_track_up, quiet=True, width=108),
+            self.app.btn(tk_actions, i18n._t("ui_btn_down", default="Nach unten"), self.app.release_ctrl.move_track_down, quiet=True, width=108),
+            self.app.btn(tk_actions, i18n._t("ui_btn_remove", default="Entfernen"), self.app.release_ctrl.remove_track, quiet=True, width=108),
         )
         self.release_selection_hint_label = AkmSubLabel(
             right_card.inner,
-            text="Noch keine Tracks im Release. Ziehe Dateien hinein oder übernimm gematchte Werke.",
+            text=i18n._t("rel_selection_empty"),
             bg=PANEL_2,
             anchor="w",
             justify="left",

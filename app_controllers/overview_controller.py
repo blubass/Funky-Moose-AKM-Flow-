@@ -1,6 +1,6 @@
 from .base_controller import BaseController
 from app_controllers import detail_controller_tools
-from app_logic import akm_core, overview_tools, loudness_tools
+from app_logic import akm_core, overview_tools, loudness_tools, i18n
 
 class OverviewController(BaseController):
     """Manages catalogue overview, filtering, and cross-tab triggers."""
@@ -147,7 +147,7 @@ class OverviewController(BaseController):
             self._last_refresh_params = None # Force refresh
             self.refresh_list()
         else: 
-            self.log(f"FEHLER: {result[1]}")
+            self.log(i18n._t("log_error", error=str(result[1])))
 
     def load_selected_into_details(self):
         it = self._get_selected_overview_item()
@@ -179,7 +179,7 @@ class OverviewController(BaseController):
                     if dur:
                         mins, secs = int(dur // 60), int(dur % 60)
                         detail_vars["duration"].set(f"{mins}:{secs:02d}")
-                        self.log(f"Dauer automatisch nacherfasst: {mins}:{secs:02d}")
+                        self.log(i18n._t("log_work_updated", title=f"{mins}:{secs:02d}"))
                 self.tasks.run(_ext, _upd, busy_text="Aktualisiere Dauer...")
 
     def set_status(self, s):
@@ -192,7 +192,7 @@ class OverviewController(BaseController):
             return len(items)
             
         self.tasks.run(_work, 
-                       lambda count: self._on_g_done((True, None), f"Status {s} für {count} Werke gesetzt"), 
+                       lambda count: self._on_g_done((True, None), i18n._t("log_work_updated", title=f"{count} works (status={s})")), 
                        busy_text="Setze Status...")
         
     def on_listbox_activate(self, e): 

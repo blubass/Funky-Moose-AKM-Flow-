@@ -7,20 +7,22 @@ import os
 import tkinter as tk
 import logging
 from tkinter import messagebox, ttk
+from tkinter import scrolledtext
 from app_logic.config import cfg
 from app_logic import logger_config
 
 # Optional: DnD Support
 try:
-    from tkinterdnd2 import TkinterDnD
+    from tkinterdnd2 import DND_FILES, TkinterDnD
 except Exception:
+    DND_FILES = None
     TkinterDnD = None
 
 
 # Core Logic & Infrastructure
 from app_logic import (
-    akm_core, assistant_tools, app_state, task_runner,
-    loudness_tools, i18n
+    akm_core, assistant_tools, flow_tools, app_state, task_runner,
+    loudness_tools
 )
 from app_ui import ui_patterns
 
@@ -36,56 +38,66 @@ from app_controllers.release_controller import ReleaseController
 from app_controllers.batch_controller import BatchController
 from app_controllers.details_controller import DetailsController
 
+# Architectural Layout Components
 from app_ui.header import MainHeader
 from app_ui.tab_system import AppTabs
-
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from app_controllers.project_controller import ProjectController
-    from app_controllers.overview_controller import OverviewController
-    from app_controllers.loudness_controller import LoudnessController
-    from app_controllers.release_controller import ReleaseController
-    from app_controllers.batch_controller import BatchController
-    from app_controllers.details_controller import DetailsController
 
 class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     """
     Central orchestrator for the Funky Moose Release Forge.
     Manages state via AppState, background tasks via TaskRunner, and coordinates the modular tab-based UI.
     """
-    OVERVIEW_FILTER_DEFAULTS = {
-        "search": "",
-        "filter": "all",
-        "sort": "title",
-        "desc": False,
-    }
-
     def __init__(self):
         super().__init__()
-
-        # Explicit Controller Type Annotations
-        self.overview_ctrl: 'OverviewController'
-        self.project_ctrl: 'ProjectController'
-        self.loudness_ctrl: 'LoudnessController'
-        self.release_ctrl: 'ReleaseController'
-        self.batch_ctrl: 'BatchController'
-        self.details_ctrl: 'DetailsController'
-
-        self._perform_global_setup()
-        self._set_window_config()
-        self._init_services()
-        self._init_runtime_state()
-        self._init_controllers()
-        self._build_application_shell()
-        self._configure_runtime_bindings()
-        self._bootstrap_application()
-
-    # --- INITIALIZATION ---
-    def _perform_global_setup(self):
-        """Prepare writable paths and UI-backed logging before services come online."""
+        # 0. Global Setup (Paths & Logs)
         cfg.ensure_dirs()
         logger_config.setup_logging(self)
+        
+        self._set_window_config()
+        self._init_state_and_services()
+        self._init_ui_vars()
+        
+        # Setup & Boot
+        ui_patterns.apply_ttk_styles()
+        self.build_ui()
+        
+        # Final Bindings & Initial Data Load
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.tab_system.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed, add="+")
+        
+        # Performance Trackers (Reduces redundant tab refreshes)
+        self._last_overview_refresh = {"search": None, "filter": None, "sort": None, "desc": None, "mtime": None}
+        self._last_dashboard_refresh = {"mtime": None}
+        self._last_batch_refresh = {"mtime": None}
+        self._refresh_timer = None
+        
+        # --- GLOBAL MOUSEWHEEL FIX ---
+        self.bind_all("<MouseWheel>", self._on_root_mousewheel)
+        self.bind_all("<Button-4>", self._on_root_mousewheel)
+        self.bind_all("<Button-5>", self._on_root_mousewheel)
+        
+        # --- COMMAND BINDINGS ---
+        self.bind_all("<Command-a>", self.select_all)
+        self.bind_all("<Control-a>", self.select_all)
+        
+        dnd_status = "Aktiv" if TkinterDnD is not None else "Deaktiviert (Paket fehlt)"
+        self.append_log(f"Drag & Drop System: {dnd_status}")
+        if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
+            self.header.task_detail_label.config(text=f"Workspace bereit | Drag & Drop: {dnd_status}")
+        
+        self.refresh_list()
+        self.reload_flow_data(preferred_index=0)
+        
+        # --- MAC FOCUS FIX (Forcing bundle visibility) ---
+        self.update_idletasks()
+        self.deiconify()
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(500, lambda: self.attributes("-topmost", False))
+        self.focus_force()
+        logging.info(f"GUI MASTER START: {cfg.APP_NAME} v{cfg.VERSION}")
 
+    # --- INITIALIZATION ---
     def _set_window_config(self):
         """Standard window initialization and styling."""
         self.title(cfg.APP_NAME)
@@ -93,161 +105,140 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         self.minsize(860, 620)
         self.configure(bg=ui_patterns.BG)
 
-    def _init_runtime_state(self):
-        """Prepare shared runtime state used by UI, refresh logic and controller handoff."""
-        self._init_ui_vars()
-        self._init_refresh_trackers()
-
-    def _init_services(self):
-        """Instantiate core singleton services that are independent from the visual shell."""
+    def _init_state_and_services(self):
+        """Instantiate core singleton services and logic controllers."""
         self.state = app_state.AppState()
         self.tasks = task_runner.TaskRunner(self)
         self.audio = AudioPlayerEngine(app_log_func=self.append_log)
-
-    def _init_controllers(self):
-        """Attach specialized controllers after state/services are ready."""
-        controller_specs = (
-            ("overview_ctrl", OverviewController),
-            ("project_ctrl", ProjectController),
-            ("loudness_ctrl", LoudnessController),
-            ("release_ctrl", ReleaseController),
-            ("batch_ctrl", BatchController),
-            ("details_ctrl", DetailsController),
-        )
-        for attr_name, controller_cls in controller_specs:
-            setattr(self, attr_name, controller_cls(self))
+        
+        # Instantiate Specialized Controllers
+        self.overview_ctrl = OverviewController(self)
+        self.project_ctrl = ProjectController(self)
+        self.loudness_ctrl = LoudnessController(self)
+        self.release_ctrl = ReleaseController(self)
+        self.batch_ctrl = BatchController(self)
+        self.details_ctrl = DetailsController(self)
         self._bind_controller_delegates()
 
-    def _configure_runtime_bindings(self):
-        """Register top-level lifecycle, tab and global input bindings."""
-        self._bind_window_events()
-        self._bind_tab_events()
-        self._bind_global_mousewheel()
-        self._bind_global_shortcuts()
-
-    def _build_application_shell(self):
-        """Create the visual shell and shared app chrome."""
-        ui_patterns.apply_ttk_styles()
-        self.build_ui()
-
-    def _bootstrap_application(self):
-        """Run the post-build boot sequence once services, controllers and UI all exist."""
-        self._log_boot_banner()
-        self._schedule_initial_tab_bootstrap()
-        self._announce_workspace_ready()
-        self._prime_initial_views()
-        self._apply_startup_focus()
-        logging.info(f"GUI MASTER START: {cfg.APP_NAME} v{cfg.VERSION}")
-
-    def _init_refresh_trackers(self):
-        """Track refresh-sensitive state separately."""
-        mtime = self.state._get_data_mtime() if hasattr(self.state, "_get_data_mtime") else None
-        self._last_overview_refresh = self._build_overview_refresh_snapshot(mtime=mtime)
-        self._last_dashboard_refresh = {"mtime": mtime}
-        self._last_batch_refresh = {"mtime": mtime}
-        self._refresh_timer = None
-        self._prev_selected_path = None
-        
-        # Subscribe to data changes
-        self.state.subscribe("cache_invalidated", self._on_data_invalidated)
-        self.state.subscribe("data_changed", self._on_data_changed)
-
-    def _bind_window_events(self):
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-    def _bind_tab_events(self):
-        self.tab_system.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed, add="+")
-
-    def _bind_global_mousewheel(self):
-        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
-            self.bind_all(sequence, self._on_root_mousewheel)
-
-    def _bind_global_shortcuts(self):
-        shortcut_map = {
-            "<Command-a>": self.select_all,
-            "<Command-q>": self._on_quit_shortcut,
-            "<Control-q>": self._on_quit_shortcut,
-        }
-        for sequence, callback in shortcut_map.items():
-            self.bind_all(sequence, callback)
-
-    def _announce_workspace_ready(self):
-        dnd_status = self._get_drag_and_drop_status_text(include_reason=True)
-        self.append_log(f"Drag & Drop System: {dnd_status}")
-        if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
-            workspace_ready = i18n._t("workspace_ready")
-            self.header.task_detail_label.config(text=f"{workspace_ready} | Drag & Drop: {dnd_status}")
-
-    def _prime_initial_views(self):
-        """Load controller-backed startup data once the shell is visible."""
-        self.overview_ctrl.refresh_list()
-        self.batch_ctrl.reload_flow_data(preferred_index=0)
-
-    def _apply_startup_focus(self):
-        """Force the initial app window to the front on startup, especially on macOS bundles."""
-        self.update_idletasks()
-        self.deiconify()
-        self.lift()
-        self.attributes("-topmost", True)
-        self.after(500, lambda: self.attributes("-topmost", False))
-        self.focus_force()
-
-    def _log_boot_banner(self):
-        """Emit a small startup banner once the visible shell exists."""
-        self.append_log("-" * 30)
-        self.append_log(f"{cfg.APP_NAME} v{cfg.VERSION} INITIALIZED")
-        self.append_log("System: Core architecture decoupled.")
-        self.append_log("-" * 30)
-
-    def _schedule_initial_tab_bootstrap(self):
-        """Kick lazy tab loading and the first tab refresh into the event loop."""
-        self.after(100, lambda: self.on_tab_changed(None))
-        self.after(240, self._preload_tabs)
-
-    def _get_drag_and_drop_status_text(self, include_reason=False):
-        if TkinterDnD is not None:
-            return "Aktiv"
-        if include_reason:
-            return "Deaktiviert (Paket fehlt)"
-        return "Deaktiviert"
-
     def _bind_controller_delegates(self):
-        """Expose shared controller actions explicitly for better transparency."""
-        
-        # Project Controller delegates
-        self.save_project = self.project_ctrl.save_project
-        self.load_project_dialog = self.project_ctrl.load_project_dialog
-        self.import_excel = self.project_ctrl.import_excel
-        self.import_excel_path = self.project_ctrl.import_excel_path
-        
-        # Overview Controller delegates
-        self.refresh_list = self.overview_ctrl.refresh_list
-        self.refresh_dashboard = self.overview_ctrl.refresh_dashboard
-        self.load_selected_into_details = self.overview_ctrl.load_selected_into_details
-        self.set_status = self.overview_ctrl.set_status
-        self.on_listbox_activate = self.overview_ctrl.on_listbox_activate
-        self.jump_to_last_open = self.overview_ctrl.jump_to_last_open
+        """Expose controller actions on the app instance for tab/button wiring."""
+        delegate_map = {
+            self.project_ctrl: (
+                "save_project",
+                "load_project_dialog",
+                "import_excel",
+                "import_excel_path",
+            ),
+            self.overview_ctrl: (
+                "refresh_list",
+                "refresh_dashboard",
+                "load_selected_into_details",
+                "set_status",
+                "on_listbox_activate",
+                "jump_to_last_open",
+            ),
+            self.details_ctrl: (
+                ("save_details", "save_details"),
+                ("clear_details_form", "clear_details_form"),
+                ("set_detail_status", "set_status_chip"),
+                ("choose_audio_path_for_details", "choose_audio_path"),
+                ("open_audio_path_in_finder", "open_audio_path_in_finder"),
+            ),
+            self.batch_ctrl: (
+                "reload_flow_data",
+                "update_flow",
+                "flow_copy",
+                "flow_submit",
+                "flow_next",
+                "open_track_in_batch",
+            ),
+            self.loudness_ctrl: (
+                ("loudness_choose_files", "choose_files"),
+                ("loudness_handle_drop", "handle_drop"),
+                ("loudness_delete_files", "delete_files"),
+                ("loudness_analyze_files", "analyze_files"),
+                ("loudness_export_files", "export_files"),
+                ("loudness_choose_output_dir", "choose_output_dir"),
+                ("loudness_import_selected_work", "import_selected_work"),
+                ("loudness_import_filtered_works", "import_filtered_works"),
+                ("on_loudness_tree_activate", "on_tree_activate"),
+            ),
+            self.release_ctrl: (
+                ("open_release_cover_dialog", "open_cover_dialog"),
+                ("release_handle_drop", "handle_drop"),
+                ("refresh_release_view", "refresh_view"),
+                ("choose_release_cover", "choose_cover"),
+                ("choose_release_export_dir", "choose_export_dir"),
+                ("open_release_cover_in_finder", "open_cover_in_finder"),
+                ("build_distro_export", "build_export"),
+                ("release_move_track_up", "move_track_up"),
+                ("release_move_track_down", "move_track_down"),
+                ("release_remove_track", "remove_track"),
+            ),
+        }
+        for controller, bindings in delegate_map.items():
+            for binding in bindings:
+                if isinstance(binding, tuple):
+                    app_name, controller_name = binding
+                else:
+                    app_name = controller_name = binding
+                setattr(self, app_name, getattr(controller, controller_name))
 
     def _init_ui_vars(self):
         """Prepare tracker variables and registries used across multiple tabs."""
+        # Overview Registry
+        self.overview_filter_chips = {}
+        self.dashboard_labels = {}
+        self.dashboard_status_chips = {}
+        
         # Detail & Metadata Registry
+        self.detail_vars = {}
         self.cover_state_cache = {}
+        self.release_vars = {}
         self.release_state_cache = {}
         self.detail_original_title = None
         self.current_detail_status = "in_progress"
         
         # Batch & Flow
+        self.copy_stage = flow_tools.DEFAULT_COPY_STAGE
         self.copy_button = None
+        
+        # Search & Filtering
+        self.search_var = None
+        self.status_filter_var = None
+        self.sort_key_var = None
+        self.sort_desc_var = None
+        
+        # Loudness Perspective
+        self.loudness_output_dir_var = tk.StringVar()
+        self.loudness_target_var = tk.StringVar(value="-14.0")
+        self.loudness_peak_var = tk.StringVar(value="-1.0")
 
     # --- UI BUILDING ---
     def build_ui(self):
         """Assembles the main application layout including header and tabs."""
         self.content_root = tk.Frame(self, bg=ui_patterns.BG)
         self.content_root.pack(fill="both", expand=True)
-
+        
+        # 1. Header (Branding & Global Controls)
         self.header = MainHeader(self.content_root, self)
+        
+        # 2. Tab System (Functional Modules)
         self.tab_system = AppTabs(self.content_root, self)
+        
+        # Dynamic Property Access for Functional Modules (Lazy)
+        # These are generated on-demand by the Tab System
         self.task_indicator = self.header.task_indicator
+
+        # Initial Boot Info Logger (Branding Trace)
+        self.append_log("-" * 30)
+        self.append_log("OBSIDIAN MASTER v1.0.1 INITIALIZED")
+        self.append_log("System: Core architecture decoupled.")
+        self.append_log("-" * 30)
+
+        # Force initial tab loading
+        self.after(100, lambda: self.on_tab_changed(None))
+        self.after(240, self._preload_tabs)
 
     @property
     def dashboard_tab(self): return self.tab_system.dashboard
@@ -284,71 +275,28 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             self.tab_system.notebook.select(self.tab_system.map[tab_id])
 
     def get_built_tab(self, tab_id):
-        """Returns an already instantiated tab without triggering lazy construction."""
-        tab_system = self.__dict__.get("tab_system")
-        return getattr(tab_system, "_instances", {}).get(tab_id) if tab_system is not None else None
-
-    def get_detail_form_vars(self):
-        details_tab = self.get_built_tab("details")
-        if details_tab is not None and hasattr(details_tab, "get_form_vars"):
-            return details_tab.get_form_vars()
-        return {}
-
-    def get_release_form_vars(self):
-        release_tab = self.get_built_tab("release")
-        if release_tab is not None and hasattr(release_tab, "get_form_vars"):
-            return release_tab.get_form_vars()
-        return {}
-
-    def get_overview_filter_state(self):
-        overview_tab = self.get_built_tab("overview")
-        if overview_tab is not None and hasattr(overview_tab, "get_filter_state"):
-            return overview_tab.get_filter_state()
-        return dict(self.OVERVIEW_FILTER_DEFAULTS)
-
-    def _build_overview_refresh_snapshot(self, filter_state=None, mtime=None):
-        """Normalize overview filter state into a tracker-friendly snapshot."""
-        defaults = getattr(self, "OVERVIEW_FILTER_DEFAULTS", AKMApp.OVERVIEW_FILTER_DEFAULTS)
-        if filter_state is not None:
-            state = filter_state
-        elif "tab_system" in self.__dict__:
-            get_filter_state = getattr(self, "get_overview_filter_state", None)
-            if callable(get_filter_state):
-                state = get_filter_state()
-            else:
-                state = {
-                    "search": (self.search_var.get() if getattr(self, "search_var", None) else ""),
-                    "filter": (self.status_filter_var.get() if getattr(self, "status_filter_var", None) else defaults["filter"]),
-                    "sort": (self.sort_key_var.get() if getattr(self, "sort_key_var", None) else defaults["sort"]),
-                    "desc": bool(self.sort_desc_var.get()) if getattr(self, "sort_desc_var", None) else defaults["desc"],
-                }
-        else:
-            state = dict(defaults)
-        return {
-            "search": (state.get("search") or "").lower(),
-            "filter": state.get("filter") or defaults["filter"],
-            "sort": state.get("sort") or defaults["sort"],
-            "desc": bool(state.get("desc")),
-            "mtime": mtime,
-        }
-
-    def _should_refresh_overview(self, snapshot):
-        """Compare the active overview state against the last refresh snapshot."""
-        return any(
-            self._last_overview_refresh[key] != snapshot[key]
-            for key in ("search", "filter", "sort", "desc")
-        )
-
-    def _remember_overview_refresh(self, snapshot):
-        self._last_overview_refresh.update(snapshot)
+        """Returns a lazily-built tab instance when it already exists."""
+        try:
+            return self.tab_system._instances.get(tab_id)
+        except Exception:
+            return None
 
     def open_loudness_tab(self):
         """Convenience method to access the primary optimization workflow."""
         self.select_tab_by_id("loudness")
-        loudness_tab = self.loudness_tab
         view_state = assistant_tools.build_loudness_tab_open_state(loudness_tools is not None)
-        if loudness_tab is not None and hasattr(loudness_tab, "set_open_state"):
-            loudness_tab.set_open_state(view_state["status_text"], view_state["hint_text"])
+        loudness_view = None
+        get_built_tab = getattr(self, "get_built_tab", None)
+        if callable(get_built_tab):
+            loudness_view = get_built_tab("loudness")
+        if loudness_view is None:
+            loudness_view = getattr(self, "loudness_tab", None)
+
+        if loudness_view is not None and hasattr(loudness_view, "set_open_state"):
+            loudness_view.set_open_state(
+                status_text=view_state["status_text"],
+                hint_text=view_state["hint_text"],
+            )
         else:
             if hasattr(self, "loudness_status_label"):
                 self.loudness_status_label.config(text=view_state["status_text"])
@@ -359,79 +307,101 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
     def on_tab_changed(self, event):
         """Central event handler for tab transitions (highly optimized)."""
         selected_path = self.tab_system.notebook.select()
-        if not selected_path:
-            return
-
-        if self._prev_selected_path == selected_path:
+        if not selected_path: return
+        
+        # 1. Deduplication (Prevents redundant calls on some OS/Tkinter versions)
+        if hasattr(self, "_prev_selected_path") and self._prev_selected_path == selected_path:
             return
         self._prev_selected_path = selected_path
 
+        # 2. Identify the active tab
         active_tab_id = None
         for tid, widget in self.tab_system.map.items():
             if str(widget) == selected_path:
                 active_tab_id = tid
                 break
-
-        if not active_tab_id:
-            return
-
+        
+        if not active_tab_id: return
+        
+        # 3. Ensure built (via lazy system)
         getattr(self.tab_system, active_tab_id)
-        self._handle_tab_refresh(active_tab_id)
-
-    def _on_data_invalidated(self, _data=None):
-        self.refresh_all_tabs()
-
-    def _on_data_changed(self, _data=None):
-        self.refresh_all_tabs()
-
-    def _handle_tab_refresh(self, active_tab_id):
-        """Runs only the refresh logic needed for the currently active tab."""
+        
+        mtime = self.state._get_data_mtime()
+        
+        # 4. Perspective-Specific Logic (Only if data changed or filters mismatched)
         if active_tab_id == "dashboard":
-            self.overview_ctrl.refresh_dashboard()
-            return
+            if self._last_dashboard_refresh["mtime"] != mtime:
+                self.refresh_dashboard()
+                self._last_dashboard_refresh["mtime"] = mtime
+                
+        elif active_tab_id == "overview":
+            search = (self.search_var.get() or "").lower() if self.search_var else ""
+            filt = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
+            sort_key = (self.sort_key_var.get() or "title") if self.sort_key_var else "title"
+            sort_desc = bool(self.sort_desc_var.get()) if self.sort_desc_var else False
+            if (
+                self._last_overview_refresh["mtime"] != mtime
+                or self._last_overview_refresh["filter"] != filt
+                or self._last_overview_refresh["sort"] != sort_key
+                or self._last_overview_refresh["desc"] != sort_desc
+            ):
+                self.refresh_list()
+                self._last_overview_refresh.update({
+                    "search": search,
+                    "filter": filt,
+                    "sort": sort_key,
+                    "desc": sort_desc,
+                    "mtime": mtime,
+                })
+                
+        elif active_tab_id == "batch":
+            if self._last_batch_refresh["mtime"] != mtime:
+                self.update_flow()
+                self._last_batch_refresh["mtime"] = mtime
 
-        if active_tab_id == "overview":
-            snapshot = self._build_overview_refresh_snapshot()
-            if self._should_refresh_overview(snapshot):
-                self.overview_ctrl.refresh_list()
-                self._remember_overview_refresh(snapshot)
-            return
-
-        if active_tab_id == "batch":
-            self.batch_ctrl.update_flow()
-            return
-
-        if active_tab_id == "details":
+        elif active_tab_id == "details":
             self.details_ctrl.refresh_titles()
-            return
 
-        if active_tab_id == "release":
+        elif active_tab_id == "release":
             self.release_ctrl.refresh_view()
 
     def refresh_all_tabs(self):
-        """Standardized orchestrator to update all modular components."""
-        mtime = self.state._get_data_mtime() if hasattr(self.state, "_get_data_mtime") else None
-        overview_snapshot = AKMApp._build_overview_refresh_snapshot(self, mtime=mtime)
-
+        """Standardized orchestrator to update all modular components and sync refresh trackers."""
         self.overview_ctrl.refresh_list()
         self.overview_ctrl.refresh_dashboard()
         self.details_ctrl.refresh_view()
         self.batch_ctrl.reload_flow_data()
         self.release_ctrl.refresh_view()
-        cover_tab = getattr(getattr(self, "tab_system", None), "_instances", {}).get("cover")
+        cover_tab = None
+        get_built_tab = getattr(self, "get_built_tab", None)
+        if callable(get_built_tab):
+            cover_tab = get_built_tab("cover")
+        elif hasattr(getattr(self, "tab_system", None), "_instances"):
+            cover_tab = self.tab_system._instances.get("cover")
         if cover_tab is not None and hasattr(cover_tab, "refresh_view"):
             cover_tab.refresh_view()
-        self._last_overview_refresh.update(overview_snapshot)
-        if hasattr(self, "_last_dashboard_refresh"):
-            self._last_dashboard_refresh["mtime"] = mtime
-        if hasattr(self, "_last_batch_refresh"):
-            self._last_batch_refresh["mtime"] = mtime
+
+        current_mtime = self.state._get_data_mtime()
+        current_search = (self.search_var.get() or "").lower() if self.search_var else ""
+        current_filter = (self.status_filter_var.get() or "all") if self.status_filter_var else "all"
+        current_sort = (self.sort_key_var.get() or "title") if self.sort_key_var else "title"
+        current_desc = bool(self.sort_desc_var.get()) if self.sort_desc_var else False
+
+        self._last_overview_refresh.update({
+            "search": current_search,
+            "filter": current_filter,
+            "sort": current_sort,
+            "desc": current_desc,
+            "mtime": current_mtime,
+        })
+        self._last_dashboard_refresh["mtime"] = current_mtime
+        self._last_batch_refresh["mtime"] = current_mtime
 
     def on_closing(self):
         """Asks for confirmation before exiting."""
         res = messagebox.askyesnocancel(
-            i18n._t("msg_beenden"), 
-            i18n._t("msg_beenden_confirm"),
+            "Beenden", 
+            "Möchten Sie vor dem Beenden speichern? \nNur das Speichern als Projekt (.akm) erhält alle aktuellen Einstellungen.",
             icon='warning',
             default='yes'
         )
@@ -449,10 +419,19 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         """Debounced list refresh for search input."""
         if self._refresh_timer:
             self.after_cancel(self._refresh_timer)
-        self._refresh_timer = self.after(300, self.refresh_list)
 
-    def add(self, title=""): 
-        self.project_ctrl.add_entry((title or "").strip())
+        def _run_refresh():
+            self._refresh_timer = None
+            self.refresh_list()
+
+        self._refresh_timer = self.after(300, _run_refresh)
+
+    def add(self, title=None): 
+        if title is None:
+            title = ""
+            if hasattr(self, 'entry'):
+                title = self.entry.get().strip()
+        self.project_ctrl.add_entry(title)
 
     def _set_overview_status_filter(self, s): 
         self.overview_ctrl.set_status_filter(s)
@@ -476,29 +455,29 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
         """Starts or stops the activity pulse on the Task Indicator label."""
         if hasattr(self, 'task_indicator'):
             if busy:
-                self.task_indicator.config(text=i18n._t("task_active"), fg=ui_patterns.ACCENT)
+                self.task_indicator.config(text="TASK AKTIV", fg=ui_patterns.ACCENT)
                 self.task_indicator.start()
                 if hasattr(self, "header") and hasattr(self.header, "task_state_label"):
-                    self.header.task_state_label.config(text=i18n._t("task_busy_text"))
+                    self.header.task_state_label.config(text="Hintergrundjob läuft")
                 if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
                     self.header.task_detail_label.config(text="Import, Analyse oder Export arbeitet gerade.")
             else: 
-                self.task_indicator.config(text=i18n._t("task_ready"), fg="#94A3B8")
+                self.task_indicator.config(text="SYSTEM BEREIT", fg="#94A3B8")
                 self.task_indicator.stop()
                 if hasattr(self, "header") and hasattr(self.header, "task_state_label"):
-                    self.header.task_state_label.config(text=i18n._t("task_idle_text"))
+                    self.header.task_state_label.config(text="System bereit")
                 if hasattr(self, "header") and hasattr(self.header, "task_detail_label"):
-                    dnd_text = self._get_drag_and_drop_status_text()
+                    dnd_text = "Aktiv" if TkinterDnD is not None else "Deaktiviert"
                     self.header.task_detail_label.config(text=f"Keine Hintergrundjobs aktiv | Drag & Drop: {dnd_text}")
 
     def status_text(self, status): 
         """Translated status text helper."""
-        return i18n.get_status_chip_text(status)
+        return ui_patterns.get_status_chip_text(status, akm_core.get_lang())
 
     # --- AUDIO HELPERS ---
     def open_audio_player_for_selected(self):
         """Opens the premium mini-player for the selected work's audio file."""
-        it = self.overview_ctrl.get_selected_item()
+        it = self.overview_ctrl._get_selected_overview_item()
         if it and it.get("audio_path") and os.path.exists(it["audio_path"]):
             AkmAudioPlayer(self, self.audio, it["audio_path"], it.get("title", "Preview"))
         else:
@@ -546,14 +525,32 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
             widget = widget.nametowidget(parent_name)
 
     def select_all(self, event=None):
-        """Universal 'Select All' handler for Listboxes and Treeviews (Cmd+A)."""
+        """Universal 'Select All' handler for common text widgets, Listboxes and Treeviews."""
         focused = self.focus_get()
+        if focused is None:
+            return None
+
         if isinstance(focused, tk.Listbox):
             focused.select_set(0, tk.END)
             focused.event_generate("<<ListboxSelect>>")
-        elif isinstance(focused, ttk.Treeview):
+            return "break"
+
+        if isinstance(focused, ttk.Treeview):
             focused.selection_set(focused.get_children())
-        return "break"
+            return "break"
+
+        if isinstance(focused, (tk.Entry, ttk.Entry)):
+            focused.selection_range(0, tk.END)
+            focused.icursor(tk.END)
+            return "break"
+
+        if isinstance(focused, (tk.Text, scrolledtext.ScrolledText)):
+            focused.tag_add("sel", "1.0", "end-1c")
+            focused.mark_set("insert", "end-1c")
+            focused.see("insert")
+            return "break"
+
+        return None
 
 if __name__ == "__main__":
     app = AKMApp()

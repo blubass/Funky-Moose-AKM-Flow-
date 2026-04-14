@@ -3,14 +3,14 @@ import tkinter as tk
 import app_ui.ui_patterns as ui_patterns
 from app_ui import detail_view_tools
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm, AkmBadge,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmForm,
     AkmEntry, AkmText, AkmCheckbutton, AkmScrollablePanel,
-    fit_wraplength,
+    fit_wraplength, build_badge_strip, build_radar_summary,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, 
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_MD_BOLD, FONT_XL, FONT_LG
 )
-from app_logic import akm_core, detail_tools
+from app_logic import akm_core, detail_tools, i18n
 
 
 class DetailsTab(AkmPanel):
@@ -60,19 +60,20 @@ class DetailsTab(AkmPanel):
         self._build_bottom_actions()
 
     def _build_header_section(self):
-        AkmHeader(self, text="Werkdetails").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        AkmHeader(self, text=i18n._t("det_header_title")).pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             self,
-            text="Metadaten, Notizen und Status an einem Ort pflegen.",
+            text=i18n._t("det_header_subtitle"),
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
-        signal_row = AkmPanel(self)
-        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
-        for index, text in enumerate(("Metadata", "Audio", "Status", "Notes")):
-            badge = AkmBadge(signal_row, text)
-            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
-            badge.set_active(index < 2)
+        build_badge_strip(
+            self,
+            ("Metadata", "Audio", "Status", "Notes"),
+            active_indices={0, 1},
+            padx=SPACE_MD,
+            pady=(0, SPACE_SM),
+        )
 
     def _build_status_card(self):
         status_card = AkmCard(self, min_height=118)
@@ -82,48 +83,27 @@ class DetailsTab(AkmPanel):
         status_right = tk.Frame(status_card.inner, bg=PANEL_2)
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
-        AkmLabel(status_left, text="Werk Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        AkmSubLabel(
+        summary = build_radar_summary(
             status_left,
-            text="DETAIL DESK  •  One record, all metadata, no context switching",
+            title=i18n._t("det_radar_title"),
+            mode_text="DETAIL DESK  •  One record, all metadata, no context switching",
+            status_text=i18n._t("det_radar_empty"),
+            hint_text=i18n._t("det_radar_hint"),
+            context_text=i18n._t("det_radar_context", audio="—", status="—", inst="—"),
             bg=PANEL_2,
-            anchor="w",
-        ).pack(fill="x", pady=(1, 1))
-        self.details_status_label = AkmLabel(
-            status_left,
-            text="Noch kein Werk geladen",
-            bg=PANEL_2,
-            anchor="w",
-            font=FONT_MD_BOLD,
-            justify="left",
         )
-        self.details_status_label.pack(fill="x", pady=(2, 2))
-        self.details_hint_label = AkmSubLabel(
-            status_left,
-            text="Wähle ein bestehendes Werk, lege einen Titel an oder ziehe eine Audiodatei direkt auf den Tab.",
-            bg=PANEL_2,
-            anchor="w",
-            justify="left",
-            wraplength=560,
-        )
-        self.details_hint_label.pack(fill="x")
-        self.details_context_label = AkmSubLabel(
-            status_left,
-            text="Audio: keines   •   Status: —   •   Instrumental: Nein",
-            bg=PANEL_2,
-            anchor="w",
-            justify="left",
-        )
-        self.details_context_label.pack(fill="x", pady=(2, 0))
+        self.details_status_label = summary["status_label"]
+        self.details_hint_label = summary["hint_label"]
+        self.details_context_label = summary["context_label"]
 
-        self.app.btn(status_right, "Speichern", self.app.details_ctrl.save_details, primary=True, width=126).pack(anchor="e", pady=(0, SPACE_XS))
+        self.app.btn(status_right, i18n._t("det_btn_save"), self.app.details_ctrl.save_details, primary=True, width=126).pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(status_right, bg=PANEL_2)
         action_row.pack(anchor="e")
         self._status_action_bar = action_row
         self._status_action_buttons = (
-            self.app.btn(action_row, "Audio wählen", self.app.details_ctrl.choose_audio_path, quiet=True, width=118),
-            self.app.btn(action_row, "Finder", self.app.details_ctrl.open_audio_path_in_finder, quiet=True, width=84),
-            self.app.btn(action_row, "Zurück", self.app.details_ctrl.clear_details_form, quiet=True, width=84),
+            self.app.btn(action_row, i18n._t("det_btn_audio"), self.app.details_ctrl.choose_audio_path, quiet=True, width=118),
+            self.app.btn(action_row, i18n._t("det_btn_finder"), self.app.details_ctrl.open_audio_path_in_finder, quiet=True, width=84),
+            self.app.btn(action_row, i18n._t("det_btn_back"), self.app.details_ctrl.clear_details_form, quiet=True, width=84),
         )
 
     def _build_scroll_content(self):
@@ -149,7 +129,7 @@ class DetailsTab(AkmPanel):
         detail_defaults = akm_core.get_detail_memory()
         self._left_intro_label = AkmSubLabel(
             left_card.inner,
-            text="Titel, Audio, Credits und Status bleiben hier in einer sauberen Arbeitsansicht gebündelt.",
+            text=i18n._t("det_intro_left"),
             bg=PANEL_2,
             justify="left",
             wraplength=360,
@@ -157,7 +137,7 @@ class DetailsTab(AkmPanel):
         self._left_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_SM))
         left_form = AkmForm(left_card.inner, padx=CARD_PAD_X, pady=0)
         left_form.pack(fill="both", expand=True)
-        left_form.add_header("Werksteuerung")
+        left_form.add_header(i18n._t("ash_radar_title")) # Fallback to Quick Launch or similar
         self._build_detail_form_rows(left_form, detail_defaults)
 
     def _build_detail_form_rows(self, left_form, detail_defaults):
@@ -177,15 +157,15 @@ class DetailsTab(AkmPanel):
                 left_form.add_entry(label, var)
 
         self.detail_instrumental_var = tk.BooleanVar(value=False)
-        left_form.add_checkbox("Instrumental", self.detail_instrumental_var)
-        left_form.add_row("Status", self._create_status_row)
+        left_form.add_checkbox(i18n._t("det_label_instrumental"), self.detail_instrumental_var)
+        left_form.add_row(i18n._t("det_label_status"), self._create_status_row)
 
     def _create_audio_field(self, parent, variable):
         wrap = tk.Frame(parent, bg=PANEL_2)
         entry = AkmEntry(wrap, textvariable=variable)
         entry.pack(side="left", fill="x", expand=True)
-        self.app.btn(wrap, "Wählen", self.app.details_ctrl.choose_audio_path, primary=True).pack(side="left", padx=(SPACE_XS, 0))
-        self.app.btn(wrap, "Finder", self.app.details_ctrl.open_audio_path_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(wrap, i18n._t("det_btn_audio"), self.app.details_ctrl.choose_audio_path, primary=True).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(wrap, i18n._t("det_btn_finder"), self.app.details_ctrl.open_audio_path_in_finder, quiet=True).pack(side="left", padx=(SPACE_XS, 0))
         return wrap
 
     def _create_status_row(self, parent):
@@ -200,37 +180,39 @@ class DetailsTab(AkmPanel):
 
         btn_row = tk.Frame(wrap, bg=PANEL_2)
         btn_row.pack(anchor="w")
-        self.app.btn(btn_row, "In Arbeit", lambda: self.app.details_ctrl.set_status_chip("in_progress"), quiet=True).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(btn_row, "Bereit", lambda: self.app.details_ctrl.set_status_chip("ready")).pack(side="left", padx=SPACE_XS)
-        self.app.btn(btn_row, "Bestätigt", lambda: self.app.details_ctrl.set_status_chip("confirmed")).pack(side="left", padx=SPACE_XS)
+        self.app.btn(btn_row, i18n._t("dash_stat_open"), lambda: self.app.details_ctrl.set_status_chip("in_progress"), quiet=True).pack(side="left", padx=(0, SPACE_XS))
+        self.app.btn(btn_row, i18n._t("dash_stat_ready"), lambda: self.app.details_ctrl.set_status_chip("ready")).pack(side="left", padx=SPACE_XS)
+        self.app.btn(btn_row, i18n._t("dash_stat_confirmed"), lambda: self.app.details_ctrl.set_status_chip("confirmed")).pack(side="left", padx=SPACE_XS)
         return wrap
 
     def _build_notes_card(self, right_card):
-        AkmLabel(right_card.inner, text="Tags & Notizen", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(right_card.inner, text=i18n._t("det_label_notes_tags"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._right_intro_label = AkmSubLabel(
             right_card.inner,
-            text="Sammle Ideen, Produktionshinweise und Suchbegriffe so, dass spätere Übergaben leicht bleiben.",
+            text=i18n._t("det_intro_right"),
             bg=PANEL_2,
             justify="left",
             wraplength=360,
         )
         self._right_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
-        notes_signal = tk.Frame(right_card.inner, bg=PANEL_2)
-        notes_signal.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
-        for index, text in enumerate(("Search tags", "Production notes", "Handoff ready")):
-            badge = AkmBadge(notes_signal, text)
-            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
-            badge.set_active(index == 2)
+        build_badge_strip(
+            right_card.inner,
+            ("Search tags", "Production notes", "Handoff ready"),
+            active_indices={2},
+            bg=PANEL_2,
+            padx=CARD_PAD_X,
+            pady=(0, SPACE_SM),
+        )
         right_form = AkmForm(right_card.inner, padx=CARD_PAD_X, pady=0)
         right_form.pack(fill="both", expand=True)
-        self.detail_tags = right_form.add_text("Tags (Kommata)", height=4)
-        self.detail_notes = right_form.add_text("Notizen", height=12)
+        self.detail_tags = right_form.add_text(i18n._t("det_label_tags_hint"), height=4)
+        self.detail_notes = right_form.add_text(i18n._t("det_label_notes"), height=12)
 
     def _build_bottom_actions(self):
         actions = AkmPanel(self)
         actions.pack(anchor="w", padx=SPACE_MD, pady=SPACE_SM)
-        self.app.btn(actions, "Speichern", self.app.details_ctrl.save_details, primary=True, width=118).pack(side="left", padx=(0, SPACE_XS))
-        self.app.btn(actions, "Zurücksetzen", self.app.details_ctrl.clear_details_form, quiet=True, width=118).pack(side="left", padx=SPACE_XS)
+        self.app.btn(actions, i18n._t("det_btn_save"), self.app.details_ctrl.save_details, primary=True, width=118).pack(side="left", padx=(0, SPACE_XS))
+        self.app.btn(actions, i18n._t("det_btn_clear"), self.app.details_ctrl.clear_details_form, quiet=True, width=118).pack(side="left", padx=SPACE_XS)
 
     def _on_responsive_resize(self, event):
         self._apply_responsive_layout(event.width)

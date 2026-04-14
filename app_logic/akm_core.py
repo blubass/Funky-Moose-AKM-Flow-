@@ -147,7 +147,7 @@ def _read_json_list(path, strict=False):
     except OSError as exc:
         if strict:
             raise DataFileError(
-                f"{os.path.basename(path)} konnte nicht gelesen werden: {exc}"
+                i18n._t("err_xlsx_read", error=exc)
             ) from exc
         return []
     except json.JSONDecodeError as exc:
@@ -159,7 +159,7 @@ def _read_json_list(path, strict=False):
 
     if not isinstance(raw_data, list):
         if strict:
-            raise DataFileError(f"{os.path.basename(path)} hat ein ungültiges Format.")
+            raise DataFileError(i18n._t("err_xlsx_format"))
         return []
 
     return raw_data
@@ -175,7 +175,7 @@ def _read_json_dict(path, strict=False):
     except OSError as exc:
         if strict:
             raise DataFileError(
-                f"{os.path.basename(path)} konnte nicht gelesen werden: {exc}"
+                i18n._t("err_xlsx_read", error=exc)
             ) from exc
         return {}
     except json.JSONDecodeError as exc:
@@ -187,7 +187,7 @@ def _read_json_dict(path, strict=False):
 
     if not isinstance(raw_data, dict):
         if strict:
-            raise DataFileError(f"{os.path.basename(path)} hat ein ungültiges Format.")
+            raise DataFileError(i18n._t("err_xlsx_format"))
         return {}
 
     return raw_data
@@ -234,22 +234,16 @@ def _get_row_value(values, index):
 def load_excel_tracks(file_path):
     extension = os.path.splitext(file_path)[1].lower()
     if extension not in SUPPORTED_EXCEL_EXTENSIONS:
-        raise DataFileError(
-            "Nicht unterstütztes Excel-Format. Bitte Datei als .xlsx speichern."
-        )
+        raise DataFileError(i18n._t("err_xlsx_format"))
 
     try:
         workbook = load_workbook(file_path, read_only=True, data_only=True)
     except InvalidFileException as exc:
-        raise DataFileError(
-            "Nicht unterstütztes Excel-Format. Bitte Datei als .xlsx speichern."
-        ) from exc
+        raise DataFileError(i18n._t("err_xlsx_format")) from exc
     except BadZipFile as exc:
-        raise DataFileError(
-            "Excel-Datei ist beschädigt oder kein gültiges .xlsx-Format."
-        ) from exc
+        raise DataFileError(i18n._t("err_xlsx_corrupt")) from exc
     except OSError as exc:
-        raise DataFileError(f"Excel-Datei konnte nicht gelesen werden: {exc}") from exc
+        raise DataFileError(i18n._t("err_xlsx_read", error=exc)) from exc
 
     try:
         sheet = workbook.active
@@ -853,17 +847,17 @@ def load_project(path):
         with open(path, "r", encoding="utf-8") as handle:
             bundle = json.load(handle)
     except OSError as exc:
-        raise DataFileError(f"{name} konnte nicht gelesen werden: {exc}") from exc
+        raise DataFileError(i18n._t("err_xlsx_read", error=exc)) from exc
     except json.JSONDecodeError as exc:
         raise DataFileError(
             f"{name} ist beschädigt (Zeile {exc.lineno}, Spalte {exc.colno})."
         ) from exc
 
     if not isinstance(bundle, dict):
-        raise DataFileError(f"{name} hat ein ungültiges Projektformat.")
+        raise DataFileError(i18n._t("err_xlsx_format"))
 
     if "data" in bundle and not isinstance(bundle.get("data"), list):
-        raise DataFileError(f"{name} enthält ein ungültiges Datenformat.")
+        raise DataFileError(i18n._t("err_xlsx_format"))
     for key in ("cover", "release", "settings"):
         if key in bundle and not isinstance(bundle.get(key), dict):
             raise DataFileError(f"{name} enthält einen ungültigen Bereich: {key}.")

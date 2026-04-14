@@ -2,7 +2,7 @@
 import os
 from tkinter import filedialog
 from .base_controller import BaseController
-from app_logic import akm_core, assistant_tools, release_tools
+from app_logic import akm_core, assistant_tools, release_tools, i18n
 from app_ui import ui_patterns
 from app_ui import release_view_tools
 from app_workflows import release_workflows
@@ -129,15 +129,15 @@ class ReleaseController(BaseController):
         ok, message = result
         self.log(message)
         if not ok:
-            self.toast("EXPORT FEHLER", color=ui_patterns.FLAVOR_ERROR)
+            self.toast(i18n._t("log_export_error", error="").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
-        self.toast("EXPORT FERTIG", color=ui_patterns.FLAVOR_SUCCESS)
+        self.toast(i18n._t("log_export_success").upper(), color=ui_patterns.FLAVOR_SUCCESS)
         self.import_release_to_batch(open_batch=True)
 
     def import_release_to_batch(self, open_batch=False):
         import_tracks = release_workflows.build_release_import_tracks(self.state.release_tracks)
         if not import_tracks:
-            self.toast("KEINE RELEASE-TITEL", color=ui_patterns.FLAVOR_ERROR)
+            self.toast(i18n._t("rel_radar_empty").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
         self.tasks.run(
             lambda: akm_core.import_tracks(import_tracks),
@@ -175,12 +175,10 @@ class ReleaseController(BaseController):
             if result["added"]:
                 self.state.release_tracks = result["tracks"]
                 self.refresh_view()
-                self.log(f"Release DnD: {len(result['added'])} Tracks hinzugefügt.")
+                self.log(i18n._t("log_work_loaded", title=f"{len(result['added'])} tracks"))
                 if result["duplicates"]:
-                    self.log(
-                        f"Release DnD: {len(result['duplicates'])} Dubletten übersprungen."
-                    )
-                self.toast(f"{len(result['added'])} TRACKS HINZUGEFÜGT")
+                    self.log(i18n._t("log_error", error=f"{len(result['duplicates'])} duplicates"))
+                self.toast(i18n._t("rel_preflight_ready", count=len(result['added'])).upper())
         except Exception as e:
             self.log(f"Release DnD Parse Fehler: {e}")
 
@@ -221,9 +219,9 @@ class ReleaseController(BaseController):
         p = self._get_release_form_value("cover_path")
         if p and os.path.exists(p):
             from app_ui.ui_patterns import AkmImagePreviewDialog
-            AkmImagePreviewDialog(self.app, p, "Cover Vorschau")
+            AkmImagePreviewDialog(self.app, p, i18n._t("cov_btn_zoom"))
         else:
-            self.toast("KEIN COVER GEWÄHLT", color=ui_patterns.FLAVOR_ERROR)
+            self.toast(i18n._t("rel_preflight_cover_missing").upper(), color=ui_patterns.FLAVOR_ERROR)
 
     def build_export(self):
         m = {k: (v or "").strip() for k, v in self._get_release_form_state().items()}
@@ -275,4 +273,4 @@ class ReleaseController(BaseController):
                 )
             self.state.release_tracks = updated_tracks
             self.refresh_view()
-            self.toast(f"{len(selection)} TRACKS ENTFERNT")
+            self.toast(i18n._t("ui_btn_remove", default="ENTFERNT").upper())

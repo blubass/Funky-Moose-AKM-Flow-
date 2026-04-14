@@ -6,6 +6,7 @@ import subprocess
 import pyperclip
 from .theme import *
 from .buttons import create_btn
+from app_logic import i18n
 
 def style_chip_label(widget, status, text, active=False):
     palette = STATUS_PALETTES.get(status, STATUS_PALETTES["all"])
@@ -419,6 +420,84 @@ class AkmBadge(tk.Label):
         else:
             self.config(bg=FIELD_BG, highlightthickness=0)
 
+
+def build_badge_strip(parent, labels, active_indices=(), bg=None, padx=0, pady=0):
+    """Create a consistent horizontal badge strip and return the row plus badge refs."""
+    row_bg = bg or parent.cget("bg")
+    row = AkmPanel(parent, bg=row_bg)
+    row.pack(fill="x", padx=padx, pady=pady)
+    badges = []
+    active_set = set(active_indices or ())
+    for index, text in enumerate(labels):
+        badge = AkmBadge(row, text)
+        badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
+        badge.set_active(index in active_set)
+        badges.append(badge)
+    return row, badges
+
+
+def build_radar_summary(
+    parent,
+    *,
+    title,
+    mode_text,
+    status_text,
+    hint_text,
+    context_text="",
+    bg=None,
+    title_fg=ACCENT,
+    status_fg=TEXT,
+    title_font=FONT_LG,
+    status_font=FONT_MD_BOLD,
+    hint_wrap=560,
+):
+    """Create the repeated radar/status summary pattern used across primary tabs."""
+    summary_bg = bg or parent.cget("bg")
+    title_label = AkmLabel(parent, text=title, fg=title_fg, bg=summary_bg, font=title_font)
+    title_label.pack(anchor="w")
+    mode_label = AkmSubLabel(
+        parent,
+        text=mode_text,
+        bg=summary_bg,
+        anchor="w",
+    )
+    mode_label.pack(fill="x", pady=(1, 1))
+    status_label = AkmLabel(
+        parent,
+        text=status_text,
+        fg=status_fg,
+        bg=summary_bg,
+        anchor="w",
+        font=status_font,
+        justify="left",
+    )
+    status_label.pack(fill="x", pady=(2, 2))
+    hint_label = AkmSubLabel(
+        parent,
+        text=hint_text,
+        bg=summary_bg,
+        anchor="w",
+        justify="left",
+        wraplength=hint_wrap,
+    )
+    hint_label.pack(fill="x")
+    context_label = AkmSubLabel(
+        parent,
+        text=context_text,
+        bg=summary_bg,
+        anchor="w",
+        justify="left",
+    )
+    context_label.pack(fill="x", pady=(2, 0))
+    return {
+        "title_label": title_label,
+        "mode_label": mode_label,
+        "status_label": status_label,
+        "hint_label": hint_label,
+        "context_label": context_label,
+    }
+
+
 class AkmSuccessIndicator(tk.Label):
     """A small glowing green dot (indicator) for successful states."""
     def __init__(self, parent, **kwargs):
@@ -568,7 +647,7 @@ class AkmForm(tk.Frame):
         entry.pack(side="left", fill="x", expand=True)
 
         def _pick():
-            c = colorchooser.askcolor(title=f"Wähle {label_text}")
+            c = colorchooser.askcolor(title=i18n._t("ui_title_preview") + f" {label_text}")
             if c[1]: variable.set(c[1])
         
         btn = create_btn(container, "Spectrum", _pick, quiet=True)

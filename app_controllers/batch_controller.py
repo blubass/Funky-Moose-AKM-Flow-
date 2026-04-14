@@ -1,7 +1,7 @@
 import os
 
 from .base_controller import BaseController
-from app_logic import akm_core, flow_tools, loudness_tools
+from app_logic import akm_core, flow_tools, loudness_tools, i18n
 from app_logic.text_utils import clean_text as _clean_text
 
 
@@ -56,7 +56,7 @@ class BatchController(BaseController):
             item["duration"] = formatted_duration
             if hasattr(self.state, "invalidate_cache"):
                 self.state.invalidate_cache()
-            self.log(f"Dauer automatisch nacherfasst: {title} ({formatted_duration})")
+            self.log(i18n._t("log_work_updated", title=title)) # updated duration
         return _clean_text(item.get("duration"))
 
     def reload_flow_data(self, preferred_index=None):
@@ -123,11 +123,11 @@ class BatchController(BaseController):
             title = _clean_text(it.get("title")) or "Unbekanntes Werk"
             audio_path = _clean_text(it.get("audio_path"))
             if not audio_path:
-                self.log(f"Dauer nicht verfügbar: Kein Audio-Pfad für {title} hinterlegt.")
+                self.log(i18n._t("log_error", error=f"No audio path for {title}"))
             elif not os.path.exists(audio_path):
-                self.log(f"Dauer nicht verfügbar: Audio-Datei nicht erreichbar für {title}.")
+                self.log(i18n._t("err_file_not_found"))
             else:
-                self.log(f"Dauer konnte nicht aus Audio gelesen werden: {title}.")
+                self.log(i18n._t("log_error", error=f"Metadata error: {title}"))
             return
         res = flow_tools.resolve_copy_action(it, copy_stage)
         self.app.clipboard_clear()

@@ -29,6 +29,7 @@ from app_ui import path_ui_tools
 from app_ui import release_view_tools
 from app_ui import ui_patterns
 from app_ui import widgets
+from app_ui.tabs.batch_tab import BatchTab
 from app_workflows import loudness_workflows
 from app_workflows import release_workflows
 from app_controllers.batch_controller import BatchController
@@ -181,6 +182,14 @@ class FakeBatchView:
 
     def set_copy_stage(self, stage):
         self.copy_stage = stage
+
+
+class FakeConfigButton:
+    def __init__(self):
+        self.options = {}
+
+    def config(self, **kwargs):
+        self.options.update(kwargs)
 
 
 class FakeMessagebox:
@@ -722,6 +731,7 @@ class OverviewToolsTests(unittest.TestCase):
     def test_dashboard_helpers_build_status_focus_and_meta_texts(self):
         stats = {
             "total": 8,
+            "open": 5,
             "confirmed": 3,
             "ready": 2,
             "submitted": 1,
@@ -733,12 +743,12 @@ class OverviewToolsTests(unittest.TestCase):
 
         self.assertEqual(38, overview_tools.build_dashboard_completion_percent(stats))
         self.assertEqual(
-            "8 Werke | 38% bestätigt | 2 bereit | 2 in Arbeit",
+            "8 Werke im Katalog   •   38% bestätigt   •   2 bereit   •   2 in Arbeit",
             overview_tools.build_dashboard_status_text(stats),
         )
         self.assertIn("2 Werk(e) brauchen noch Feinschliff", overview_tools.build_dashboard_focus_text(stats))
         self.assertEqual(
-            "Mit Produktion: 5   •   Mit Notizen: 4   •   Instrumental: 1",
+            "Offen: 5   •   Mit Produktion: 5   •   Mit Notizen: 4   •   Instrumental: 1",
             overview_tools.build_dashboard_meta_text(stats),
         )
 
@@ -1048,15 +1058,15 @@ class FlowToolsTests(unittest.TestCase):
             flow_tools.build_flow_queue_counts(entries),
         )
         self.assertEqual(
-            "1 / 2 im Fokus | Song A",
+            "Fokus 1 / 2   •   Song A",
             flow_tools.build_flow_status_text(entries, flow_state),
         )
         self.assertIn(
-            "Copy-Button automatisch auf die Dauer",
+            "Copy-Flow automatisch auf die Dauer",
             flow_tools.build_flow_hint_text(entries, flow_state, "title"),
         )
         self.assertEqual(
-            "In Arbeit: 1   •   Bereit: 1   •   Queue: 2",
+            "In Arbeit: 1   •   Bereit: 1   •   Offen im Flow: 2",
             flow_tools.build_flow_meta_summary(entries),
         )
 
@@ -1496,6 +1506,7 @@ class DetailViewToolsTests(unittest.TestCase):
         self.assertEqual("Song A | Status: Bereit", state["headline"])
         self.assertIn("Audio fehlt: missing.wav", state["context_text"])
         self.assertIn("Komponist: Uwe", state["context_text"])
+        self.assertIn("Jahr: 2026", state["context_text"])
         self.assertIn("Der gesetzte Audio-Pfad existiert nicht mehr", state["hint_text"])
 
     def test_build_detail_radar_state_handles_empty_record(self):
@@ -1504,6 +1515,22 @@ class DetailViewToolsTests(unittest.TestCase):
         self.assertEqual("Noch kein Werk geladen | Status: —", state["headline"])
         self.assertEqual("Audio: keines   •   Instrumental: Nein", state["context_text"])
         self.assertIn("Wähle ein bestehendes Werk", state["hint_text"])
+
+    def test_build_detail_radar_state_highlights_missing_metadata_when_audio_is_linked(self):
+        state = detail_view_tools.build_detail_radar_state(
+            title="Song B",
+            audio_path="/tmp/song-b.wav",
+            composer="",
+            duration="",
+            year="2026",
+            instrumental=True,
+            status_text="In Arbeit",
+            exists_fn=lambda _path: True,
+        )
+
+        self.assertIn("Audio: song-b.wav", state["context_text"])
+        self.assertIn("Fehlt: Komponist und Dauer", state["context_text"])
+        self.assertIn("Ergänze noch Komponist und Dauer", state["hint_text"])
 
 
 @unittest.skipUnless(cover_tools.have_pillow(), "Pillow not available")
@@ -1807,6 +1834,19 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual(100.0, batch_view.flow_state["progress_value"])
         self.assertEqual("Dauer kopieren", batch_view.flow_state["copy_button_label"])
         self.assertTrue(batch_view.flow_state["enabled"])
+
+    def test_batch_tab_duration_button_stays_enabled_during_active_batch_flow(self):
+        tab = BatchTab.__new__(BatchTab)
+        tab.copy_stage = "duration"
+        tab._batch_actions_enabled = True
+        tab._focus_title_button = FakeConfigButton()
+        tab._focus_duration_button = FakeConfigButton()
+
+        BatchTab._update_focus_strip_buttons(tab)
+
+        self.assertEqual("Titel", tab._focus_title_button.options["text"])
+        self.assertEqual("Dauer •", tab._focus_duration_button.options["text"])
+        self.assertEqual("normal", tab._focus_duration_button.options["state"])
 
     def test_batch_controller_flow_copy_updates_batch_view_copy_stage(self):
         app = self.make_app_stub()

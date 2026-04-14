@@ -65,7 +65,7 @@ class AssistantTab(AkmPanel):
         AkmLabel(parent, text=i18n._t("ash_radar_title"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
         AkmSubLabel(
             parent,
-            text="INTAKE DESK  •  Fast capture for titles, imports and next actions",
+            text=i18n._t("ash_radar_mode"),
             bg=PANEL_2,
             anchor="w",
         ).pack(fill="x", pady=(1, 1))
@@ -144,8 +144,8 @@ class AssistantTab(AkmPanel):
         imp_row.pack(padx=CARD_PAD_X, pady=(0, CARD_PAD_Y), anchor="w")
         self._import_action_bar = imp_row
         self._import_action_buttons = (
-            self.app.btn(imp_row, "Excel importieren", self.app.import_excel, quiet=True),
-            self.app.btn(imp_row, "Lautheit", self.app.open_loudness_tab),
+            self.app.btn(imp_row, i18n._t("ash_btn_import"), self.app.import_excel, quiet=True),
+            self.app.btn(imp_row, i18n._t("ash_btn_loudness"), self.app.open_loudness_tab),
         )
 
     def _build_log_card(self, page):
@@ -161,7 +161,7 @@ class AssistantTab(AkmPanel):
         self._log_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         AkmSubLabel(
             log_card.inner,
-            text="Live protocol for imports, analysis and release-side actions",
+            text=i18n._t("ash_log_mode"),
             bg=PANEL_2,
             justify="left",
         ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))

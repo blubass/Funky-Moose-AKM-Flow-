@@ -1,3 +1,5 @@
+from app_logic import i18n
+
 STATUS_SORT_ORDER = {
     "in_progress": 0,
     "ready": 1,
@@ -5,12 +7,22 @@ STATUS_SORT_ORDER = {
     "confirmed": 3,
 }
 
-SORT_LABELS = {
-    "title": "Titel",
-    "status": "Status",
-    "year": "Jahr",
-    "last_change": "Änderung",
-}
+def get_sort_label(key: str) -> str:
+    """Returns the translated label for a sort key."""
+    labels = {
+        "title": i18n._t("dash_stat_total"),
+        "status": i18n._t("det_label_status"),
+        "year": i18n._t("dash_stat_with_production"), # Fallback or specific key
+        "last_change": i18n._t("ovw_sort_desc"), # Just labels for now
+    }
+    # Better: Use specific keys
+    key_map = {
+        "title": "dash_stat_total",
+        "status": "det_label_status",
+        "year": "dash_stat_with_production", 
+        "last_change": "dash_stat_with_notes"
+    }
+    return i18n._t(key_map.get(key, key))
 
 
 def build_dashboard_stats(entries):
@@ -56,20 +68,21 @@ def build_dashboard_completion_percent(stats):
 def build_dashboard_status_text(stats):
     total = stats.get("total", 0)
     if total <= 0:
-        return "Noch keine Werke im Katalog"
+        return i18n._t("dash_radar_empty")
 
-    return (
-        f"{total} Werke | "
-        f"{build_dashboard_completion_percent(stats)}% bestätigt | "
-        f"{stats.get('ready', 0)} bereit | "
-        f"{stats.get('in_progress', 0)} in Arbeit"
+    return i18n._t(
+        "dash_status_catalog",
+        total=total,
+        percent=build_dashboard_completion_percent(stats),
+        ready=stats.get("ready", 0),
+        in_progress=stats.get("in_progress", 0),
     )
 
 
 def build_dashboard_focus_text(stats):
     total = stats.get("total", 0)
     if total <= 0:
-        return "Importiere ein Werk oder lege direkt einen neuen Titel an, um loszulegen."
+        return i18n._t("dash_radar_hint")
 
     in_progress = stats.get("in_progress", 0)
     ready = stats.get("ready", 0)
@@ -77,43 +90,47 @@ def build_dashboard_focus_text(stats):
     confirmed = stats.get("confirmed", 0)
 
     if in_progress:
-        return f"Gerade am stärksten unter Spannung: {in_progress} Werk(e) brauchen noch Feinschliff."
+        return i18n._t("dash_focus_in_progress", count=in_progress)
     if ready:
-        return f"Nächster sauberer Move: {ready} Werk(e) sind bereit für die Meldung."
+        return i18n._t("dash_focus_ready", count=ready)
     if submitted:
-        return f"{submitted} Werk(e) warten auf Bestätigung – ideal zum Nachverfolgen."
+        return i18n._t("dash_focus_submitted", count=submitted)
     if confirmed == total:
-        return "Alles bestätigt. Perfekter Moment, um neues Material anzulegen."
-    return "Der Katalog ist in Bewegung – ein Blick in die Übersicht bringt dich direkt zum nächsten Schritt."
+        return i18n._t("dash_focus_confirmed", count=total)
+    return i18n._t("dash_focus_moving")
 
 
 def build_dashboard_meta_text(stats):
-    return (
-        f"Mit Produktion: {stats.get('with_production', 0)}"
-        f"   •   Mit Notizen: {stats.get('with_notes', 0)}"
-        f"   •   Instrumental: {stats.get('instrumental', 0)}"
+    return i18n._t(
+        "dash_meta_text",
+        open=stats.get("open", 0),
+        prod=stats.get("with_production", 0),
+        notes=stats.get("with_notes", 0),
+        inst=stats.get("instrumental", 0),
     )
 
 
 def build_overview_status_text(result_count, total_count):
     if total_count <= 0:
-        return "Noch keine Werke im Katalog"
+        return i18n._t("ovw_status_empty")
     if result_count <= 0:
-        return "Keine Treffer im aktuellen Filter"
-    return f"{result_count} von {total_count} Werken sichtbar"
+        return i18n._t("ovw_status_no_match")
+    if result_count == total_count:
+        return i18n._t("ovw_status_all_visible", total=total_count)
+    return i18n._t("ovw_status_partial_visible", count=result_count, total=total_count)
 
 
 def build_overview_hint_text(result_count, total_count, status_filter="all", query=""):
     normalized_query = (query or "").strip()
     if total_count <= 0:
-        return "Lege neue Werke an oder importiere eine Excel-Datei, damit sich die Übersicht füllt."
+        return i18n._t("ovw_hint_empty")
     if result_count <= 0:
         if normalized_query:
-            return f"Für \"{normalized_query}\" gibt es im aktuellen Filter keine Treffer. Suche oder Status einmal lockern."
+            return i18n._t("ovw_hint_no_match_query", query=normalized_query)
         if status_filter != "all":
-            return "Der aktuelle Statusfilter zeigt gerade nichts. Wechsle den Filter oder öffne wieder alle Werke."
-        return "Gerade ist nichts sichtbar. Prüfe Suche und Sortierung."
-    return "Details öffnen springt in den Datensatz. Audio Preview und Loudness übernehmen direkt die aktuelle Auswahl."
+            return i18n._t("ovw_hint_no_match_filter")
+        return i18n._t("ovw_status_no_match")
+    return i18n._t("ovw_hint_general")
 
 
 def build_overview_filter_counts(entries):
@@ -159,21 +176,21 @@ def filter_and_sort_entries(entries, query="", status_filter="all", sort_key="ti
     return filtered_records
 
 
-def build_overview_summary(result_count, status_filter="all", query="", sort_key="title", sort_desc=False, status_label=None, open_label="Offen"):
-    summary_parts = [f"{result_count} Treffer"]
+def build_overview_summary(result_count, status_filter="all", query="", sort_key="title", sort_desc=False, status_label=None, open_label=None):
+    summary_parts = [i18n._t("ovw_summary_hits", count=result_count)]
 
     if status_filter == "open":
-        summary_parts.append(f"Status: {open_label}")
+        summary_parts.append(i18n._t("ovw_summary_status", status=open_label or "open"))
     elif status_filter != "all":
-        summary_parts.append(f"Status: {status_label or status_filter}")
+        summary_parts.append(i18n._t("ovw_summary_status", status=status_label or status_filter))
 
     normalized_query = (query or "").strip().lower()
     if normalized_query:
-        summary_parts.append(f"Suche: {normalized_query}")
+        summary_parts.append(i18n._t("ovw_summary_search", query=normalized_query))
 
-    direction = "absteigend" if sort_desc else "aufsteigend"
+    direction = i18n._t("ovw_sort_desc" if sort_desc else "ovw_sort_asc")
     summary_parts.append(
-        f"Sortierung: {SORT_LABELS.get(sort_key, sort_key)} {direction}"
+        i18n._t("ovw_summary_sort", key=get_sort_label(sort_key), dir=direction)
     )
     return "   •   ".join(summary_parts)
 

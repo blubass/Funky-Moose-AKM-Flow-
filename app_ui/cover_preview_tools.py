@@ -1,4 +1,5 @@
 import os
+from app_logic import i18n
 
 from app_ui import cover_view_tools
 
@@ -96,10 +97,9 @@ def resolve_preview_zoom_action(
     artwork_path,
     exists_fn=os.path.exists,
 ):
-    if is_rendering:
         return {
             "action": "busy",
-            "toast_message": "VORSCHAU WIRD GERADE AKTUALISIERT",
+            "toast_message": i18n._t("ui_title_preview") + " " + i18n._t("task_active").upper(),
         }
 
     if has_current_image:
@@ -112,12 +112,12 @@ def resolve_preview_zoom_action(
     if not refresh_state["can_render"]:
         return {
             "action": "missing",
-            "toast_message": "KEIN COVER FUER ZOOM GELADEN",
+            "toast_message": i18n._t("cov_radar_empty").upper(),
         }
 
     return {
         "action": "render_first",
-        "toast_message": "VORSCHAU WIRD ZUERST GERENDERT",
+        "toast_message": i18n._t("cov_status_rendering", layout="Stage").upper(),
     }
 
 

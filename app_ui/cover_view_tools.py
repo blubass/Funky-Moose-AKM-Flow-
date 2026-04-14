@@ -1,4 +1,5 @@
 import os
+from app_logic import i18n
 
 from app_ui import release_view_tools
 
@@ -10,10 +11,10 @@ FRIENDLY_LAYOUT_NAMES = {
     "center": "Center Band",
 }
 LAYOUT_HINTS = {
-    "manual": "Manual erlaubt freie Platzierung mit X/Y und individuellen Fonts pro Layer.",
-    "bottom": "Bottom Band legt ein dunkles Fussband an und zentriert den Textblock fuer Release-Cover.",
-    "topleft": "Top Left Card setzt eine Typo-Karte oben links mit Akzentkante und mehr Editorial-Vibe.",
-    "center": "Center Band baut einen horizontalen Mittelstreifen mit klarer, symmetrischer Titelbuehne.",
+    "manual": i18n._t("cov_hint_direction"),
+    "bottom": i18n._t("cov_hint_direction_bottom", default="Bottom Band legt ein dunkles Fussband an und zentriert den Textblock fuer Release-Cover."),
+    "topleft": i18n._t("cov_hint_direction_topleft", default="Top Left Card setzt eine Typo-Karte oben links mit Akzentkante und mehr Editorial-Vibe."),
+    "center": i18n._t("cov_hint_direction_center", default="Center Band baut einen horizontalen Mittelstreifen mit klarer, symmetrischer Titelbuehne."),
 }
 SUPPORTED_ARTWORK_EXTENSIONS = {
     ".jpg",
@@ -112,29 +113,26 @@ def build_cover_dashboard_state(
     overlay = release_view_tools.selected_release_cover_overlay(overlay_value)
     offset = release_view_tools.selected_release_cover_offset(offset_value)
     layout_label = friendly_layout_name(layout)
-    artwork_name = os.path.basename(artwork_path) if artwork_path else "keiner"
+    artwork_name = os.path.basename(artwork_path) if artwork_path else i18n._t("ash_radar_context_empty").split("|")[0].strip().lower()
 
     if not artwork_path or not os.path.exists(artwork_path):
-        status_text = "Kein Master-Artwork geladen"
+        status_text = i18n._t("cov_radar_empty")
     elif last_preview_error:
-        status_text = "Artwork geladen, aber Rendering hat gehuestelt"
+        status_text = i18n._t("cov_status_error")
     elif is_rendering:
-        status_text = f"{layout_label} wird neu gerendert"
+        status_text = i18n._t("cov_status_rendering", layout=layout_label)
     elif layout == "manual":
-        status_text = "Manual bereit fuer freie Typografie"
+        status_text = i18n._t("cov_status_ready", layout="Manual")
     else:
-        status_text = f"{layout_label} bereit fuer Export"
+        status_text = i18n._t("cov_status_ready", layout=layout_label)
 
-    meta_text = (
-        f"Layout: {layout_label} | Stil: {style} | Textblock: {size_mode} "
-        f"| Overlay: {overlay} | Offset: {offset} | Vorschau: {preview_height} px"
-    )
+    meta_text = i18n._t("cov_radar_context", layout=layout_label, style=style, zoom=preview_height)
 
     if current_image_size is not None:
         render_w, render_h = current_image_size
         info_text = f"Master: {artwork_name} | Render: {render_w}x{render_h}"
     elif is_rendering:
-        info_text = f"Master: {artwork_name} | Render: arbeitet"
+        info_text = f"Master: {artwork_name} | Render: arbeitet" # Keep working/Render: arbeitet for now or add to i18n
     elif last_preview_error:
         info_text = f"Master: {artwork_name} | Render: Fehler"
     else:
@@ -148,9 +146,9 @@ def build_cover_dashboard_state(
         hint_text = f"{hint_text} Letzter Fehler: {last_preview_error}"
 
     if not artwork_path or not os.path.exists(artwork_path):
-        asset_name = "Kein Artwork geladen"
-        asset_meta = "Quadratisches Master-Artwork laden und links sofort gegen die Typografie pruefen."
-        asset_path = "Unterstuetzt: JPG, PNG, WEBP, TIFF, BMP"
+        asset_name = i18n._t("cov_radar_empty")
+        asset_meta = i18n._t("cov_hint_preview")
+        asset_path = i18n._t("cov_hint_asset")
     else:
         dims = ""
         if artwork_meta and artwork_meta.get("dimensions"):

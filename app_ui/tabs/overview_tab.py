@@ -2,16 +2,26 @@ import tkinter as tk
 from tkinter import ttk
 import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton, AkmScrollablePanel, AkmBadge,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmCheckbutton, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, SUBTLE, TEXT, FIELD_BG, FIELD_FG, LOG_BG, LOG_FG,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
-    FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_XL, FONT_LG, fit_wraplength
+    FONT_BOLD, FONT_MD_BOLD, FONT_SM, FONT_XL, FONT_LG, fit_wraplength,
+    build_badge_strip, build_radar_summary
 )
+from app_logic import i18n
 
 
 class OverviewTab(AkmPanel):
     FILTER_STACK_BREAKPOINT = 980
     ACTION_STACK_BREAKPOINT = 760
+    @property
+    def SORT_OPTIONS(self):
+        return [
+            (i18n._t("dash_stat_total"), "title"),
+            (i18n._t("det_label_status"), "status"),
+            (i18n._t("dash_stat_with_production"), "year"),
+            (i18n._t("ovw_sort_desc"), "last_change"),
+        ]
 
     def __init__(self, parent, app):
         super().__init__(parent)
@@ -20,6 +30,8 @@ class OverviewTab(AkmPanel):
         self.search_var = tk.StringVar()
         self.status_filter_var = tk.StringVar(value="all")
         self.sort_key_var = tk.StringVar(value="title")
+        self._sort_display_var = tk.StringVar()
+        self._sort_display_var.set(self._sort_label_for_key("title"))
         self.sort_desc_var = tk.BooleanVar(value=False)
         self._filter_layout_mode = None
         self._status_action_mode = None
@@ -43,19 +55,20 @@ class OverviewTab(AkmPanel):
         return scroll_root, scroll_root.scrollable_frame
 
     def _build_header_section(self, page):
-        AkmHeader(page, text="Übersicht aller Werke").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        AkmHeader(page, text=i18n._t("ovw_header_title")).pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             page,
-            text="Suche, filtere und sortiere den gesamten Katalog. Doppelklick öffnet die Details, Audio-Preview bleibt als eigener Move erhalten.",
+            text=i18n._t("ovw_header_subtitle"),
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
-        signal_row = AkmPanel(page)
-        signal_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
-        for index, text in enumerate(("Search", "Filter", "Details", "Loudness")):
-            badge = AkmBadge(signal_row, text)
-            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
-            badge.set_active(index < 2)
+        build_badge_strip(
+            page,
+            ("Search", "Filter", "Details", "Loudness"),
+            active_indices={0, 1},
+            padx=SPACE_MD,
+            pady=(0, SPACE_SM),
+        )
 
     def _build_status_card(self, page):
         status_card = AkmCard(page, min_height=118)
@@ -65,55 +78,43 @@ class OverviewTab(AkmPanel):
         status_right = tk.Frame(status_card.inner, bg=PANEL_2)
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
-        AkmLabel(status_left, text="Catalog Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
-        AkmSubLabel(
+        summary = build_radar_summary(
             status_left,
-            text="CATALOG DESK  •  Browse the whole workspace without losing the current thread",
+            title=i18n._t("ovw_radar_title"),
+            mode_text="CATALOG DESK  •  Browse the whole workspace without losing the current thread",
+            status_text=i18n._t("ovw_status_empty"),
+            hint_text=i18n._t("ovw_hint_empty"),
+            context_text=i18n._t("ovw_radar_context", filt="all", sort="title", dir="asc"),
             bg=PANEL_2,
-            anchor="w",
-        ).pack(fill="x", pady=(1, 1))
-        self.overview_status_label = AkmLabel(
-            status_left,
-            text="Noch keine Werke im Katalog",
-            bg=PANEL_2,
-            anchor="w",
-            font=FONT_MD_BOLD,
         )
-        self.overview_status_label.pack(fill="x", pady=(2, 2))
-        self.overview_hint_label = AkmSubLabel(
-            status_left,
-            text="Lege neue Werke an oder importiere eine Excel-Datei, damit sich die Übersicht füllt.",
-            bg=PANEL_2,
-            anchor="w",
-            justify="left",
-            wraplength=560,
-        )
-        self.overview_hint_label.pack(fill="x")
+        self.overview_status_label = summary["status_label"]
+        self.overview_hint_label = summary["hint_label"]
+        self.overview_context_label = summary["context_label"]
 
-        self._refresh_button = self.app.btn(status_right, "Aktualisieren", self.app.refresh_list, primary=True, width=126)
+        self._refresh_button = self.app.btn(status_right, i18n._t("dash_btn_refresh"), self.app.refresh_list, primary=True, width=126)
         self._refresh_button.pack(anchor="e", pady=(0, SPACE_XS))
         action_row = tk.Frame(status_right, bg=PANEL_2)
         action_row.pack(anchor="e")
         self._status_action_bar = action_row
         self._status_action_buttons = (
-            self.app.btn(action_row, "Details öffnen", self.app.load_selected_into_details, quiet=True, width=126),
-            self.app.btn(action_row, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
-            self.app.btn(action_row, "Lautheit", self.app.loudness_ctrl.import_selected_work, quiet=True, width=96),
+            self.app.btn(action_row, i18n._t("ovw_btn_details"), self.app.load_selected_into_details, quiet=True, width=126),
+            self.app.btn(action_row, i18n._t("ovw_btn_preview"), self.app.open_audio_player_for_selected, quiet=True, width=126),
+            self.app.btn(action_row, i18n._t("ash_btn_loudness"), self.app.loudness_ctrl.import_selected_work, quiet=True, width=96),
         )
 
     def _build_controls_card(self, page):
         controls_card = AkmCard(page)
         controls_card.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
-        AkmLabel(controls_card.inner, text="Filter & Sortierung", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(controls_card.inner, text=i18n._t("ovw_label_filter_sort"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         AkmSubLabel(
             controls_card.inner,
-            text="Finde schnell die richtigen Werke und halte die Liste im passenden Arbeitsmodus.",
+            text=i18n._t("ovw_intro_filter"),
             bg=PANEL_2,
             justify="left",
         ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
         self._build_filter_strip(controls_card)
         self._build_sort_row(controls_card)
-        self.overview_summary_label = AkmSubLabel(controls_card.inner, text="0 Treffer", anchor="w", bg=PANEL_2)
+        self.overview_summary_label = AkmSubLabel(controls_card.inner, text=i18n._t("ovw_summary_hits", count=0), anchor="w", bg=PANEL_2)
         self.overview_summary_label.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
 
     def _build_filter_strip(self, controls_card):
@@ -124,7 +125,7 @@ class OverviewTab(AkmPanel):
         search_wrap = tk.Frame(filter_strip, bg=PANEL_2)
         search_wrap.pack(side="left", padx=(0, SPACE_MD))
         self._search_wrap = search_wrap
-        AkmLabel(search_wrap, text="Suche:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
+        AkmLabel(search_wrap, text=i18n._t("ui_label_search"), bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
         self.search_var.trace_add("write", lambda *_args: self.app._schedule_refresh_list())
         search_entry = AkmEntry(search_wrap, textvariable=self.search_var, width=26)
@@ -146,34 +147,40 @@ class OverviewTab(AkmPanel):
     def _build_sort_row(self, controls_card):
         sort_row = AkmPanel(controls_card.inner, bg=PANEL_2)
         sort_row.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_XS))
-        AkmLabel(sort_row, text="Sortierung:", bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
+        AkmLabel(sort_row, text=i18n._t("ovw_label_sort"), bg=PANEL_2).pack(side="left", padx=(0, SPACE_XS))
 
-        sort_options = [("Titel", "title"), ("Status", "status"), ("Jahr", "year"), ("Änderung", "last_change")]
-        sort_menu = tk.OptionMenu(sort_row, self.sort_key_var, *[value for _label, value in sort_options], command=lambda _value: self.app.refresh_list())
-        sort_menu.config(bg=PANEL_2, fg=TEXT, activebackground="#3a3a3a", activeforeground=TEXT, relief="flat", highlightthickness=0)
-        sort_menu["menu"].config(bg=PANEL_2, fg=TEXT, activebackground=ACCENT, activeforeground="black")
-        sort_menu.pack(side="left", padx=(0, SPACE_XS))
+        self._sort_combo = ttk.Combobox(
+            sort_row,
+            textvariable=self._sort_display_var,
+            values=[label for label, _value in self.SORT_OPTIONS],
+            width=18,
+            state="readonly",
+        )
+        self._sort_combo.bind("<<ComboboxSelected>>", self._on_sort_selected)
+        self._sort_combo.pack(side="left", padx=(0, SPACE_XS))
 
-        AkmCheckbutton(sort_row, text="Absteigend", variable=self.sort_desc_var, command=self.app.refresh_list, bg=PANEL_2).pack(side="left")
+        AkmCheckbutton(sort_row, text=i18n._t("ovw_sort_desc"), variable=self.sort_desc_var, command=self.app.refresh_list, bg=PANEL_2).pack(side="left")
 
     def _build_list_card(self, page):
         list_card = AkmCard(page)
         list_card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
-        AkmLabel(list_card.inner, text="Katalogliste", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(list_card.inner, text=i18n._t("ovw_label_list"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self._list_intro_label = AkmSubLabel(
             list_card.inner,
-            text="Mehrfachauswahl erlaubt Batch-Statuswechsel. Details und Loudness greifen immer auf die aktuelle Auswahl.",
+            text=i18n._t("ovw_intro_list"),
             bg=PANEL_2,
             justify="left",
             wraplength=760,
         )
         self._list_intro_label.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
-        list_strip = tk.Frame(list_card.inner, bg=PANEL_2)
-        list_strip.pack(fill="x", padx=CARD_PAD_X, pady=(0, SPACE_SM))
-        for index, text in enumerate(("Multi-select", "Double-click", "Preview", "Detail jump")):
-            badge = AkmBadge(list_strip, text)
-            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
-            badge.set_active(index in {0, 3})
+        build_badge_strip(
+            list_card.inner,
+            ("Multi-select", "Double-click", "Preview", "Detail jump"),
+            active_indices={0, 3},
+            bg=PANEL_2,
+            padx=CARD_PAD_X,
+            pady=(0, SPACE_SM),
+        )
 
         self._build_list_frame(list_card)
         self._build_empty_state(list_card)
@@ -208,7 +215,7 @@ class OverviewTab(AkmPanel):
     def _build_empty_state(self, list_card):
         self.overview_empty_label = AkmSubLabel(
             list_card.inner,
-            text="Noch keine sichtbaren Werke.",
+            text=i18n._t("ovw_hint_no_match_filter"),
             bg=PANEL_2,
             justify="left",
             wraplength=760,
@@ -220,9 +227,9 @@ class OverviewTab(AkmPanel):
         bottom_actions.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._bottom_action_bar = bottom_actions
         self._bottom_action_buttons = (
-            self.app.btn(bottom_actions, "Details öffnen", self.app.load_selected_into_details, primary=True, width=138),
-            self.app.btn(bottom_actions, "Audio Preview", self.app.open_audio_player_for_selected, quiet=True, width=126),
-            self.app.btn(bottom_actions, "Lautheit aus Auswahl", self.app.loudness_ctrl.import_selected_work, quiet=True, width=164),
+            self.app.btn(bottom_actions, i18n._t("ovw_btn_details"), self.app.load_selected_into_details, primary=True, width=138),
+            self.app.btn(bottom_actions, i18n._t("ovw_btn_preview"), self.app.open_audio_player_for_selected, quiet=True, width=126),
+            self.app.btn(bottom_actions, i18n._t("ash_btn_selection"), self.app.loudness_ctrl.import_selected_work, quiet=True, width=164),
         )
 
     def _on_resize(self, event):
@@ -295,6 +302,7 @@ class OverviewTab(AkmPanel):
     def _update_wraplengths(self, width):
         fit_wraplength(self._header_intro_label, width, padding=120, minimum=320, maximum=880)
         fit_wraplength(self.overview_hint_label, width, padding=260, minimum=260, maximum=620)
+        fit_wraplength(self.overview_context_label, width, padding=280, minimum=260, maximum=620)
         fit_wraplength(self._list_intro_label, width, padding=120, minimum=320, maximum=820)
         fit_wraplength(self.overview_empty_label, width, padding=120, minimum=320, maximum=820)
 
@@ -311,6 +319,7 @@ class OverviewTab(AkmPanel):
         self.overview_summary_label.config(text=summary_text)
         self.overview_status_label.config(text=status_text)
         self.overview_hint_label.config(text=hint_text)
+        self.overview_context_label.config(text=summary_text)
         self.overview_empty_label.config(text=empty_text)
         if show_empty:
             self.overview_empty_label.pack(fill="x", padx=12, pady=12, before=self.overview_bottom_actions)
@@ -323,10 +332,14 @@ class OverviewTab(AkmPanel):
             ui_patterns.style_chip_label(widget, status_key, text, selected)
 
     def get_filter_state(self):
+        sort_key = self.sort_key_var.get() or "title"
+        expected_label = self._sort_label_for_key(sort_key)
+        if self._sort_display_var.get() != expected_label:
+            self._sort_display_var.set(expected_label)
         return {
             "search": (self.search_var.get() or ""),
             "filter": (self.status_filter_var.get() or "all"),
-            "sort": (self.sort_key_var.get() or "title"),
+            "sort": sort_key,
             "desc": bool(self.sort_desc_var.get()),
         }
 
@@ -335,3 +348,16 @@ class OverviewTab(AkmPanel):
 
     def get_selected_indices(self):
         return tuple(self.listbox.curselection())
+
+    def _sort_label_for_key(self, key):
+        for label, value in self.SORT_OPTIONS:
+            if value == key:
+                return label
+        return self.SORT_OPTIONS[0][0]
+
+    def _on_sort_selected(self, _event=None):
+        label = self._sort_display_var.get()
+        selected_key = next((value for option_label, value in self.SORT_OPTIONS if option_label == label), "title")
+        if selected_key != self.sort_key_var.get():
+            self.sort_key_var.set(selected_key)
+        self.app.refresh_list()

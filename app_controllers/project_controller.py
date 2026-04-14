@@ -3,7 +3,7 @@ import os
 import traceback
 from tkinter import filedialog, messagebox
 from .base_controller import BaseController
-from app_logic import akm_core, assistant_tools
+from app_logic import akm_core, assistant_tools, i18n
 from app_ui import ui_patterns
 
 class ProjectController(BaseController):
@@ -73,25 +73,25 @@ class ProjectController(BaseController):
         try:
             path = self._open_project_dialog(ui_patterns.AkmSaveDialog, "Projekt Speichern")
             if not path:
-                self.log("Speichervorgang abgebrochen.")
+                self.log(i18n._t("log_error", error="Save cancelled"))
                 return False
             
-            self.log(f"Speichere Projekt nach: {path}...")
+            self.log(i18n._t("log_export_status", path=path))
             data = self.state.get_all_records()
             cover_state = self._collect_cover_state()
             release_state = self._build_release_state()
             
             akm_core.save_project(path, data, cover_state, release_state)
             
-            self.log(f"Projekt erfolgreich gespeichert: {os.path.basename(path)}")
-            self.toast("PROJEKT GESPEICHERT", color=ui_patterns.FLAVOR_SUCCESS)
+            self.log(i18n._t("log_export_success") + f": {os.path.basename(path)}")
+            self.toast(i18n._t("ui_btn_save", default="PROJEKT GESPEICHERT").upper(), color=ui_patterns.FLAVOR_SUCCESS)
             return True
             
         except Exception as e:
-            err_msg = f"FEHLER beim Speichern: {str(e)}"
+            err_msg = i18n._t("log_export_error", error=str(e))
             self.log(err_msg)
             print(traceback.format_exc())
-            messagebox.showerror("Fehler", f"Speichern fehlgeschlagen:\n{e}")
+            messagebox.showerror("Fehler", f"Save failed:\n{e}")
             return False
 
     def load_project_dialog(self):
@@ -112,7 +112,7 @@ class ProjectController(BaseController):
             return
 
         if not bundle:
-            messagebox.showerror("Fehler", "Projekt konnte nicht geladen werden.")
+            messagebox.showerror("Fehler", i18n._t("log_project_load_error", error="Bundle is empty"))
             return
             
         data = bundle.get("data", [])
@@ -126,8 +126,8 @@ class ProjectController(BaseController):
         if "release" in bundle:
             self._apply_release_state(bundle.get("release"))
             
-        self.log(f"Projekt geladen: {os.path.basename(path)}")
-        self.toast("PROJEKT GELADEN", color=ui_patterns.FLAVOR_SUCCESS)
+        self.log(i18n._t("log_work_loaded", title=os.path.basename(path)))
+        self.toast(i18n._t("log_project_loaded", title=os.path.basename(path)).upper(), color=ui_patterns.FLAVOR_SUCCESS)
 
     def import_excel(self):
         p = filedialog.askopenfilename(filetypes=[("Excel", "*.xlsx")])
@@ -157,5 +157,5 @@ class ProjectController(BaseController):
                            production=defaults.get("production", ""),
                            year=defaults.get("year", ""),
                        ),
-                       lambda r: self.app.overview_ctrl._on_g_done(r, f"'{title}' angelegt"), 
-                       busy_text=f"Lege '{title}' an...")
+                       lambda r: self.app.overview_ctrl._on_g_done(r, i18n._t("log_work_updated", title=title)), 
+                       busy_text=i18n._t("task_busy_text"))

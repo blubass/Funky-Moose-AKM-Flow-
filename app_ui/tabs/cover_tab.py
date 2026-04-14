@@ -15,6 +15,7 @@ from app_ui.ui_patterns import (
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_GAP, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_MD_BOLD, FONT_XL, FONT_LG, FONT_XXL
 )
+from app_logic import i18n
 
 try:
     from tkinterdnd2 import DND_FILES
@@ -145,10 +146,10 @@ class CoverTab(AkmPanel):
         self._update_cover_dashboard()
 
     def _build_header_section(self, page):
-        AkmHeader(page, text="Cover Forge").pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
+        AkmHeader(page, text=i18n._t("cov_header_title")).pack(anchor="w", padx=SPACE_MD, pady=(SPACE_MD, SPACE_XS))
         self._header_intro_label = AkmSubLabel(
             page,
-            text="Artwork, Typografie und Export in einer durchgaengigen Live-Ansicht. Alles, was nach Release riechen soll, sitzt hier.",
+            text=i18n._t("cov_header_subtitle"),
             justify="left",
         )
         self._header_intro_label.pack(anchor="w", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -167,7 +168,7 @@ class CoverTab(AkmPanel):
         status_right = tk.Frame(status_card.inner, bg=PANEL_2)
         status_right.pack(side="right", padx=(SPACE_SM, CARD_PAD_X), pady=CARD_PAD_Y)
 
-        AkmLabel(status_left, text="Cover Radar", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
+        AkmLabel(status_left, text=i18n._t("cov_radar_title"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w")
         AkmSubLabel(
             status_left,
             text="ART DIRECTION DESK  •  One live stage for artwork, type and export polish",
@@ -176,7 +177,7 @@ class CoverTab(AkmPanel):
         ).pack(fill="x", pady=(1, 1))
         self.cover_status_label = AkmLabel(
             status_left,
-            text="Kein Master-Artwork geladen",
+            text=i18n._t("cov_radar_empty"),
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
@@ -194,7 +195,7 @@ class CoverTab(AkmPanel):
 
         self._status_primary_button = self.app.btn(
             status_right,
-            "Artwork laden",
+            i18n._t("cov_btn_load"),
             self._choose_artwork_path,
             primary=True,
             width=150,
@@ -204,9 +205,9 @@ class CoverTab(AkmPanel):
         status_action_row.pack(anchor="e")
         self._status_action_bar = status_action_row
         self._status_action_buttons = (
-            self.app.btn(status_action_row, "Zu Release", self._assign_to_release, quiet=True, width=104),
-            self.app.btn(status_action_row, "Export", self.export_cover, quiet=True, width=96),
-            self.app.btn(status_action_row, "Finder", self._open_artwork_in_finder, quiet=True, width=86),
+            self.app.btn(status_action_row, i18n._t("cov_btn_assign"), self._assign_to_release, quiet=True, width=104),
+            self.app.btn(status_action_row, i18n._t("cov_btn_export"), self.export_cover, quiet=True, width=96),
+            self.app.btn(status_action_row, i18n._t("det_btn_finder"), self._open_artwork_in_finder, quiet=True, width=86),
         )
 
     def _build_content_columns(self, page, scroll_root):
@@ -237,10 +238,10 @@ class CoverTab(AkmPanel):
         self._build_asset_card(asset_card)
 
     def _build_preview_card(self, preview_card):
-        AkmLabel(preview_card.inner, text="Live-Vorschau", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(preview_card.inner, text=i18n._t("cov_label_preview"), fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self.cover_preview_caption = AkmSubLabel(
             preview_card.inner,
-            text="Die Cover-Buehne zeigt das komplette Cover live und gibt dir sofort ein sauberes Gefuehl fuer Typo, Layout und Balance.",
+            text=i18n._t("cov_hint_preview"),
             bg=PANEL_2,
             justify="left",
             wraplength=420,
@@ -282,7 +283,7 @@ class CoverTab(AkmPanel):
         self.cover_preview_info_label.pack(fill="x")
         self.cover_preview_hint_label = AkmSubLabel(
             preview_info,
-            text="Manual erlaubt freie Platzierung. Presets bauen automatisch Layout-Baender und Textkarten.",
+            text=i18n._t("cov_hint_direction"),
             bg=PANEL_2,
             anchor="w",
             justify="left",
@@ -291,10 +292,10 @@ class CoverTab(AkmPanel):
         self.cover_preview_hint_label.pack(fill="x", pady=(2, 0))
 
     def _build_asset_card(self, asset_card):
-        AkmLabel(asset_card.inner, text="Master Asset", fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(asset_card.inner, text=i18n._t("cov_label_asset"), fg=ACCENT, bg=PANEL_2, font=FONT_MD_BOLD).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         self.cover_asset_name_label = AkmLabel(
             asset_card.inner,
-            text="Kein Artwork geladen",
+            text=i18n._t("cov_radar_empty"),
             bg=PANEL_2,
             anchor="w",
             font=FONT_MD_BOLD,
@@ -333,7 +334,7 @@ class CoverTab(AkmPanel):
 
         self.cover_asset_hint_label = AkmSubLabel(
             asset_card.inner,
-            text="Das Master bleibt links im Blick, waehrend die tieferen Art-Direction-Regler rechts sitzen.",
+            text=i18n._t("cov_hint_asset"), # repurposed slightly
             bg=PANEL_2,
             anchor="w",
             justify="left",
@@ -343,10 +344,10 @@ class CoverTab(AkmPanel):
     def _build_meta_section(self, right_side, sys_fonts, content):
         meta_card = AkmCard(right_side)
         meta_card.pack(fill="both", expand=True)
-        AkmLabel(meta_card.inner, text="Art Direction", fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
+        AkmLabel(meta_card.inner, text=i18n._t("cov_label_direction"), fg=ACCENT, bg=PANEL_2, font=FONT_LG).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 2))
         AkmSubLabel(
             meta_card.inner,
-            text="Preset logic, text layers and export checks stay on one continuous control surface.",
+            text=i18n._t("cov_hint_direction"), # repurposing
             bg=PANEL_2,
             justify="left",
         ).pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_SM))
@@ -361,22 +362,22 @@ class CoverTab(AkmPanel):
         form.pack(fill="both", expand=True)
         self._meta_card = meta_card
 
-        form.add_header("Art Direction")
-        form.add_row("Artwork", self._create_artwork_row)
+        form.add_header(i18n._t("cov_label_direction"))
+        form.add_row(i18n._t("cov_label_asset"), self._create_artwork_row)
         form.add_row("Direction", self._create_direction_row)
         form.add_row("Render", self._create_render_row)
-        form.add_color_field("Hauptfarbe", self.bg_color_var)
-        form.add_color_field("Akzentfarbe", self.accent_color_var)
+        form.add_color_field(i18n._t("cov_label_color_main", default="Hauptfarbe"), self.bg_color_var)
+        form.add_color_field(i18n._t("cov_label_color_accent", default="Akzentfarbe"), self.accent_color_var)
 
         form.add_header("Cover Content")
-        form.add_entry("Interpret", self.artist_var)
-        form.add_entry("Titel", self.title_var)
-        form.add_entry("Untertitel", self.subtitle_var)
+        form.add_entry(i18n._t("det_label_artist", default="Interpret"), self.artist_var)
+        form.add_entry(i18n._t("det_label_title"), self.title_var)
+        form.add_entry(i18n._t("det_label_subtitle", default="Untertitel"), self.subtitle_var)
 
-        form.add_header("Typography")
+        form.add_header(i18n._t("cov_label_typo"))
         self._typography_hint_label = AkmSubLabel(
             form,
-            text="Manual nutzt die X/Y-Werte. Bei Bottom, Top Left und Center wird die Typografie aus dem Preset gebaut.",
+            text=i18n._t("cov_hint_direction"),
             bg=PANEL_2,
             justify="left",
             wraplength=420,
@@ -440,7 +441,7 @@ class CoverTab(AkmPanel):
         def _pick():
             from tkinter import colorchooser
 
-            color = colorchooser.askcolor(title=f"Farbe {header}")
+            color = colorchooser.askcolor(title=i18n._t("ui_btn_color", default="Farbe") + f" {header}")
             if color[1]:
                 color_var.set(color[1])
 
@@ -511,7 +512,7 @@ class CoverTab(AkmPanel):
         form._current_row += 1
 
     def _build_quality_monitor(self, form):
-        form.add_header("Technische Abnahme & Monitor")
+        form.add_header(i18n._t("cov_label_monitor"))
 
         monitor_frame = tk.Frame(form, bg=PANEL_2)
         monitor_frame.grid(row=form._current_row, column=0, columnspan=2, sticky="w", pady=(0, SPACE_SM))
@@ -540,10 +541,10 @@ class CoverTab(AkmPanel):
         btn_bar.pack(fill="x", padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
         self._cover_button_bar = btn_bar
         self._cover_button_widgets = (
-            self.app.btn(btn_bar, "Release zuweisen", self._assign_to_release, primary=True, width=146),
-            self.app.btn(btn_bar, "Cover exportieren", self.export_cover, primary=True, width=146),
-            self.app.btn(btn_bar, "Projekt speichern", self.save_project_locally, quiet=True, width=138),
-            self.app.btn(btn_bar, "Im Finder", self._open_artwork_in_finder, quiet=True, width=104),
+            self.app.btn(btn_bar, i18n._t("cov_btn_assign"), self._assign_to_release, primary=True, width=146),
+            self.app.btn(btn_bar, i18n._t("cov_btn_export"), self.export_cover, primary=True, width=146),
+            self.app.btn(btn_bar, i18n._t("ui_btn_save"), self.save_project_locally, quiet=True, width=138),
+            self.app.btn(btn_bar, i18n._t("det_btn_finder"), self._open_artwork_in_finder, quiet=True, width=104),
         )
         meta_card.bind("<Configure>", self._on_action_bar_resize, add="+")
         self.after_idle(lambda: self._apply_cover_action_layout(meta_card.winfo_width()))
@@ -707,18 +708,18 @@ class CoverTab(AkmPanel):
             release_state=getattr(self.app, "release_state_cache", {}) or {},
         )
         if not path:
-            AkmToast(self, "RELEASE HAT NOCH KEIN COVER", color=ui_patterns.FLAVOR_ERROR)
+            AkmToast(self, i18n._t("rel_radar_empty").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
         if not os.path.isfile(path):
-            AkmToast(self, "RELEASE-COVER NICHT GEFUNDEN", color=ui_patterns.FLAVOR_ERROR)
+            AkmToast(self, i18n._t("err_file_not_found"), color=ui_patterns.FLAVOR_ERROR)
             return
         self.load_cover(path)
-        self.app.append_log(f"Artwork aus Release uebernommen: {os.path.basename(path)}")
+        self.app.append_log(i18n._t("log_work_loaded", title=os.path.basename(path)))
 
     def _open_artwork_in_finder(self):
         path = self.artwork_path_var.get().strip()
         if not path or not os.path.exists(path):
-            AkmToast(self, "KEIN MASTER-ARTWORK IM FINDER", color=ui_patterns.FLAVOR_ERROR)
+            AkmToast(self, i18n._t("err_file_not_found").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
         ui_patterns.open_in_finder(path)
 
@@ -728,16 +729,16 @@ class CoverTab(AkmPanel):
         row_main = tk.Frame(wrap, bg=PANEL_2)
         row_main.pack(fill="x")
         AkmEntry(row_main, textvariable=self.artwork_path_var, font=FONT_SM).pack(side="left", fill="x", expand=True)
-        self.app.btn(row_main, "Waehlen", self._choose_artwork_path, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
-        self.app.btn(row_main, "Finder", self._open_artwork_in_finder, quiet=True, width=84).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(row_main, i18n._t("ui_btn_browse", default="Waehlen"), self._choose_artwork_path, primary=True, width=92).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(row_main, i18n._t("det_btn_finder"), self._open_artwork_in_finder, quiet=True, width=84).pack(side="left", padx=(SPACE_XS, 0))
 
         row_aux = tk.Frame(wrap, bg=PANEL_2)
         row_aux.pack(fill="x", pady=(SPACE_XS, 0))
-        self.app.btn(row_aux, "Aus Release", self._load_artwork_from_release, quiet=True, width=108).pack(side="left")
-        self.app.btn(row_aux, "Leeren", self._clear_artwork, quiet=True, width=84).pack(side="left", padx=(SPACE_XS, 0))
+        self.app.btn(row_aux, i18n._t("rel_btn_cover"), self._load_artwork_from_release, quiet=True, width=108).pack(side="left")
+        self.app.btn(row_aux, i18n._t("det_btn_clear"), self._clear_artwork, quiet=True, width=84).pack(side="left", padx=(SPACE_XS, 0))
         self._artwork_hint_label = AkmSubLabel(
             row_aux,
-            text="JPG, PNG, WEBP, TIFF oder BMP. Direkt auf die Vorschau ziehen geht auch.",
+            text=i18n._t("cov_hint_asset"),
             bg=PANEL_2,
             justify="left",
         )
@@ -797,7 +798,7 @@ class CoverTab(AkmPanel):
         ).pack(side="left", padx=(SPACE_XS, 0))
         tk.Label(row_main, textvariable=self.ui_preview_zoom_var, bg=PANEL_2, fg=ACCENT, font=FONT_SM, width=4).pack(side="left", padx=(SPACE_XS, 0))
         tk.Label(row_main, text="px", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(0, SPACE_SM))
-        self.app.btn(row_main, "Zoom-Fenster", self._open_preview_zoom, quiet=True, width=118).pack(side="left", padx=(0, SPACE_SM))
+        self.app.btn(row_main, i18n._t("cov_btn_zoom"), self._open_preview_zoom, quiet=True, width=118).pack(side="left", padx=(0, SPACE_SM))
 
         tk.Label(row_main, text="Zoom", bg=PANEL_2, fg=SUBTLE, font=FONT_SM).pack(side="left")
         tk.Scale(
@@ -876,7 +877,7 @@ class CoverTab(AkmPanel):
         from app_logic import cover_tools
 
         if not cover_tools.have_pillow():
-            raise RuntimeError("Pillow ist fuer das Cover-Rendering nicht verfuegbar.")
+            raise RuntimeError("Pillow is not available for cover rendering.")
 
         payload = cover_preview_tools.build_cover_render_payload(
             self.get_state(),
@@ -884,7 +885,7 @@ class CoverTab(AkmPanel):
         )
         path = payload["artwork_path"]
         if not path or not os.path.isfile(path):
-            raise FileNotFoundError("Kein gueltiges Master-Artwork vorhanden.")
+            raise FileNotFoundError(i18n._t("err_file_not_found"))
 
         with Image.open(path) as original:
             base = cover_tools.resize_cover_canvas(
@@ -968,7 +969,7 @@ class CoverTab(AkmPanel):
         if hasattr(self.app, "save_project"):
             self.app.save_project()
         else:
-            AkmToast(self, "Master-Speicherung nicht verfügbar")
+            AkmToast(self, i18n._t("log_project_load_error", error="Master-Save missing"))
 
     def _clear_preview_inner(self):
         for child in self.preview_inner.winfo_children():
@@ -987,7 +988,7 @@ class CoverTab(AkmPanel):
         self._clear_preview_inner()
         self._photo = None
         AkmLabel(self.preview_inner, text="3000 x 3000 px", bg="#111111", fg="#2a2a2a", font=FONT_XXL).pack(expand=True)
-        AkmSubLabel(self.preview_inner, text="Bild hier hineinziehen", bg="#111111", fg=SUBTLE).pack(pady=(0, 20))
+        AkmSubLabel(self.preview_inner, text=i18n._t("cov_radar_hint"), bg="#111111", fg=SUBTLE).pack(pady=(0, 20))
 
     def _setup_dnd(self):
         """Standard registration on the main container."""
@@ -1183,7 +1184,7 @@ class CoverTab(AkmPanel):
         if hasattr(self.app, "release_ctrl"):
             self.app.release_ctrl.refresh_view(force=True)
         self.app.select_tab_by_id("release")
-        AkmToast(self.app, "COVER IN RELEASE ÜBERNOMMEN", color=ACCENT)
+        AkmToast(self.app, i18n._t("ui_btn_save").upper() + " IN RELEASE", color=ACCENT)
 
     def export_cover(self):
         """Final high-quality render and save to file."""
@@ -1210,7 +1211,7 @@ class CoverTab(AkmPanel):
                 self.app.append_log(success_state["log_message"])
                 AkmToast(self, success_state["toast_message"])
             else:
-                AkmToast(self, "FEHLER BEIM EXPORT", color="#FF3B30")
+                AkmToast(self, i18n._t("log_export_error", error="NULL"), color="#FF3B30")
 
         self.app.tasks.run(
             _render_full,

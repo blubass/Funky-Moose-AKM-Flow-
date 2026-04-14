@@ -2,7 +2,7 @@
 import os
 from tkinter import filedialog, messagebox
 from .base_controller import BaseController
-from app_logic import loudness_tools
+from app_logic import loudness_tools, i18n
 from app_ui import ui_patterns, path_ui_tools
 from app_workflows import loudness_workflows
 
@@ -97,17 +97,17 @@ class LoudnessController(BaseController):
                 self._apply_workflow_state(
                     loudness_workflows.build_loaded_files_state(self.state.loudness_files)
                 )
-                self.log(f"Loudness DnD: {len(valid_files)} Audio-Dateien hinzugefügt.")
-                self.toast(f"{len(valid_files)} DATEIEN HINZUGEFÜGT")
+                self.log(i18n._t("log_work_loaded", title=f"{len(valid_files)} Audio files"))
+                self.toast(i18n._t("rel_preflight_ready", count=len(valid_files)).upper())
         except Exception as e:
-            self.log(f"Loudness DnD Parse Fehler: {e}")
+            self.log(i18n._t("log_error", error=str(e)))
 
     def delete_files(self):
         if not self._has_loudness_tree():
             return
         selected = self._get_selected_paths()
         if not selected:
-            self.toast("KEINE AUSWAHL", color=ui_patterns.FLAVOR_ERROR)
+            self.toast(i18n._t("rel_radar_empty").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
         count = 0
         for path in selected:
@@ -116,12 +116,12 @@ class LoudnessController(BaseController):
                 count += 1
             self.state.loudness_results = [r for r in self.state.loudness_results if r.get("path") != path]
         self._pop_l_tree()
-        self.log(f"{count} Dateien aus der Liste entfernt.")
-        self.toast(f"{count} ENTFERNT")
+        self.log(i18n._t("log_work_deleted", title=f"{count} files"))
+        self.toast(i18n._t("ui_btn_remove", default="ENTFERNT").upper())
 
     def analyze_files(self):
         if not self.state.loudness_files:
-            self.toast("KEINE DATEIEN GELADEN", color=ui_patterns.FLAVOR_ERROR)
+            self.toast(i18n._t("rel_radar_empty").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
         try:
             t_str = self._get_target_text().replace(",", ".")
@@ -129,7 +129,7 @@ class LoudnessController(BaseController):
             t = float(t_str or -14.0)
             pk = float(p_str or -1.0)
         except ValueError:
-            messagebox.showerror("Eingabefehler", "LUFS oder Peak-Wert ist kein gültiges Zahlenformat.")
+            messagebox.showerror("Eingabefehler", i18n._t("log_error", error="Invalid number format"))
             return
 
         def _work():
@@ -140,8 +140,8 @@ class LoudnessController(BaseController):
                     enriched = loudness_workflows.enrich_analysis_item(analysis, t, pk, loudness_tools)
                     results.append(enriched)
                 except Exception as e:
-                    self.log(f"Fehler bei {os.path.basename(p)}: {e}")
-                    results.append({"filename": os.path.basename(p), "path": p, "ok": False, "error": str(e), "match_status": "Fehler"})
+                    self.log(i18n._t("log_error", error=f"{os.path.basename(p)}: {e}"))
+                    results.append({"filename": os.path.basename(p), "path": p, "ok": False, "error": str(e), "match_status": i18n._t("cov_status_error")})
             return results
 
         self.tasks.run(_work, self._on_l_done, busy_text="Analysiere Lautheit...")
@@ -149,7 +149,7 @@ class LoudnessController(BaseController):
     def _on_l_done(self, r): 
         self.state.loudness_results = r
         self._pop_l_tree()
-        self.log(f"Analyse abgeschlossen: {len(r)} Dateien.")
+        self.log(i18n._t("loud_status_done", lufs=f"{len(r)} files")) # repurposing
 
     def _pop_l_tree(self):
         if not self._has_loudness_tree():
@@ -175,7 +175,7 @@ class LoudnessController(BaseController):
             if os.path.exists(path):
                 self.app.open_audio_player_for_path(path, os.path.basename(path))
             else:
-                self.toast("DATEI NICHT GEFUNDEN", color=ui_patterns.FLAVOR_ERROR)
+                self.toast(i18n._t("err_file_not_found").upper(), color=ui_patterns.FLAVOR_ERROR)
 
     def import_selected_work(self):
         it = self.app.overview_ctrl._get_selected_overview_item()
@@ -223,7 +223,7 @@ class LoudnessController(BaseController):
         pk = float(self._get_peak_text() or -1.0)
         lim = self._get_use_limiter()
         if not self.state.loudness_results:
-            self.toast("ANALYSE FEHLT", color=ui_patterns.FLAVOR_ERROR)
+            self.toast(i18n._t("rel_radar_empty").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
 
         def _work():
@@ -232,9 +232,9 @@ class LoudnessController(BaseController):
         self.tasks.run(_work, self._on_export_done, busy_text="Exportiere Audio...")
 
     def _on_export_done(self, r):
-        self.log(f"Export abgeschlossen: {len(r)} Dateien verarbeitet.")
+        self.log(i18n._t("rel_status_ready") + f" ({len(r)})")
         self._pop_l_tree()
-        self.toast("EXPORT FERTIG", color=ui_patterns.FLAVOR_SUCCESS)
+        self.toast(i18n._t("log_export_success").upper(), color=ui_patterns.FLAVOR_SUCCESS)
 
     def _apply_workflow_state(self, workflow_state):
         if not workflow_state:

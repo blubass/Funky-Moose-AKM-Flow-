@@ -107,8 +107,7 @@ def build_flow_status_text(entries, flow_state):
     if not flow_state.get("has_item"):
         return "Keine offenen Batch-Werke"
 
-    total = len(entries or [])
-    return f"{flow_state.get('progress_text', '0 / 0')} im Fokus | {flow_state.get('current_title') or '—'}"
+    return f"Fokus {flow_state.get('progress_text', '0 / 0')}   •   {flow_state.get('current_title') or '—'}"
 
 
 def build_flow_hint_text(entries, flow_state, copy_stage):
@@ -118,10 +117,10 @@ def build_flow_hint_text(entries, flow_state, copy_stage):
     item = flow_state.get("item") or {}
     has_duration = bool(_clean_text(item.get("duration")))
     if copy_stage == "duration" and has_duration:
-        return "Titel ist kopiert. Jetzt kannst du die Dauer übernehmen oder direkt als gemeldet markieren."
+        return "Titel ist kopiert. Jetzt nimm die Dauer mit oder markiere das Werk direkt als gemeldet."
     if has_duration:
-        return "Starte mit dem Titel. Danach springt der Copy-Button automatisch auf die Dauer."
-    return "Dieses Werk hat noch keine Dauer. Du kannst direkt melden oder zum nächsten offenen Titel gehen."
+        return "Starte mit dem Titel. Danach springt der Copy-Flow automatisch auf die Dauer."
+    return "Noch keine gespeicherte Dauer. Der Dauer-Button prüft die verknüpfte Audiodatei automatisch; sonst kannst du direkt melden oder weitergehen."
 
 
 def build_flow_meta_summary(entries):
@@ -130,7 +129,7 @@ def build_flow_meta_summary(entries):
     return (
         f"In Arbeit: {counts['in_progress']}"
         f"   •   Bereit: {counts['ready']}"
-        f"   •   Queue: {total}"
+        f"   •   Offen im Flow: {total}"
     )
 
 

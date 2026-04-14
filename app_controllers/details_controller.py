@@ -2,7 +2,7 @@
 import os
 from tkinter import filedialog
 from .base_controller import BaseController
-from app_logic import akm_core, loudness_tools
+from app_logic import akm_core, loudness_tools, i18n
 from app_controllers import detail_controller_tools
 from app_ui import ui_patterns, path_ui_tools
 
@@ -60,7 +60,7 @@ class DetailsController(BaseController):
     def _on_save_details_done(self, result, updates):
         if result[0]:
             akm_core.remember_detail_memory(updates)
-        self.app.overview_ctrl._on_g_done(result, "Gespeichert")
+        self.app.overview_ctrl._on_g_done(result, i18n._t("ui_btn_save", default="Gespeichert"))
 
     def clear_details_form(self):
         self.app.detail_original_title = None
@@ -98,7 +98,7 @@ class DetailsController(BaseController):
         match = next((r for r in recs if r.get("title") == title), None)
         if match:
             self._populate_details_from_item(match)
-            self.log(f"Werk geladen: {title}")
+            self.log(i18n._t("log_work_loaded", title=title))
 
     def choose_audio_path(self):
         """Selects audio file via dialog and extracts metadata."""
@@ -137,9 +137,9 @@ class DetailsController(BaseController):
             if dur:
                 mins, secs = int(dur // 60), int(dur % 60)
                 detail_vars["duration"].set(f"{mins}:{secs:02d}")
-                self.log(f"Audio-Info erfasst: {title_guess} ({mins}:{secs:02d})")
+                self.log(i18n._t("log_work_updated", title=f"{title_guess} ({mins}:{secs:02d})"))
             else:
-                self.log(f"Dauer konnte nicht gelesen werden: {filename}")
+                self.log(i18n._t("log_error", error=f"Metadata error: {filename}"))
         
         self.tasks.run(_extract, _done, busy_text="Metadaten-Analyse...")
 

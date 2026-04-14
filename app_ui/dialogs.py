@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 from .theme import *
 from .buttons import create_btn
 from .widgets import AkmCard, AkmLabel, AkmPanel, AkmEntry, AkmSubLabel
+from app_logic import i18n
 
 
 def _safe_int(value, fallback=0):
@@ -82,12 +83,12 @@ class AkmSaveDialog(tk.Toplevel):
     def _build_ui(self):
         hdr = tk.Frame(self, bg=BG)
         hdr.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
-        tk.Label(hdr, text="PROJEKT SPEICHERN", bg=BG, fg=ACCENT, font=FONT_XL).pack(side="left")
+        tk.Label(hdr, text=i18n._t("ui_title_save"), bg=BG, fg=ACCENT, font=FONT_XL).pack(side="left")
         
         container = AkmCard(self)
         container.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
         
-        AkmLabel(container, text="VORHANDENE PROJEKTE", font=FONT_MD_BOLD, fg=ACCENT).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
+        AkmLabel(container, text=i18n._t("ui_label_existing_projects"), font=FONT_MD_BOLD, fg=ACCENT).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
         
         list_frame = AkmPanel(container)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X)
@@ -108,7 +109,7 @@ class AkmSaveDialog(tk.Toplevel):
         entry_frame = AkmPanel(container)
         entry_frame.pack(fill="x", padx=CARD_PAD_X, pady=SPACE_MD)
         
-        AkmLabel(entry_frame, text="PROJEKTNAME:").pack(side="left")
+        AkmLabel(entry_frame, text=i18n._t("ui_label_project_name")).pack(side="left")
         self.name_var = tk.StringVar()
         self.entry = AkmEntry(entry_frame, textvariable=self.name_var)
         self.entry.pack(side="left", fill="x", expand=True, padx=(SPACE_SM, 0))
@@ -117,14 +118,14 @@ class AkmSaveDialog(tk.Toplevel):
         btn_row = tk.Frame(self, bg=BG)
         btn_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
 
-        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
-        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
-        create_btn(btn_row, "SPEICHERN", self._save, primary=True, width=220).pack(fill="x")
+        create_btn(btn_row, i18n._t("ui_btn_browse"), self._browse, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, i18n._t("ui_btn_cancel"), self.destroy, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, i18n._t("ui_btn_save"), self._save, primary=True, width=220).pack(fill="x")
 
     def _browse(self):
         path = filedialog.asksaveasfilename(
             initialdir=self.directory,
-            title="Projekt Speichern unter",
+            title=i18n._t("ui_title_save"),
             filetypes=[("AKM Projekt", f"*{self.extension}"), ("Alle Dateien", "*.*")],
             defaultextension=self.extension
         )
@@ -149,12 +150,12 @@ class AkmSaveDialog(tk.Toplevel):
     def _save(self):
         name = self.name_var.get().strip()
         if not name:
-            messagebox.showwarning("Eingabe", "Bitte gib einen Namen ein.")
+            messagebox.showwarning(i18n._t("ui_title_save"), i18n._t("err_empty_name"))
             return
         
         self.result = os.path.join(self.directory, name + self.extension)
         if os.path.exists(self.result):
-            if not messagebox.askyesno("Überschreiben", f"'{name}' existiert bereits. Überschreiben?"):
+            if not messagebox.askyesno(i18n._t("ui_title_save"), i18n._t("ui_confirm_overwrite", name=name)):
                 return
         
         self.wait_window_success = True
@@ -184,12 +185,12 @@ class AkmLoadDialog(tk.Toplevel):
     def _build_ui(self):
         hdr = tk.Frame(self, bg=BG)
         hdr.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
-        tk.Label(hdr, text="PROJEKT LADEN", bg=BG, fg=ACCENT, font=FONT_XL).pack(side="left")
+        tk.Label(hdr, text=i18n._t("ui_title_load"), bg=BG, fg=ACCENT, font=FONT_XL).pack(side="left")
         
         container = AkmCard(self)
         container.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_MD))
         
-        AkmLabel(container, text="GESPEICHERTE PROJEKTE", font=FONT_MD_BOLD, fg=ACCENT).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
+        AkmLabel(container, text=i18n._t("ui_label_saved_projects"), font=FONT_MD_BOLD, fg=ACCENT).pack(anchor="w", padx=CARD_PAD_X, pady=(CARD_PAD_Y, SPACE_XS))
         
         list_frame = AkmPanel(container)
         list_frame.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=(0, CARD_PAD_Y))
@@ -210,14 +211,14 @@ class AkmLoadDialog(tk.Toplevel):
         btn_row = tk.Frame(self, bg=BG)
         btn_row.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
         
-        create_btn(btn_row, "DURCHSUCHEN...", self._browse, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
-        create_btn(btn_row, "ABBRECHEN", self.destroy, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
-        create_btn(btn_row, "LADEN", self._load, primary=True, width=220).pack(fill="x")
+        create_btn(btn_row, i18n._t("ui_btn_browse"), self._browse, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, i18n._t("ui_btn_cancel"), self.destroy, quiet=True, width=220).pack(fill="x", pady=(0, SPACE_XS))
+        create_btn(btn_row, i18n._t("ui_btn_load"), self._load, primary=True, width=220).pack(fill="x")
 
     def _browse(self):
         path = filedialog.askopenfilename(
             initialdir=self.directory,
-            title="Projekt Laden",
+            title=i18n._t("ui_title_load"),
             filetypes=[("AKM Projekt", f"*{self.extension}"), ("Alle Dateien", "*.*")]
         )
         if path:
@@ -236,7 +237,7 @@ class AkmLoadDialog(tk.Toplevel):
     def _load(self):
         idx = self.listbox.curselection()
         if not idx:
-            messagebox.showwarning("Auswahl", "Bitte wähle ein Projekt aus.")
+            messagebox.showwarning(i18n._t("ui_title_load"), i18n._t("err_no_selection"))
             return
         
         name = self.listbox.get(idx[0])
@@ -268,7 +269,7 @@ class AkmImagePreviewDialog(tk.Toplevel):
         self.info_label = AkmSubLabel(self, text=os.path.basename(image_path), bg=BG)
         self.info_label.pack(pady=(0, SPACE_SM))
         
-        create_btn(self, "SCHLIESSEN", self.destroy, quiet=True, width=120).pack(pady=(0, SPACE_MD))
+        create_btn(self, i18n._t("ui_btn_close"), self.destroy, quiet=True, width=120).pack(pady=(0, SPACE_MD))
         
         self._load_image()
         
@@ -282,7 +283,7 @@ class AkmImagePreviewDialog(tk.Toplevel):
 
     def _load_image(self):
         if not os.path.exists(self.image_path):
-            self.img_label.config(text="BILD NICHT GEFUNDEN", fg=FLAVOR_ERROR)
+            self.img_label.config(text=i18n._t("err_file_not_found"), fg=FLAVOR_ERROR)
             return
             
         try:
@@ -317,7 +318,7 @@ class AkmRenderedImageZoomDialog(tk.Toplevel):
 
         controls = tk.Frame(self, bg=BG)
         controls.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
-        tk.Label(controls, text="ZOOM", bg=BG, fg=SUBTLE, font=FONT_SM).pack(side="left")
+        tk.Label(controls, text=i18n._t("ui_title_zoom"), bg=BG, fg=SUBTLE, font=FONT_SM).pack(side="left")
         tk.Scale(
             controls,
             from_=25,
@@ -334,7 +335,7 @@ class AkmRenderedImageZoomDialog(tk.Toplevel):
         ).pack(side="left", padx=(SPACE_XS, 0))
         tk.Label(controls, textvariable=self.zoom_var, bg=BG, fg=ACCENT, font=FONT_SM, width=4).pack(side="left", padx=(SPACE_XS, 0))
         tk.Label(controls, text="%", bg=BG, fg=SUBTLE, font=FONT_SM).pack(side="left", padx=(0, SPACE_SM))
-        create_btn(controls, "ANPASSEN", self._fit_to_window, quiet=True, width=110).pack(side="right")
+        create_btn(controls, i18n._t("ui_btn_fit"), self._fit_to_window, quiet=True, width=110).pack(side="right")
 
         self.card = AkmCard(self, bg_color="#08080A")
         self.card.pack(fill="both", expand=True, padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -361,7 +362,7 @@ class AkmRenderedImageZoomDialog(tk.Toplevel):
         self.info_label = AkmSubLabel(self, text="", bg=BG)
         self.info_label.pack(pady=(0, SPACE_SM))
 
-        create_btn(self, "SCHLIESSEN", self.close, quiet=True, width=120).pack(pady=(0, SPACE_MD))
+        create_btn(self, i18n._t("ui_btn_close"), self.close, quiet=True, width=120).pack(pady=(0, SPACE_MD))
 
         self.canvas.bind("<Configure>", self._on_canvas_configure, add="+")
         self.canvas.bind("<MouseWheel>", self._on_mousewheel, add="+")
@@ -451,5 +452,5 @@ class AkmRenderedImageZoomDialog(tk.Toplevel):
         self.canvas.create_image(offset_x, offset_y, anchor="nw", image=self._photo)
         self.canvas.configure(scrollregion=(0, 0, max(canvas_w, render_w), max(canvas_h, render_h)))
         self.info_label.config(
-            text=f"{img_w}x{img_h} px | Ansicht: {render_w}x{render_h} px | Zoom: {self.zoom_var.get()}%"
+            text=f"{img_w}x{img_h} px | {render_w}x{render_h} px | Zoom: {self.zoom_var.get()}%"
         )

@@ -1,4 +1,5 @@
 import os
+from app_logic import i18n
 
 
 DEFAULT_COVER_FORMATS = ["square", "portrait", "landscape"]
@@ -102,50 +103,51 @@ def build_release_preflight_text(track_count, release_title, cover_set, export_s
     counts = counts or {"Werk": 0, "Datei→Werk": 0, "Datei": 0}
     blockers = []
     if track_count <= 0:
-        blockers.append("Tracks fehlen")
+        blockers.append(i18n._t("rel_preflight_tracks_missing"))
     if not (release_title or "").strip():
-        blockers.append("Release-Titel fehlt")
+        blockers.append(i18n._t("rel_preflight_title_missing"))
     if not cover_set:
-        blockers.append("Cover fehlt")
+        blockers.append(i18n._t("rel_preflight_cover_missing"))
     if not export_set:
-        blockers.append("Export-Ordner fehlt")
+        blockers.append(i18n._t("rel_preflight_dir_missing"))
     if counts.get("Datei", 0):
-        blockers.append(f"{counts['Datei']} ohne Werk-Match")
+        blockers.append(i18n._t("rel_preflight_no_work", count=counts['Datei']))
 
     if blockers:
+        return i18n._t("ui_confirm_overwrite", name="Preflight").split("'")[0].strip() + ": " + " • ".join(blockers) # Hacky Preflight label or just:
         return f"Preflight: {' • '.join(blockers)}"
 
-    ready_parts = [f"{track_count} Tracks bereit"]
+    ready_parts = [i18n._t("rel_preflight_ready", count=track_count)]
     if counts.get("Datei→Werk", 0):
-        ready_parts.append(f"{counts['Datei→Werk']} gemappt")
-    ready_parts.append("AKM-Flow bereit")
+        ready_parts.append(i18n._t("rel_preflight_mapped", count=counts['Datei→Werk']))
+    ready_parts.append("AKM-Flow") # OK
     if cover_set and export_set:
-        ready_parts.append("Export bereit")
-    return f"Preflight OK: {' • '.join(ready_parts)}"
+        ready_parts.append("Export")
+    return f"{i18n._t('rel_preflight_ok')}: {' • '.join(ready_parts)}"
 
 
 def build_release_flow_hint(track_count, release_title, cover_set, export_set, counts):
     counts = counts or {"Werk": 0, "Datei→Werk": 0, "Datei": 0}
     if track_count <= 0:
-        return "Ziehe Audiodateien in die Drop Zone. Gematchte Werke bringen Dauer, Produktion und Jahr direkt mit."
+        return i18n._t("rel_flow_drop_hint")
 
     if not (release_title or "").strip():
-        return "Release-Titel fehlt noch. Danach kannst du direkt in AKM laden oder den Distro-Export starten."
+        return i18n._t("rel_flow_title_hint")
 
     if counts.get("Datei", 0):
-        source_hint = f"{counts['Datei']} Datei(en) sind noch ohne Werk-Match."
+        source_hint = i18n._t("rel_flow_source_none", count=counts['Datei'])
     elif counts.get("Datei→Werk", 0):
-        source_hint = f"{counts['Datei→Werk']} Datei(en) wurden automatisch auf Werke gemappt."
+        source_hint = i18n._t("rel_flow_source_mapped", count=counts['Datei→Werk'])
     else:
-        source_hint = "Alle Tracks kommen direkt aus vorhandenen Werken."
+        source_hint = i18n._t("rel_flow_source_all")
 
     if not export_set and not cover_set:
-        return f"{source_hint} In AKM laden geht schon jetzt; für den Distro-Export fehlen noch Cover und Export-Ordner."
+        return f"{source_hint} " + i18n._t("rel_radar_hint")
     if not export_set:
-        return f"{source_hint} In AKM laden geht schon jetzt; für den Distro-Export fehlt noch der Export-Ordner."
+        return f"{source_hint} " + i18n._t("rel_preflight_dir_missing")
     if not cover_set:
-        return f"{source_hint} Export und AKM-Flow sind bereit, fürs Paket fehlt nur noch das Cover."
-    return f"{source_hint} Export erstellt Paket, Excel und lädt die Titel danach direkt in Batch."
+        return f"{source_hint} " + i18n._t("rel_preflight_cover_missing")
+    return f"{source_hint} " + i18n._t("rel_flow_pkg_ready")
 
 
 def build_release_status_text(track_count, cover_set, export_set, drop_enabled):
@@ -169,20 +171,20 @@ def build_cover_preview_status_text(created_count, style_label, size_label, offs
 def build_release_selection_hint(track_count, selected_indices):
     selection = tuple(selected_indices or ())
     if track_count <= 0:
-        return "Noch keine Tracks im Release. Ziehe Dateien hinein oder übernimm gematchte Werke."
+        return i18n._t("rel_selection_empty")
 
     if not selection:
-        return f"{track_count} Tracks bereit. Mehrfachauswahl ist möglich; Reihenfolge und Entfernen arbeiten auf die Auswahl."
+        return i18n._t("rel_selection_hint", count=track_count)
 
     selected_count = len(selection)
     if selected_count > 1:
-        return f"{selected_count} Tracks ausgewählt. Entfernen arbeitet auf die gesamte Auswahl."
+        return i18n._t("rel_selection_count", count=selected_count)
 
     index = selection[0]
     actions = []
     if index > 0:
-        actions.append("Nach oben")
+        actions.append(i18n._t("ui_btn_up", default="Nach oben"))
     if index < track_count - 1:
-        actions.append("Nach unten")
-    actions.append("Entfernen")
-    return f"1 Track ausgewählt. Verfügbar: {' • '.join(actions)}."
+        actions.append(i18n._t("ui_btn_down", default="Nach unten"))
+    actions.append(i18n._t("ui_btn_remove", default="Entfernen"))
+    return f"1 {i18n._t('col_export', default='Track')}." + " • ".join(actions)
