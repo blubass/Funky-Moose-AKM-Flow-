@@ -1,5 +1,6 @@
 from .base_controller import BaseController
 from app_logic import akm_core, flow_tools
+from app_logic.text_utils import clean_text as _clean_text
 
 
 class BatchController(BaseController):
@@ -20,6 +21,11 @@ class BatchController(BaseController):
             batch_view.set_copy_stage(stage)
             return
         self._copy_stage = stage or flow_tools.DEFAULT_COPY_STAGE
+
+    def _get_current_batch_item(self):
+        if not self.state.batch_queue:
+            return None
+        return self.state.batch_queue[self.state.batch_index % len(self.state.batch_queue)]
 
     def reload_flow_data(self, preferred_index=None):
         """Re-synchronizes the Batch Queue with current state."""
@@ -67,22 +73,38 @@ class BatchController(BaseController):
         if batch_view and hasattr(batch_view, "render_empty_state"):
             batch_view.render_empty_state()
 
-    def flow_copy(self):
-        if not self.state.batch_queue:
+    def flow_copy_title(self):
+        self.flow_copy(stage="title")
+
+    def flow_copy_duration(self):
+        self.flow_copy(stage="duration")
+
+    def flow_copy(self, stage=None):
+        it = self._get_current_batch_item()
+        if not it:
             return
-        it = self.state.batch_queue[self.state.batch_index % len(self.state.batch_queue)]
-        res = flow_tools.resolve_copy_action(it, self._get_batch_copy_stage())
+        copy_stage = stage or self._get_batch_copy_stage()
+        if copy_stage == "duration" and not _clean_text(it.get("duration")):
+            return
+        res = flow_tools.resolve_copy_action(it, copy_stage)
         self.app.clipboard_clear()
         self.app.clipboard_append(res["value"])
         self._set_batch_copy_stage(res["next_stage"])
+        if res["advance_after_copy"]:
+            self.state.batch_index = flow_tools.next_flow_index(
+                self.state.batch_index,
+                len(self.state.batch_queue),
+            )
+            self.update_flow()
+            return
         batch_view = self._get_batch_view()
         if batch_view and hasattr(batch_view, "set_copy_button_label"):
             batch_view.set_copy_button_label(f"{res['copied_label']} ✓")
 
     def flow_submit(self):
-        if not self.state.batch_queue:
+        it = self._get_current_batch_item()
+        if not it:
             return
-        it = self.state.batch_queue[self.state.batch_index % len(self.state.batch_queue)]
         self.tasks.run(
             lambda: akm_core.update_entry(it['title'], {"status": "submitted"}),
             lambda r: self.reload_flow_data(),

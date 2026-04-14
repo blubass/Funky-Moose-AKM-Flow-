@@ -17,7 +17,9 @@ class BatchTab(AkmPanel):
         super().__init__(parent)
         self.app = app
         self.copy_stage = flow_tools.DEFAULT_COPY_STAGE
+        self._batch_actions_enabled = False
         self._batch_action_buttons = []
+        self._focus_action_badges = {}
         self._status_action_mode = None
         self._focus_action_mode = None
         self._quick_add_mode = None
@@ -121,10 +123,18 @@ class BatchTab(AkmPanel):
         )
         self._focus_strip = tk.Frame(focus_card.inner, bg=PANEL_2)
         self._focus_strip.pack(fill="x", padx=CARD_PAD_X, pady=(SPACE_XS, SPACE_XS))
-        for index, text in enumerate(("Title", "Duration", "Submit", "Advance")):
+        focus_actions = (
+            ("title", "Title", self.app.batch_ctrl.flow_copy_title),
+            ("duration", "Duration", self.app.batch_ctrl.flow_copy_duration),
+            ("submit", "Submit", self.app.batch_ctrl.flow_submit),
+            ("advance", "Advance", self.app.batch_ctrl.flow_next),
+        )
+        for index, (key, text, command) in enumerate(focus_actions):
             badge = AkmBadge(self._focus_strip, text)
             badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
-            badge.set_active(index == 0)
+            badge.bind("<Button-1>", lambda _event, action=command: self._run_focus_badge_action(action))
+            self._focus_action_badges[key] = badge
+        self._update_focus_action_badges()
         self.flow_title = AkmHeader(focus_card.inner, text="Lade Werk...", fg=ACCENT, bg=PANEL_2)
         self.flow_title.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         meta_row = tk.Frame(focus_card.inner, bg=PANEL_2)
@@ -242,6 +252,18 @@ class BatchTab(AkmPanel):
 
     def set_copy_stage(self, stage):
         self.copy_stage = stage or flow_tools.DEFAULT_COPY_STAGE
+        self._update_focus_action_badges()
+
+    def _run_focus_badge_action(self, command):
+        if not self._batch_actions_enabled:
+            return
+        command()
+
+    def _update_focus_action_badges(self):
+        active_key = self.copy_stage if self.copy_stage in {"title", "duration"} else None
+        for key, badge in self._focus_action_badges.items():
+            badge.set_active(key == active_key)
+            badge.config(cursor="hand2" if self._batch_actions_enabled else "arrow")
 
     def render_flow_state(self, *, title_text, meta_text, progress_value, progress_text, copy_button_label, status_text, hint_text, meta_summary, enabled):
         self.flow_title.config(text=title_text)
@@ -286,12 +308,14 @@ class BatchTab(AkmPanel):
             self.app.append_log(f"Batch DnD Fehler: {e}")
 
     def set_batch_buttons_enabled(self, enabled):
+        self._batch_actions_enabled = bool(enabled)
         state = "normal" if enabled else "disabled"
         for button in self._batch_action_buttons:
             try:
                 button.config(state=state)
             except Exception:
                 pass
+        self._update_focus_action_badges()
 
     def _set_batch_buttons_enabled(self, enabled):
         self.set_batch_buttons_enabled(enabled)

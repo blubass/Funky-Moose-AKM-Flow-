@@ -1830,6 +1830,61 @@ class AppRegressionTests(TemporaryStorageTestCase):
         self.assertEqual("duration", batch_view.copy_stage)
         self.assertEqual("Titel ✓", batch_view.copy_button_text)
 
+    def test_batch_controller_flow_copy_duration_advances_to_next_track(self):
+        app = self.make_app_stub()
+        app.state.batch_queue = [
+            {
+                "title": "Song A",
+                "duration": "3:11",
+            },
+            {
+                "title": "Song B",
+                "duration": "4:22",
+            },
+        ]
+        app.state.batch_index = 0
+        app.clipboard_value = None
+        app.clipboard_clear = lambda: setattr(app, "clipboard_value", "")
+        app.clipboard_append = lambda value: setattr(app, "clipboard_value", value)
+        batch_view = FakeBatchView(copy_stage="duration")
+        app.tab_system._instances["batch"] = batch_view
+
+        controller = BatchController(app)
+        controller.flow_copy()
+
+        self.assertEqual("3:11", app.clipboard_value)
+        self.assertEqual(1, app.state.batch_index)
+        self.assertEqual("title", batch_view.copy_stage)
+        self.assertEqual("Song B", batch_view.flow_state["title_text"])
+        self.assertEqual("Titel kopieren", batch_view.flow_state["copy_button_label"])
+
+    def test_batch_controller_flow_copy_duration_can_be_triggered_directly(self):
+        app = self.make_app_stub()
+        app.state.batch_queue = [
+            {
+                "title": "Song A",
+                "duration": "3:11",
+            },
+            {
+                "title": "Song B",
+                "duration": "4:22",
+            },
+        ]
+        app.state.batch_index = 0
+        app.clipboard_value = None
+        app.clipboard_clear = lambda: setattr(app, "clipboard_value", "")
+        app.clipboard_append = lambda value: setattr(app, "clipboard_value", value)
+        batch_view = FakeBatchView(copy_stage="title")
+        app.tab_system._instances["batch"] = batch_view
+
+        controller = BatchController(app)
+        controller.flow_copy_duration()
+
+        self.assertEqual("3:11", app.clipboard_value)
+        self.assertEqual(1, app.state.batch_index)
+        self.assertEqual("title", batch_view.copy_stage)
+        self.assertEqual("Song B", batch_view.flow_state["title_text"])
+
     def test_project_controller_import_done_logs_summary_and_refreshes_overview(self):
         app = self.make_app_stub()
         app.overview_ctrl = SimpleNamespace(
