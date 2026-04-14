@@ -84,6 +84,7 @@ class CoverTab(AkmPanel):
         self._is_rendering = False
         self._last_preview_error = ""
         self._open_zoom_when_ready = False
+        self._zoom_dialog = None
         self._artwork_meta_path = None
         self._artwork_meta = None
         self._init_state_vars()
@@ -1071,10 +1072,32 @@ class CoverTab(AkmPanel):
         self._last_preview_error = ""
         self._current_image = img
         self._display_preview_image()
+        self._refresh_zoom_dialog()
         self._update_cover_dashboard()
         if self._open_zoom_when_ready:
             self._open_zoom_when_ready = False
             self._open_preview_zoom()
+
+    def _handle_zoom_dialog_closed(self):
+        self._zoom_dialog = None
+
+    def _refresh_zoom_dialog(self, *, reveal=False, recenter=False):
+        if self._current_image is None:
+            return
+        if self._zoom_dialog is None:
+            return
+        if not self._zoom_dialog.winfo_exists():
+            self._zoom_dialog = None
+            return
+
+        title = self.title_var.get().strip() or "Cover"
+        self._zoom_dialog.update_image(
+            self._current_image,
+            title=f"{title} Zoom",
+            refit=False,
+        )
+        if reveal:
+            self._zoom_dialog.reveal(recenter=recenter)
 
     def _open_preview_zoom(self, _event=None):
         zoom_action = cover_preview_tools.resolve_preview_zoom_action(
@@ -1090,7 +1113,15 @@ class CoverTab(AkmPanel):
             from app_ui.dialogs import AkmRenderedImageZoomDialog
 
             title = self.title_var.get().strip() or "Cover"
-            AkmRenderedImageZoomDialog(self, self._current_image, title=f"{title} Zoom")
+            if self._zoom_dialog is not None and self._zoom_dialog.winfo_exists():
+                self._refresh_zoom_dialog(reveal=True, recenter=True)
+            else:
+                self._zoom_dialog = AkmRenderedImageZoomDialog(
+                    self,
+                    self._current_image,
+                    title=f"{title} Zoom",
+                    on_close=self._handle_zoom_dialog_closed,
+                )
             return
 
         if zoom_action["action"] == "missing":

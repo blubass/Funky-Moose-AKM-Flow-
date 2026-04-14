@@ -6,6 +6,57 @@ from .theme import *
 from .buttons import create_btn
 from .widgets import AkmCard, AkmLabel, AkmPanel, AkmEntry, AkmSubLabel
 
+
+def _safe_int(value, fallback=0):
+    try:
+        return int(value)
+    except Exception:
+        return fallback
+
+
+def _resolve_virtual_root_bounds(widget):
+    """Return virtual-root bounds when available, falling back to the current screen."""
+    try:
+        width = _safe_int(widget.winfo_vrootwidth())
+        height = _safe_int(widget.winfo_vrootheight())
+        if width > 0 and height > 0:
+            return (
+                _safe_int(widget.winfo_vrootx()),
+                _safe_int(widget.winfo_vrooty()),
+                width,
+                height,
+            )
+    except Exception:
+        pass
+
+    return (
+        0,
+        0,
+        _safe_int(widget.winfo_screenwidth(), 1440),
+        _safe_int(widget.winfo_screenheight(), 900),
+    )
+
+
+def _place_window_near_parent(window, parent, width, height, margin=28):
+    """Center a toplevel above its parent while keeping it inside the virtual desktop."""
+    root_x, root_y, root_w, root_h = _resolve_virtual_root_bounds(parent)
+    parent_x = _safe_int(parent.winfo_rootx(), root_x)
+    parent_y = _safe_int(parent.winfo_rooty(), root_y)
+    parent_w = max(1, _safe_int(parent.winfo_width(), width))
+    parent_h = max(1, _safe_int(parent.winfo_height(), height))
+
+    x = parent_x + max(0, (parent_w - width) // 2)
+    y = parent_y + max(0, (parent_h - height) // 2)
+
+    min_x = root_x + margin
+    min_y = root_y + margin
+    max_x = root_x + max(margin, root_w - width - margin)
+    max_y = root_y + max(margin, root_h - height - margin)
+
+    x = min(max(x, min_x), max_x)
+    y = min(max(y, min_y), max_y)
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
 class AkmSaveDialog(tk.Toplevel):
     def __init__(self, parent, title, directory, extension=".akm"):
         super().__init__(parent)
@@ -248,12 +299,12 @@ class AkmImagePreviewDialog(tk.Toplevel):
 class AkmRenderedImageZoomDialog(tk.Toplevel):
     """Zoomable preview window for in-memory rendered cover images."""
 
-    def __init__(self, parent, pil_image, title="Cover-Zoom"):
+    def __init__(self, parent, pil_image, title="Cover-Zoom", on_close=None):
         super().__init__(parent)
+        self.parent = parent
+        self._close_callback = on_close
         self.title(title)
         self.configure(bg=BG)
-        self.transient(parent)
-        self.grab_set()
 
         self.original_image = pil_image.copy()
         self.zoom_var = tk.IntVar(value=100)
@@ -261,7 +312,8 @@ class AkmRenderedImageZoomDialog(tk.Toplevel):
 
         hdr = tk.Frame(self, bg=BG)
         hdr.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
-        tk.Label(hdr, text=title.upper(), bg=BG, fg=ACCENT, font=FONT_LG).pack(side="left")
+        self._title_label = tk.Label(hdr, text=title.upper(), bg=BG, fg=ACCENT, font=FONT_LG)
+        self._title_label.pack(side="left")
 
         controls = tk.Frame(self, bg=BG)
         controls.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
@@ -309,19 +361,56 @@ class AkmRenderedImageZoomDialog(tk.Toplevel):
         self.info_label = AkmSubLabel(self, text="", bg=BG)
         self.info_label.pack(pady=(0, SPACE_SM))
 
-        create_btn(self, "SCHLIESSEN", self.destroy, quiet=True, width=120).pack(pady=(0, SPACE_MD))
+        create_btn(self, "SCHLIESSEN", self.close, quiet=True, width=120).pack(pady=(0, SPACE_MD))
 
         self.canvas.bind("<Configure>", self._on_canvas_configure, add="+")
         self.canvas.bind("<MouseWheel>", self._on_mousewheel, add="+")
         self.canvas.bind("<Shift-MouseWheel>", self._on_shift_mousewheel, add="+")
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", lambda _event: self.close(), add="+")
+        self.minsize(560, 620)
 
         self.update_idletasks()
         w, h = 920, 980
-        self.geometry(f"{w}x{h}")
-        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (w // 2)
-        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (h // 2)
-        self.geometry(f"+{x}+{y}")
+        _place_window_near_parent(self, self.parent, w, h)
         self.after(80, self._fit_to_window)
+
+    def destroy(self):
+        close_callback = self._close_callback
+        self._close_callback = None
+        try:
+            super().destroy()
+        finally:
+            if close_callback:
+                close_callback()
+
+    def close(self):
+        if self.winfo_exists():
+            self.destroy()
+
+    def reveal(self, *, recenter=False):
+        if not self.winfo_exists():
+            return
+        self.update_idletasks()
+        if recenter:
+            width = max(self.winfo_width(), self.winfo_reqwidth(), 560)
+            height = max(self.winfo_height(), self.winfo_reqheight(), 620)
+            _place_window_near_parent(self, self.parent, width, height)
+        self.deiconify()
+        self.lift()
+        try:
+            self.focus_force()
+        except Exception:
+            self.focus_set()
+
+    def update_image(self, pil_image, *, title=None, refit=False):
+        self.original_image = pil_image.copy()
+        if title:
+            self.title(title)
+            self._title_label.config(text=title.upper())
+        self._render_image()
+        if refit:
+            self.after_idle(self._fit_to_window)
 
     def _on_canvas_configure(self, _event=None):
         self._render_image()
