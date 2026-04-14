@@ -815,6 +815,17 @@ def get_dashboard_stats():
 
     return overview_tools.build_dashboard_stats(load_data(strict=True))
 
+
+def _json_safe_project_value(value):
+    """Convert project payload values into JSON-serializable structures."""
+    if isinstance(value, TrackRecord):
+        return value.to_dict()
+    if isinstance(value, dict):
+        return {key: _json_safe_project_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_project_value(item) for item in value]
+    return value
+
 def save_project(path, data, cover_state=None, release_state=None, settings=None):
     """
     Saves the entire project state to a single JSON bundle.
@@ -822,10 +833,10 @@ def save_project(path, data, cover_state=None, release_state=None, settings=None
     bundle = {
         "version": "1.0",
         "timestamp": datetime.now().isoformat(),
-        "data": data,
-        "cover": cover_state or {},
-        "release": release_state or {},
-        "settings": settings or {}
+        "data": _json_safe_project_value(data),
+        "cover": _json_safe_project_value(cover_state or {}),
+        "release": _json_safe_project_value(release_state or {}),
+        "settings": _json_safe_project_value(settings or {}),
     }
     _write_json_atomic(path, bundle)
     return True

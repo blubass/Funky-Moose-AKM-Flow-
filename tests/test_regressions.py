@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ from app_logic import cover_tools
 from app_logic import detail_tools
 from app_logic import flow_tools
 from app_logic import loudness_tools
+from app_logic.models import TrackRecord
 from app_logic import overview_tools
 from app_logic import release_tools
 from app_logic import text_utils
@@ -2029,6 +2031,39 @@ class AppRegressionTests(TemporaryStorageTestCase):
         release_state = save_project.call_args.args[3]
         self.assertEqual({"artist": "Live Artist", "type": "Album"}, release_state["vars"])
         self.assertEqual(release_state["vars"], app.release_state_cache)
+
+    def test_save_project_serializes_track_records_in_catalog_and_release_tracks(self):
+        project_path = os.path.join(self.tempdir.name, "demo.akm")
+
+        akm_core.save_project(
+            project_path,
+            [
+                TrackRecord(
+                    title="Song A",
+                    composer="Uwe",
+                    tags=["single"],
+                )
+            ],
+            cover_state={"title": "Cover"},
+            release_state={
+                "vars": {"artist": "Live Artist"},
+                "tracks": [
+                    TrackRecord(
+                        title="Song A",
+                        audio_path="/tmp/song.wav",
+                    )
+                ],
+            },
+        )
+
+        with open(project_path, "r", encoding="utf-8") as handle:
+            bundle = json.load(handle)
+
+        self.assertEqual("Song A", bundle["data"][0]["title"])
+        self.assertEqual("Uwe", bundle["data"][0]["composer"])
+        self.assertEqual(["single"], bundle["data"][0]["tags"])
+        self.assertEqual("Song A", bundle["release"]["tracks"][0]["title"])
+        self.assertEqual("/tmp/song.wav", bundle["release"]["tracks"][0]["audio_path"])
 
     def test_project_controller_load_project_caches_cover_state_without_built_cover_tab(self):
         app = self.make_app_stub()
