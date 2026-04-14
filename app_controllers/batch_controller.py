@@ -57,6 +57,7 @@ class BatchController(BaseController):
                 progress_value=flow_state["progress_value"],
                 progress_text=flow_state["progress_text"],
                 copy_button_label=flow_state["copy_button_label"],
+                has_duration=flow_state["has_duration"],
                 status_text=flow_tools.build_flow_status_text(self.state.batch_queue, flow_state),
                 hint_text=flow_tools.build_flow_hint_text(
                     self.state.batch_queue,

@@ -3,7 +3,7 @@ from tkinter import ttk
 from app_logic import flow_tools
 import app_ui.ui_patterns as ui_patterns
 from app_ui.ui_patterns import (
-    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator, AkmScrollablePanel, AkmBadge,
+    AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmEntry, AkmSuccessIndicator, AkmScrollablePanel,
     ACCENT, PANEL, PANEL_2, TEXT,
     SPACE_MD, SPACE_SM, SPACE_XS, CARD_PAD_X, CARD_PAD_Y,
     FONT_BOLD, FONT_SM, FONT_MD, FONT_XL, FONT_LG, FONT_XXL, fit_wraplength, apply_button_bar_layout
@@ -18,9 +18,10 @@ class BatchTab(AkmPanel):
         self.app = app
         self.copy_stage = flow_tools.DEFAULT_COPY_STAGE
         self._batch_actions_enabled = False
+        self._current_has_duration = False
         self._batch_action_buttons = []
-        self._focus_action_badges = {}
         self._status_action_mode = None
+        self._focus_strip_mode = None
         self._focus_action_mode = None
         self._quick_add_mode = None
         self.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
@@ -123,18 +124,18 @@ class BatchTab(AkmPanel):
         )
         self._focus_strip = tk.Frame(focus_card.inner, bg=PANEL_2)
         self._focus_strip.pack(fill="x", padx=CARD_PAD_X, pady=(SPACE_XS, SPACE_XS))
-        focus_actions = (
-            ("title", "Title", self.app.batch_ctrl.flow_copy_title),
-            ("duration", "Duration", self.app.batch_ctrl.flow_copy_duration),
-            ("submit", "Submit", self.app.batch_ctrl.flow_submit),
-            ("advance", "Advance", self.app.batch_ctrl.flow_next),
+        self._focus_title_button = self.app.btn(self._focus_strip, "Titel", self.app.batch_ctrl.flow_copy_title, quiet=True, width=88)
+        self._focus_duration_button = self.app.btn(self._focus_strip, "Dauer", self.app.batch_ctrl.flow_copy_duration, quiet=True, width=88)
+        self._focus_submit_button = self.app.btn(self._focus_strip, "Submit", self.app.batch_ctrl.flow_submit, quiet=True, width=96)
+        self._focus_advance_button = self.app.btn(self._focus_strip, "Advance", self.app.batch_ctrl.flow_next, quiet=True, width=104)
+        self._focus_strip_buttons = (
+            self._focus_title_button,
+            self._focus_duration_button,
+            self._focus_submit_button,
+            self._focus_advance_button,
         )
-        for index, (key, text, command) in enumerate(focus_actions):
-            badge = AkmBadge(self._focus_strip, text)
-            badge.pack(side="left", padx=(0 if index == 0 else SPACE_XS, 0))
-            badge.bind("<Button-1>", lambda _event, action=command: self._run_focus_badge_action(action))
-            self._focus_action_badges[key] = badge
-        self._update_focus_action_badges()
+        self._batch_action_buttons.extend(self._focus_strip_buttons)
+        self._update_focus_strip_buttons()
         self.flow_title = AkmHeader(focus_card.inner, text="Lade Werk...", fg=ACCENT, bg=PANEL_2)
         self.flow_title.pack(anchor="w", padx=CARD_PAD_X, pady=(0, SPACE_XS))
         meta_row = tk.Frame(focus_card.inner, bg=PANEL_2)
@@ -203,6 +204,7 @@ class BatchTab(AkmPanel):
 
     def _apply_responsive_layout(self, width):
         self._apply_button_bar(self._status_action_bar, self._status_action_buttons, width, "_status_action_mode")
+        self._apply_button_bar(self._focus_strip, self._focus_strip_buttons, width, "_focus_strip_mode")
         self._apply_button_bar(self._focus_action_bar, self._focus_action_buttons, width, "_focus_action_mode")
         self._apply_quick_add_layout(width)
         self._update_wraplengths(width)
@@ -252,20 +254,17 @@ class BatchTab(AkmPanel):
 
     def set_copy_stage(self, stage):
         self.copy_stage = stage or flow_tools.DEFAULT_COPY_STAGE
-        self._update_focus_action_badges()
+        self._update_focus_strip_buttons()
 
-    def _run_focus_badge_action(self, command):
-        if not self._batch_actions_enabled:
-            return
-        command()
+    def _update_focus_strip_buttons(self):
+        title_text = "Titel •" if self.copy_stage == "title" else "Titel"
+        duration_text = "Dauer •" if self.copy_stage == "duration" else "Dauer"
+        self._focus_title_button.config(text=title_text)
+        self._focus_duration_button.config(text=duration_text)
+        duration_state = "normal" if self._batch_actions_enabled and self._current_has_duration else "disabled"
+        self._focus_duration_button.config(state=duration_state)
 
-    def _update_focus_action_badges(self):
-        active_key = self.copy_stage if self.copy_stage in {"title", "duration"} else None
-        for key, badge in self._focus_action_badges.items():
-            badge.set_active(key == active_key)
-            badge.config(cursor="hand2" if self._batch_actions_enabled else "arrow")
-
-    def render_flow_state(self, *, title_text, meta_text, progress_value, progress_text, copy_button_label, status_text, hint_text, meta_summary, enabled):
+    def render_flow_state(self, *, title_text, meta_text, progress_value, progress_text, copy_button_label, status_text, hint_text, meta_summary, enabled, has_duration=False):
         self.flow_title.config(text=title_text)
         self.flow_meta.config(text=meta_text)
         self.progress["value"] = progress_value
@@ -274,6 +273,7 @@ class BatchTab(AkmPanel):
         self.batch_status_label.config(text=status_text)
         self.batch_hint_label.config(text=hint_text)
         self.batch_meta_label.config(text=meta_summary)
+        self._current_has_duration = bool(has_duration)
         self.set_batch_buttons_enabled(enabled)
 
     def render_empty_state(self):
@@ -315,7 +315,7 @@ class BatchTab(AkmPanel):
                 button.config(state=state)
             except Exception:
                 pass
-        self._update_focus_action_badges()
+        self._update_focus_strip_buttons()
 
     def _set_batch_buttons_enabled(self, enabled):
         self.set_batch_buttons_enabled(enabled)

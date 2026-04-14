@@ -170,6 +170,7 @@ def build_flow_state(entries, index, copy_stage):
         progress_text, progress_value = build_flow_progress(0, 0)
         return {
             "has_item": False,
+            "has_duration": False,
             "item": None,
             "resolved_index": 0,
             "current_title": None,
@@ -183,6 +184,7 @@ def build_flow_state(entries, index, copy_stage):
     progress_text, progress_value = build_flow_progress(resolved_index, total)
     return {
         "has_item": True,
+        "has_duration": bool(_clean_text(item.get("duration"))),
         "item": item,
         "resolved_index": resolved_index,
         "current_title": _clean_text(item.get("title")) or None,
