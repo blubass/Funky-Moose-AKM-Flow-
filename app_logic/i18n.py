@@ -517,9 +517,9 @@ def set_language(lang: str):
 def get_language() -> str:
     return _current_lang
 
-def _t(key: str, default: str = None, **kwargs) -> str:
+def _t(translation_key: str, default: str = None, **kwargs) -> str:
     """Translates a key into the current language, supporting interpolation."""
-    text = STRINGS.get(_current_lang, {}).get(key, default or key)
+    text = STRINGS.get(_current_lang, {}).get(translation_key, default or translation_key)
     if kwargs:
         try:
             return text.format(**kwargs)

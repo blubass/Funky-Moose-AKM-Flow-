@@ -97,6 +97,7 @@ def resolve_preview_zoom_action(
     artwork_path,
     exists_fn=os.path.exists,
 ):
+    if is_rendering:
         return {
             "action": "busy",
             "toast_message": i18n._t("ui_title_preview") + " " + i18n._t("task_active").upper(),
