@@ -114,8 +114,8 @@ def build_release_preflight_text(track_count, release_title, cover_set, export_s
         blockers.append(i18n._t("rel_preflight_no_work", count=counts['Datei']))
 
     if blockers:
-        return i18n._t("ui_confirm_overwrite", name="Preflight").split("'")[0].strip() + ": " + " • ".join(blockers) # Hacky Preflight label or just:
-        return f"Preflight: {' • '.join(blockers)}"
+        label = i18n._t("rel_preflight_label", default="Preflight")
+        return f"{label}: " + " • ".join(blockers)
 
     ready_parts = [i18n._t("rel_preflight_ready", count=track_count)]
     if counts.get("Datei→Werk", 0):
@@ -187,4 +187,9 @@ def build_release_selection_hint(track_count, selected_indices):
     if index < track_count - 1:
         actions.append(i18n._t("ui_btn_down", default="Nach unten"))
     actions.append(i18n._t("ui_btn_remove", default="Entfernen"))
-    return f"1 {i18n._t('col_export', default='Track')}." + " • ".join(actions)
+    actions_text = " • ".join(actions)
+    return i18n._t(
+        "rel_selection_single_actions",
+        default=f"1 Track ausgewählt. Verfügbar: {actions_text}.",
+        actions=actions_text,
+    )

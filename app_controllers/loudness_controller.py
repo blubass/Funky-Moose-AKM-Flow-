@@ -97,8 +97,7 @@ class LoudnessController(BaseController):
                 self._apply_workflow_state(
                     loudness_workflows.build_loaded_files_state(self.state.loudness_files)
                 )
-                self.log(i18n._t("log_work_loaded", title=f"{len(valid_files)} Audio files"))
-                self.toast(i18n._t("rel_preflight_ready", count=len(valid_files)).upper())
+                self.toast(i18n._t("log_files_added", count=len(valid_files)).upper())
         except Exception as e:
             self.log(i18n._t("log_error", error=str(e)))
 
@@ -129,7 +128,13 @@ class LoudnessController(BaseController):
             t = float(t_str or -14.0)
             pk = float(p_str or -1.0)
         except ValueError:
-            messagebox.showerror("Eingabefehler", i18n._t("log_error", error="Invalid number format"))
+            messagebox.showerror(
+                "Eingabefehler",
+                i18n._t(
+                    "err_invalid_number_format",
+                    default="LUFS oder Peak-Wert ist kein gültiges Zahlenformat.",
+                ),
+            )
             return
 
         def _work():
@@ -149,7 +154,7 @@ class LoudnessController(BaseController):
     def _on_l_done(self, r): 
         self.state.loudness_results = r
         self._pop_l_tree()
-        self.log(i18n._t("loud_status_done", lufs=f"{len(r)} files")) # repurposing
+        self.log(i18n._t("log_analysis_done_files", count=len(r)))
 
     def _pop_l_tree(self):
         if not self._has_loudness_tree():

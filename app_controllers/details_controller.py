@@ -60,7 +60,7 @@ class DetailsController(BaseController):
     def _on_save_details_done(self, result, updates):
         if result[0]:
             akm_core.remember_detail_memory(updates)
-        self.app.overview_ctrl._on_g_done(result, i18n._t("ui_btn_save", default="Gespeichert"))
+        self.app.overview_ctrl._on_g_done(result, i18n._t("log_saved", default="Gespeichert"))
 
     def clear_details_form(self):
         self.app.detail_original_title = None

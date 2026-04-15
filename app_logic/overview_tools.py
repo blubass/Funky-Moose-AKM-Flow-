@@ -9,20 +9,13 @@ STATUS_SORT_ORDER = {
 
 def get_sort_label(key: str) -> str:
     """Returns the translated label for a sort key."""
-    labels = {
-        "title": i18n._t("dash_stat_total"),
-        "status": i18n._t("det_label_status"),
-        "year": i18n._t("dash_stat_with_production"), # Fallback or specific key
-        "last_change": i18n._t("ovw_sort_desc"), # Just labels for now
-    }
-    # Better: Use specific keys
     key_map = {
-        "title": "dash_stat_total",
-        "status": "det_label_status",
-        "year": "dash_stat_with_production", 
-        "last_change": "dash_stat_with_notes"
+        "title": "ovw_sort_title",
+        "status": "ovw_sort_status",
+        "year": "ovw_sort_year",
+        "last_change": "ovw_sort_last_change",
     }
-    return i18n._t(key_map.get(key, key))
+    return i18n._t(key_map.get(key, key), default=key)
 
 
 def build_dashboard_stats(entries):

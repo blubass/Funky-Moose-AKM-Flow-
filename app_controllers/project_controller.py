@@ -73,18 +73,17 @@ class ProjectController(BaseController):
         try:
             path = self._open_project_dialog(ui_patterns.AkmSaveDialog, "Projekt Speichern")
             if not path:
-                self.log(i18n._t("log_error", error="Save cancelled"))
+                self.log(i18n._t("log_save_cancelled", default="Speichervorgang abgebrochen."))
                 return False
             
-            self.log(i18n._t("log_export_status", path=path))
             data = self.state.get_all_records()
             cover_state = self._collect_cover_state()
             release_state = self._build_release_state()
             
             akm_core.save_project(path, data, cover_state, release_state)
             
-            self.log(i18n._t("log_export_success") + f": {os.path.basename(path)}")
-            self.toast(i18n._t("ui_btn_save", default="PROJEKT GESPEICHERT").upper(), color=ui_patterns.FLAVOR_SUCCESS)
+            self.log(i18n._t("log_project_saved", name=os.path.basename(path)))
+            self.toast(i18n._t("toast_project_saved", default="PROJEKT GESPEICHERT"), color=ui_patterns.FLAVOR_SUCCESS)
             return True
             
         except Exception as e:
@@ -157,5 +156,5 @@ class ProjectController(BaseController):
                            production=defaults.get("production", ""),
                            year=defaults.get("year", ""),
                        ),
-                       lambda r: self.app.overview_ctrl._on_g_done(r, i18n._t("log_work_updated", title=title)), 
+                       lambda r: self.app.overview_ctrl._on_g_done(r, i18n._t("log_work_created", title=title)), 
                        busy_text=i18n._t("task_busy_text"))

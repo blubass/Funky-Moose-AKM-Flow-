@@ -173,12 +173,11 @@ class ReleaseController(BaseController):
                 candidate_tracks,
             )
             if result["added"]:
+                added_count = len(result["added"])
                 self.state.release_tracks = result["tracks"]
                 self.refresh_view()
-                self.log(i18n._t("log_work_loaded", title=f"{len(result['added'])} tracks"))
-                if result["duplicates"]:
-                    self.log(i18n._t("log_error", error=f"{len(result['duplicates'])} duplicates"))
-                self.toast(i18n._t("rel_preflight_ready", count=len(result['added'])).upper())
+                self.log(i18n._t("log_release_drop_added", count=added_count))
+                self.toast(i18n._t("log_tracks_added", count=added_count).upper())
         except Exception as e:
             self.log(f"Release DnD Parse Fehler: {e}")
 
