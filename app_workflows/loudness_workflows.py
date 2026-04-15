@@ -111,6 +111,10 @@ def build_tree_row(item):
     if not export_info and item.get("ok"):
         export_info = "Bereit"
 
+    limiter_label = "Ja" if item.get("used_limiter") else "Nein"
+    if not item.get("used_limiter") and item.get("match_status") == "Peak Warnung":
+        limiter_label = "Auto"
+
     row_tags = ()
     if export_info == "Exportiert":
         row_tags = ("exported",)
@@ -131,7 +135,7 @@ def build_tree_row(item):
             _format_optional_float(item.get("gain_to_target_db")),
             _format_optional_float(item.get("predicted_true_peak_after_gain")),
             item.get("match_status", ""),
-            "Auto" if item.get("match_status") == "Peak Warnung" else "Nein",
+            limiter_label,
             export_info,
         ),
         "tags": row_tags,
@@ -144,6 +148,7 @@ def export_result_item(
     peak_ceiling,
     use_limiter,
     loudness_module,
+    export_format_key="original",
 ):
     filename = item.get("filename", "")
     gain_db = item.get("gain_to_target_db")
@@ -160,18 +165,36 @@ def export_result_item(
             "logs": [f"Übersprungen: {filename} (keine Analyse)"],
         }
 
-    output_path = loudness_module.safe_output_path(output_dir, source_path)
-    apply_limiter = use_limiter and item.get("match_status") == "Peak Warnung"
+    output_path = loudness_module.safe_output_path(
+        output_dir,
+        source_path,
+        export_format_key=export_format_key,
+    )
+    apply_limiter = bool(use_limiter)
     result = loudness_module.export_matched_file(
         source_path,
         output_path,
         gain_db,
         use_limiter=apply_limiter,
         true_peak_ceiling_db=peak_ceiling,
+        target_lufs=item.get("target_lufs"),
+        export_format_key=export_format_key,
     )
 
     if result.get("ok"):
-        limiter_info = " | Auto-Limiter" if apply_limiter else ""
+        limiter_info = ""
+        if apply_limiter:
+            limiter_info = f" | {result.get('processing_mode', 'Limiter')}"
+        format_info = ""
+        if result.get("export_format_label"):
+            format_info = f" | {result['export_format_label']}"
+        verified_info = ""
+        if result.get("output_integrated_lufs") is not None:
+            verified_info = (
+                f" | Output {result['output_integrated_lufs']:.2f} LUFS"
+            )
+            if result.get("output_true_peak_dbtp") is not None:
+                verified_info += f" / TP {result['output_true_peak_dbtp']:.2f} dBTP"
         return {
             "exported_increment": 1,
             "warning_increment": 0,
@@ -180,10 +203,13 @@ def export_result_item(
                 "output": result.get("output", output_path),
                 "used_limiter": apply_limiter,
                 "export_info": "Exportiert",
+                "output_integrated_lufs": result.get("output_integrated_lufs"),
+                "output_true_peak_dbtp": result.get("output_true_peak_dbtp"),
+                "export_format_label": result.get("export_format_label"),
             },
             "logs": [
                 f"Exportiert: {os.path.basename(output_path)} | "
-                f"Gain {gain_db:.2f} dB{limiter_info}"
+                f"Gain {gain_db:.2f} dB{limiter_info}{format_info}{verified_info}"
             ],
         }
 
@@ -216,19 +242,30 @@ def apply_export_updates(results, updates):
                 "export_info",
                 updated.get("export_info", ""),
             )
+            updated["used_limiter"] = update.get(
+                "used_limiter",
+                updated.get("used_limiter", False),
+            )
             if update.get("output"):
                 updated["exported_output"] = update.get("output")
+            if update.get("output_integrated_lufs") is not None:
+                updated["output_integrated_lufs"] = update.get("output_integrated_lufs")
+            if update.get("output_true_peak_dbtp") is not None:
+                updated["output_true_peak_dbtp"] = update.get("output_true_peak_dbtp")
+            if update.get("export_format_label"):
+                updated["export_format_label"] = update.get("export_format_label")
         merged_results.append(updated)
 
     return merged_results
 
 
-def build_export_status_text(payload, auto_link):
+def build_export_status_text(payload, auto_link, export_format_label=""):
     link_info = " | Rückverlinkung aktiv" if auto_link else ""
+    format_info = f" | Format: {export_format_label}" if export_format_label else ""
     return (
         f"Export fertig: {payload.get('exported', 0)} Dateien | "
         f"Warnungen: {payload.get('warnings', 0)} | "
-        f"Limiter auto nur bei Peak-Warnung{link_info}"
+        f"True-Peak-Schutz fuer Export aktiv{format_info}{link_info}"
     )
 
 

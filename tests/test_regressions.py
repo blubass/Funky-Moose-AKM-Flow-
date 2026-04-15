@@ -389,14 +389,18 @@ class FakeLoudnessView:
         *,
         target_text="-14.0",
         peak_text="-1.0",
+        export_format_key="original",
         output_dir="",
         use_limiter=True,
+        auto_link=True,
         selection=(),
     ):
         self.target_text = target_text
         self.peak_text = peak_text
+        self.export_format_key = export_format_key
         self.output_dir = output_dir
         self.use_limiter = use_limiter
+        self.auto_link = auto_link
         self.selection = tuple(selection)
         self.status_text = None
         self.hint_text = None
@@ -420,6 +424,12 @@ class FakeLoudnessView:
 
     def get_use_limiter(self):
         return self.use_limiter
+
+    def get_auto_link(self):
+        return self.auto_link
+
+    def get_export_format_key(self):
+        return self.export_format_key
 
     def get_selected_paths(self):
         return self.selection
@@ -559,12 +569,22 @@ class FakeLoudnessModule:
         return "Zu leise" if gain_db > 0 else "Zu laut"
 
     @staticmethod
-    def safe_output_path(output_dir, source_path, suffix="_matched"):
+    def safe_output_path(output_dir, source_path, suffix="_matched", export_format_key="original"):
         stem, ext = os.path.splitext(os.path.basename(source_path))
+        if export_format_key != "original":
+            ext = ".wav"
         return os.path.join(output_dir, f"{stem}{suffix}{ext}")
 
     @staticmethod
-    def export_matched_file(source_path, output_path, gain_db, use_limiter=False, true_peak_ceiling_db=-1.0):
+    def export_matched_file(
+        source_path,
+        output_path,
+        gain_db,
+        use_limiter=False,
+        true_peak_ceiling_db=-1.0,
+        target_lufs=None,
+        export_format_key="original",
+    ):
         return {
             "ok": True,
             "source": source_path,
@@ -572,6 +592,12 @@ class FakeLoudnessModule:
             "gain_db": gain_db,
             "use_limiter": use_limiter,
             "true_peak_ceiling_db": true_peak_ceiling_db,
+            "target_lufs": target_lufs,
+            "export_format_key": export_format_key,
+            "export_format_label": export_format_key,
+            "processing_mode": "loudnorm" if use_limiter else "gain",
+            "output_integrated_lufs": target_lufs,
+            "output_true_peak_dbtp": true_peak_ceiling_db if use_limiter else None,
             "error": "",
         }
 
@@ -1628,6 +1654,7 @@ class LoudnessWorkflowTests(unittest.TestCase):
                 "filename": "track.wav",
                 "path": "/tmp/track.wav",
                 "gain_to_target_db": 1.5,
+                "target_lufs": -14.0,
                 "match_status": "Peak Warnung",
             },
             "/exports",
@@ -1640,6 +1667,44 @@ class LoudnessWorkflowTests(unittest.TestCase):
         self.assertEqual(0, result["warning_increment"])
         self.assertTrue(result["update"]["used_limiter"])
         self.assertEqual("Exportiert", result["update"]["export_info"])
+        self.assertEqual(-14.0, result["update"]["output_integrated_lufs"])
+
+    def test_export_result_item_uses_limiter_for_tp_safe_normalization(self):
+        result = loudness_workflows.export_result_item(
+            {
+                "filename": "steady.wav",
+                "path": "/tmp/steady.wav",
+                "gain_to_target_db": 0.8,
+                "target_lufs": -14.0,
+                "match_status": "OK",
+            },
+            "/exports",
+            -1.0,
+            True,
+            FakeLoudnessModule,
+        )
+
+        self.assertTrue(result["update"]["used_limiter"])
+        self.assertIn("loudnorm", result["logs"][0])
+
+    def test_export_result_item_can_render_target_wav_format(self):
+        result = loudness_workflows.export_result_item(
+            {
+                "filename": "track.mp3",
+                "path": "/tmp/track.mp3",
+                "gain_to_target_db": 1.0,
+                "target_lufs": -14.0,
+                "match_status": "OK",
+            },
+            "/exports",
+            -1.0,
+            True,
+            FakeLoudnessModule,
+            export_format_key="wav_96000_32",
+        )
+
+        self.assertEqual("/exports/track_matched.wav", result["update"]["output"])
+        self.assertIn("wav_96000_32", result["logs"][0])
 
     def test_apply_export_updates_merges_outputs_into_results(self):
         merged = loudness_workflows.apply_export_updates(
@@ -1648,13 +1713,31 @@ class LoudnessWorkflowTests(unittest.TestCase):
                 {"path": "/b.wav", "export_info": "Bereit"},
             ],
             [
-                {"path": "/b.wav", "export_info": "Exportiert", "output": "/out/b.wav"},
+                {
+                    "path": "/b.wav",
+                    "export_info": "Exportiert",
+                    "output": "/out/b.wav",
+                    "used_limiter": True,
+                    "output_integrated_lufs": -14.0,
+                },
             ],
         )
 
         self.assertEqual("Bereit", merged[0]["export_info"])
         self.assertEqual("Exportiert", merged[1]["export_info"])
         self.assertEqual("/out/b.wav", merged[1]["exported_output"])
+        self.assertTrue(merged[1]["used_limiter"])
+        self.assertEqual(-14.0, merged[1]["output_integrated_lufs"])
+
+    def test_build_export_status_text_includes_format(self):
+        status_text = loudness_workflows.build_export_status_text(
+            {"exported": 2, "warnings": 0},
+            True,
+            "WAV 96 kHz / 32-bit float",
+        )
+
+        self.assertIn("Format: WAV 96 kHz / 32-bit float", status_text)
+
 
 
 @unittest.skipUnless(cover_tools.have_pillow(), "Pillow not available")
@@ -2823,6 +2906,42 @@ class AppRegressionTests(TemporaryStorageTestCase):
         )
         self.assertEqual([], app.state.loudness_results)
 
+    def test_loudness_controller_export_done_merges_results_and_logs_details(self):
+        app = self.make_app_stub()
+        app.state.loudness_results = [
+            {"path": "/tmp/song.wav", "export_info": "Bereit", "match_status": "OK"}
+        ]
+        loudness_view = FakeLoudnessView()
+        app.tab_system._instances["loudness"] = loudness_view
+
+        controller = LoudnessController(app)
+        controller.log = app.logs.append
+        controller.toast = lambda message, **kwargs: app.toasts.append(message)
+
+        controller._on_export_done(
+            [
+                {
+                    "exported_increment": 1,
+                    "warning_increment": 0,
+                    "update": {
+                        "path": "/tmp/song.wav",
+                        "output": "/exports/song_matched.wav",
+                        "used_limiter": True,
+                        "export_info": "Exportiert",
+                        "output_integrated_lufs": -14.03,
+                    },
+                    "logs": ["Exportiert: song_matched.wav | Gain 1.50 dB | Output -14.03 LUFS"],
+                }
+            ]
+        )
+
+        self.assertEqual("Exportiert", app.state.loudness_results[0]["export_info"])
+        self.assertTrue(app.state.loudness_results[0]["used_limiter"])
+        self.assertEqual(-14.03, app.state.loudness_results[0]["output_integrated_lufs"])
+        self.assertIn("Export fertig: 1 Dateien", app.logs[0])
+        self.assertIn("Output -14.03 LUFS", app.logs[1])
+        self.assertEqual("EXPORT FERTIG", app.toasts[0])
+
     def test_release_controller_handle_drop_deduplicates_and_matches_titles(self):
         matched_path = os.path.join(self.tempdir.name, "01 - Intro_matched.wav")
         with open(matched_path, "wb") as handle:
@@ -3200,6 +3319,46 @@ class AppRegressionTests(TemporaryStorageTestCase):
         ), mock.patch.object(loudness_tools.os, "pathsep", ";"):
             loudness_tools._ensure_ffmpeg_in_path()
             self.assertEqual("C:\\ffmpeg\\bin;C:\\Windows\\System32", loudness_tools.os.environ["PATH"])
+
+    def test_loudness_tools_export_matched_file_prefers_two_pass_loudnorm(self):
+        commands = []
+
+        def fake_run(cmd):
+            commands.append(list(cmd))
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(loudness_tools.os.path, "exists", return_value=True), mock.patch.object(
+            loudness_tools, "measure_loudnorm_stats",
+            return_value={
+                "input_i": -18.2,
+                "input_tp": -2.1,
+                "input_lra": 5.4,
+                "input_thresh": -28.4,
+                "target_offset": -0.1,
+            },
+        ), mock.patch.object(
+            loudness_tools.os, "makedirs"
+        ), mock.patch.object(
+            loudness_tools, "run_command",
+            side_effect=fake_run,
+        ), mock.patch.object(
+            loudness_tools, "analyze_full_track",
+            return_value={"integrated_lufs": -14.02, "true_peak_dbtp": -1.0},
+        ):
+            result = loudness_tools.export_matched_file(
+                "/tmp/source.wav",
+                "/tmp/out.wav",
+                4.2,
+                use_limiter=True,
+                true_peak_ceiling_db=-1.0,
+                target_lufs=-14.0,
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("loudnorm", result["processing_mode"])
+        self.assertEqual(-14.02, result["output_integrated_lufs"])
+        self.assertIn("loudnorm=I=-14.0", commands[0][7])
+        self.assertIn("measured_I=-18.2", commands[0][7])
 
     def test_open_in_finder_uses_windows_explorer_selection_for_files(self):
         with mock.patch.object(widgets.platform, "system", return_value="Windows"), mock.patch.object(

@@ -23,6 +23,7 @@ class LoudnessTab(AkmPanel):
         self.output_dir_var = tk.StringVar()
         self.target_var = tk.StringVar(value="-14.0")
         self.peak_var = tk.StringVar(value="-1.0")
+        self.export_format_var = tk.StringVar(value=loudness_tools.describe_export_format("original"))
         self.use_limiter_var = tk.BooleanVar(value=True)
         self.auto_link_var = tk.BooleanVar(value=True)
         self._mid_layout_mode = None
@@ -175,6 +176,12 @@ class LoudnessTab(AkmPanel):
         settings_form.add_header(i18n._t("loud_label_target"))
         settings_form.add_entry(i18n._t("loud_label_lufs"), self.target_var, width=8)
         settings_form.add_entry(i18n._t("loud_label_peak"), self.peak_var, width=8)
+        settings_form.add_combobox(
+            i18n._t("loud_label_render_format"),
+            self.export_format_var,
+            loudness_tools.get_export_format_labels(),
+            state="readonly",
+        )
         settings_form.add_row(
             i18n._t("loud_label_outdir"),
             lambda parent: self._create_output_dir_field(parent),
@@ -183,7 +190,7 @@ class LoudnessTab(AkmPanel):
         settings_form.add_checkbox(i18n._t("loud_label_autolink"), self.auto_link_var)
         self._settings_hint_label = AkmSubLabel(
             settings_card.inner,
-            text="Limiter greift nur bei Peak-Warnungen. Auto-Link ist fuer spaetere Rueckverweise gedacht.",
+            text="44.1/48 kHz sind starke Delivery-Formate. 96 kHz / 32-bit float ist eher fuer Mastering oder Weitergabe gedacht.",
             bg=PANEL_2,
             justify="left",
             wraplength=260,
@@ -377,6 +384,12 @@ class LoudnessTab(AkmPanel):
 
     def get_use_limiter(self):
         return bool(self.use_limiter_var.get())
+
+    def get_auto_link(self):
+        return bool(self.auto_link_var.get())
+
+    def get_export_format_key(self):
+        return loudness_tools.get_export_format_key(self.export_format_var.get())
 
     def get_selected_paths(self):
         return tuple(self.loudness_tree.selection())

@@ -6,6 +6,37 @@ import shutil
 import subprocess
 import sys
 from typing import Dict, List, Optional
+from app_logic import i18n
+
+DEFAULT_TARGET_LUFS = -14.0
+DEFAULT_TRUE_PEAK_CEILING_DB = -1.0
+DEFAULT_LOUDNESS_RANGE_TARGET = 11.0
+EXPORT_FORMAT_PRESETS = {
+    "original": {
+        "label_key": "loud_format_original",
+        "extension": None,
+        "sample_rate": None,
+        "codec": None,
+    },
+    "wav_44100_24": {
+        "label_key": "loud_format_wav_441_24",
+        "extension": ".wav",
+        "sample_rate": 44100,
+        "codec": "pcm_s24le",
+    },
+    "wav_48000_24": {
+        "label_key": "loud_format_wav_480_24",
+        "extension": ".wav",
+        "sample_rate": 48000,
+        "codec": "pcm_s24le",
+    },
+    "wav_96000_32": {
+        "label_key": "loud_format_wav_960_32",
+        "extension": ".wav",
+        "sample_rate": 96000,
+        "codec": "pcm_f32le",
+    },
+}
 
 
 def _ffmpeg_search_locations():
@@ -159,6 +190,100 @@ def _extract_true_peak(stderr_text: str):
     return None
 
 
+def _extract_loudnorm_json(stderr_text: str) -> Optional[Dict]:
+    matches = re.findall(r"(\{\s*\"input_i\".*?\})", stderr_text, flags=re.DOTALL)
+    if not matches:
+        return None
+
+    try:
+        return json.loads(matches[-1])
+    except json.JSONDecodeError:
+        return None
+
+
+def _coerce_float(value) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def measure_loudnorm_stats(
+    path: str,
+    target_lufs: float = DEFAULT_TARGET_LUFS,
+    true_peak_ceiling_db: float = DEFAULT_TRUE_PEAK_CEILING_DB,
+    loudness_range_target: float = DEFAULT_LOUDNESS_RANGE_TARGET,
+) -> Optional[Dict]:
+    if not os.path.exists(path) or not have_ffmpeg():
+        return None
+
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-nostats",
+        "-i",
+        path,
+        "-vn",
+        "-af",
+        (
+            f"loudnorm=I={target_lufs}:"
+            f"TP={true_peak_ceiling_db}:"
+            f"LRA={loudness_range_target}:"
+            "print_format=json"
+        ),
+        "-f",
+        "null",
+        "-",
+    ]
+    result = run_command(cmd)
+    measurement = _extract_loudnorm_json(result.stderr or "")
+    if not measurement:
+        return None
+
+    return {
+        "input_i": _coerce_float(measurement.get("input_i")),
+        "input_tp": _coerce_float(measurement.get("input_tp")),
+        "input_lra": _coerce_float(measurement.get("input_lra")),
+        "input_thresh": _coerce_float(measurement.get("input_thresh")),
+        "target_offset": _coerce_float(measurement.get("target_offset")),
+        "output_i": _coerce_float(measurement.get("output_i")),
+        "output_tp": _coerce_float(measurement.get("output_tp")),
+        "output_lra": _coerce_float(measurement.get("output_lra")),
+        "output_thresh": _coerce_float(measurement.get("output_thresh")),
+        "normalization_type": measurement.get("normalization_type"),
+    }
+
+
+def _build_two_pass_loudnorm_filter(
+    measurement: Dict,
+    target_lufs: float,
+    true_peak_ceiling_db: float,
+    loudness_range_target: float = DEFAULT_LOUDNESS_RANGE_TARGET,
+) -> Optional[str]:
+    required_values = (
+        measurement.get("input_i"),
+        measurement.get("input_tp"),
+        measurement.get("input_lra"),
+        measurement.get("input_thresh"),
+        measurement.get("target_offset"),
+    )
+    if any(value is None for value in required_values):
+        return None
+
+    return (
+        f"loudnorm=I={target_lufs}:"
+        f"TP={true_peak_ceiling_db}:"
+        f"LRA={loudness_range_target}:"
+        f"measured_I={measurement['input_i']}:"
+        f"measured_LRA={measurement['input_lra']}:"
+        f"measured_TP={measurement['input_tp']}:"
+        f"measured_thresh={measurement['input_thresh']}:"
+        f"offset={measurement['target_offset']}:"
+        "linear=true:"
+        "print_format=summary"
+    )
+
+
 def analyze_full_track(path: str) -> Dict:
     """
     Misst komplette Datei mit ffmpeg ebur128.
@@ -275,12 +400,78 @@ def get_status_for_match(
     return "Zu laut"
 
 
-def safe_output_path(output_dir: str, source_path: str, suffix: str = "_matched") -> str:
+def get_export_format_key(label_or_key: Optional[str]) -> str:
+    raw = (label_or_key or "").strip()
+    if raw in EXPORT_FORMAT_PRESETS:
+        return raw
+
+    for key, preset in EXPORT_FORMAT_PRESETS.items():
+        label = i18n._t(preset["label_key"], default=key)
+        if raw == label:
+            return key
+    return "original"
+
+
+def get_export_format_labels() -> List[str]:
+    return [
+        i18n._t(preset["label_key"], default=key)
+        for key, preset in EXPORT_FORMAT_PRESETS.items()
+    ]
+
+
+def describe_export_format(key: Optional[str]) -> str:
+    resolved_key = get_export_format_key(key)
+    preset = EXPORT_FORMAT_PRESETS.get(resolved_key, EXPORT_FORMAT_PRESETS["original"])
+    return i18n._t(preset["label_key"], default=resolved_key)
+
+
+def _export_extension_for(source_path: str, export_format_key: Optional[str]) -> str:
+    preset = EXPORT_FORMAT_PRESETS.get(
+        get_export_format_key(export_format_key),
+        EXPORT_FORMAT_PRESETS["original"],
+    )
+    extension = preset.get("extension")
+    if extension:
+        return extension
+    _stem, ext = os.path.splitext(os.path.basename(source_path))
+    return ext or ".wav"
+
+
+def safe_output_path(
+    output_dir: str,
+    source_path: str,
+    suffix: str = "_matched",
+    export_format_key: Optional[str] = None,
+) -> str:
     base = os.path.basename(source_path)
-    stem, ext = os.path.splitext(base)
-    if not ext:
-        ext = ".wav"
+    stem, _ext = os.path.splitext(base)
+    ext = _export_extension_for(source_path, export_format_key)
     return os.path.join(output_dir, f"{stem}{suffix}{ext}")
+
+
+def _codec_args_for_output(output_path: str, export_format_key: Optional[str]) -> List[str]:
+    preset = EXPORT_FORMAT_PRESETS.get(
+        get_export_format_key(export_format_key),
+        EXPORT_FORMAT_PRESETS["original"],
+    )
+    if preset.get("codec"):
+        codec_args = ["-c:a", preset["codec"]]
+        if preset.get("sample_rate"):
+            codec_args += ["-ar", str(preset["sample_rate"])]
+        return codec_args
+
+    codec_args = ["-c:a", "pcm_s16le"]
+    ext = os.path.splitext(output_path)[1].lower()
+
+    if ext == ".flac":
+        codec_args = ["-c:a", "flac"]
+    elif ext == ".mp3":
+        codec_args = ["-c:a", "libmp3lame", "-b:a", "320k"]
+    elif ext in {".m4a", ".aac"}:
+        codec_args = ["-c:a", "aac", "-b:a", "320k"]
+    elif ext in {".aif", ".aiff"}:
+        codec_args = ["-c:a", "pcm_s16be"]
+    return codec_args
 
 
 def export_matched_file(
@@ -290,6 +481,8 @@ def export_matched_file(
     overwrite: bool = True,
     use_limiter: bool = False,
     true_peak_ceiling_db: float = -1.0,
+    target_lufs: Optional[float] = None,
+    export_format_key: Optional[str] = None,
 ) -> Dict:
     """
     Rendert neue Datei mit Gain-Anpassung.
@@ -310,22 +503,33 @@ def export_matched_file(
             "error": "Quelldatei nicht gefunden.",
         }
 
-    codec_args = ["-c:a", "pcm_s16le"]
-    ext = os.path.splitext(output_path)[1].lower()
-
-    if ext == ".flac":
-        codec_args = ["-c:a", "flac"]
-    elif ext == ".mp3":
-        codec_args = ["-c:a", "libmp3lame", "-b:a", "320k"]
-    elif ext in {".m4a", ".aac"}:
-        codec_args = ["-c:a", "aac", "-b:a", "320k"]
-    elif ext in {".aif", ".aiff"}:
-        codec_args = ["-c:a", "pcm_s16be"]
+    codec_args = _codec_args_for_output(output_path, export_format_key)
 
     filter_chain = f"volume={gain_db}dB"
-    if use_limiter:
+    processing_mode = "gain"
+
+    if use_limiter and target_lufs is not None:
+        measurement = measure_loudnorm_stats(
+            source_path,
+            target_lufs=target_lufs,
+            true_peak_ceiling_db=true_peak_ceiling_db,
+        )
+        loudnorm_filter = _build_two_pass_loudnorm_filter(
+            measurement or {},
+            target_lufs=target_lufs,
+            true_peak_ceiling_db=true_peak_ceiling_db,
+        )
+        if loudnorm_filter:
+            filter_chain = loudnorm_filter
+            processing_mode = "loudnorm"
+        else:
+            limit_linear = db_to_linear(true_peak_ceiling_db)
+            filter_chain += f",alimiter=limit={limit_linear:.6f}:level=1"
+            processing_mode = "gain+limiter"
+    elif use_limiter:
         limit_linear = db_to_linear(true_peak_ceiling_db)
         filter_chain += f",alimiter=limit={limit_linear:.6f}:level=1"
+        processing_mode = "gain+limiter"
 
     cmd = [
         "ffmpeg",
@@ -341,6 +545,8 @@ def export_matched_file(
     ]
     result = run_command(cmd)
 
+    verified_output = analyze_full_track(output_path) if result.returncode == 0 else None
+
     return {
         "ok": result.returncode == 0,
         "source": source_path,
@@ -348,6 +554,12 @@ def export_matched_file(
         "gain_db": gain_db,
         "use_limiter": use_limiter,
         "true_peak_ceiling_db": true_peak_ceiling_db,
+        "target_lufs": target_lufs,
+        "export_format_key": get_export_format_key(export_format_key),
+        "export_format_label": describe_export_format(export_format_key),
+        "processing_mode": processing_mode,
+        "output_integrated_lufs": None if not verified_output else verified_output.get("integrated_lufs"),
+        "output_true_peak_dbtp": None if not verified_output else verified_output.get("true_peak_dbtp"),
         "error": "" if result.returncode == 0 else (result.stderr.strip() or "Export fehlgeschlagen."),
     }
 

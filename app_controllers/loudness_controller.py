@@ -67,6 +67,18 @@ class LoudnessController(BaseController):
         if loudness_view and hasattr(loudness_view, "get_use_limiter"):
             return loudness_view.get_use_limiter()
         return True
+
+    def _get_auto_link(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_auto_link"):
+            return loudness_view.get_auto_link()
+        return True
+
+    def _get_export_format_key(self):
+        loudness_view = self._get_loudness_view()
+        if loudness_view and hasattr(loudness_view, "get_export_format_key"):
+            return loudness_view.get_export_format_key()
+        return "original"
     
     def choose_files(self):
         p = filedialog.askopenfilenames(filetypes=path_ui_tools.AUDIO_FILETYPES)
@@ -227,17 +239,44 @@ class LoudnessController(BaseController):
 
         pk = float(self._get_peak_text() or -1.0)
         lim = self._get_use_limiter()
+        export_format_key = self._get_export_format_key()
         if not self.state.loudness_results:
             self.toast(i18n._t("rel_radar_empty").upper(), color=ui_patterns.FLAVOR_ERROR)
             return
 
         def _work():
-            return [loudness_workflows.export_result_item(it, out, pk, lim, loudness_tools) for it in self.state.loudness_results]
+            return [
+                loudness_workflows.export_result_item(
+                    it,
+                    out,
+                    pk,
+                    lim,
+                    loudness_tools,
+                    export_format_key=export_format_key,
+                )
+                for it in self.state.loudness_results
+            ]
 
         self.tasks.run(_work, self._on_export_done, busy_text="Exportiere Audio...")
 
     def _on_export_done(self, r):
-        self.log(i18n._t("rel_status_ready") + f" ({len(r)})")
+        updates = [item.get("update", {}) for item in r]
+        exported = sum(item.get("exported_increment", 0) for item in r)
+        warnings = sum(item.get("warning_increment", 0) for item in r)
+        self.state.loudness_results = loudness_workflows.apply_export_updates(
+            self.state.loudness_results,
+            updates,
+        )
+        self.log(
+            loudness_workflows.build_export_status_text(
+                {"exported": exported, "warnings": warnings},
+                self._get_auto_link(),
+                loudness_tools.describe_export_format(self._get_export_format_key()),
+            )
+        )
+        for item in r:
+            for line in item.get("logs", []):
+                self.log(line)
         self._pop_l_tree()
         self.toast(i18n._t("log_export_success").upper(), color=ui_patterns.FLAVOR_SUCCESS)
 
