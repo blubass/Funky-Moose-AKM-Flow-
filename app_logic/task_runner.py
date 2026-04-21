@@ -1,6 +1,5 @@
 import threading
 import queue
-import traceback
 import logging
 
 
@@ -32,8 +31,7 @@ class TaskRunner:
                 self.queue.put(("success", result, on_success))
             except Exception as e:
                 error_msg = f"{type(e).__name__}: {e}"
-                logging.error(f"TaskRunner Fehler: {error_msg}")
-                traceback.print_exc()
+                logging.exception("TaskRunner Fehler: %s", error_msg)
                 self.queue.put(("error", error_msg, on_error))
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -57,7 +55,7 @@ class TaskRunner:
                     try:
                         callback(payload)
                     except Exception:
-                        traceback.print_exc()
+                        logging.exception("TaskRunner callback failed")
 
         except queue.Empty:
             pass
@@ -69,7 +67,7 @@ class TaskRunner:
             from app_ui.ui_patterns import AkmToast, FLAVOR_ERROR
             AkmToast(self.app, "FEHLER IM HINTERGRUND", color=FLAVOR_ERROR)
         except Exception:
-            pass
+            logging.exception("TaskRunner default error display failed")
 
     def parse_dnd_files(self, data):
         """Intelligently parses DND strings from various OS platforms (handles braces and spacing)."""

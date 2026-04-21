@@ -1,6 +1,5 @@
 import functools
 import logging
-import traceback
 
 
 class BaseController:
@@ -60,8 +59,7 @@ class BaseController:
             try:
                 return func(self, *args, **kwargs)
             except Exception as e:
-                logging.error(f"Controller Fehler in {func.__name__}: {e}")
-                traceback.print_exc()
+                logging.exception("Controller Fehler in %s: %s", func.__name__, e)
                 self.toast_error("AKTION FEHLGESCHLAGEN")
                 return None
         return wrapper

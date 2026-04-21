@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import logging
 import os
 import threading
 from PIL import Image, ImageTk
@@ -9,6 +10,8 @@ from app_ui.ui_patterns import (
     AkmPanel, AkmCard, AkmLabel, AkmSubLabel, AkmHeader, AkmToast, blend_color
 )
 from app_logic import loudness_tools
+
+logger = logging.getLogger(__name__)
 
 class AkmAudioPlayer(tk.Toplevel):
     """
@@ -20,6 +23,8 @@ class AkmAudioPlayer(tk.Toplevel):
         self.engine = engine
         self.path = track_path
         self.title_text = track_title
+        self._waveform_error_logged = False
+        self._position_error_logged = False
         
         self.title(f"Funky Moose Player - {os.path.basename(track_path)}")
         w, h = 640, 480
@@ -131,7 +136,11 @@ class AkmAudioPlayer(tk.Toplevel):
                 img_resized = img.resize((w, h), Image.Resampling.LANCZOS)
                 self._photo = ImageTk.PhotoImage(img_resized)
                 self.wave_label.config(image=self._photo)
-        except: pass
+                self._waveform_error_logged = False
+        except Exception as exc:
+            if not self._waveform_error_logged:
+                logger.exception("Waveform preview could not be loaded from %s: %s", self._waveform_path, exc)
+                self._waveform_error_logged = True
 
     def start_engine(self):
         try:
@@ -141,7 +150,9 @@ class AkmAudioPlayer(tk.Toplevel):
                 # Initial poll
                 self.update_pos()
         except Exception as e:
-            print(f"ERROR starting engine: {e}")
+            logger.exception("Audio player engine start failed for %s: %s", self.path, e)
+            if hasattr(self.parent, "append_log"):
+                self.parent.append_log(f"Audio-Player Fehler: {e}")
 
     def toggle_pause(self):
         self.engine.pause()
@@ -171,6 +182,7 @@ class AkmAudioPlayer(tk.Toplevel):
         
         try:
             pos = self.engine.get_pos()
+            self._position_error_logged = False
             if pos is not None:
                 # ONLY update the slider if the user isn't dragging it!
                 if not self._drag_active:
@@ -180,7 +192,10 @@ class AkmAudioPlayer(tk.Toplevel):
                 if pos >= self._duration - 0.1:
                     # End reached (don't stop immediately)
                     pass
-        except: pass
+        except Exception as exc:
+            if not self._position_error_logged:
+                logger.exception("Audio player position update failed for %s: %s", self.path, exc)
+                self._position_error_logged = True
             
         self.after(100, self.update_pos)
 

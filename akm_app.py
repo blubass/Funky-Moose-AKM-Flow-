@@ -232,8 +232,8 @@ class AKMApp(TkinterDnD.Tk if TkinterDnD is not None else tk.Tk):
 
         # Initial Boot Info Logger (Branding Trace)
         self.append_log("-" * 30)
-        self.append_log("OBSIDIAN MASTER v1.0.1 INITIALIZED")
-        self.append_log("System: Core architecture decoupled.")
+        self.append_log(f"{cfg.APP_NAME} v{cfg.VERSION} initialisiert")
+        self.append_log("System: Kernarchitektur geladen.")
         self.append_log("-" * 30)
 
         # Force initial tab loading

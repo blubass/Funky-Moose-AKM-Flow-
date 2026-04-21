@@ -1,6 +1,5 @@
-
+import logging
 import os
-import traceback
 from tkinter import filedialog, messagebox
 from .base_controller import BaseController
 from app_logic import akm_core, assistant_tools, i18n
@@ -89,7 +88,7 @@ class ProjectController(BaseController):
         except Exception as e:
             err_msg = i18n._t("log_export_error", error=str(e))
             self.log(err_msg)
-            print(traceback.format_exc())
+            logging.exception("Projekt konnte nicht gespeichert werden")
             messagebox.showerror("Fehler", f"Save failed:\n{e}")
             return False
 

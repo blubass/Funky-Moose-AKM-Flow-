@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import os
 import re
@@ -7,6 +8,8 @@ import subprocess
 import sys
 from typing import Dict, List, Optional
 from app_logic import i18n
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TARGET_LUFS = -14.0
 DEFAULT_TRUE_PEAK_CEILING_DB = -1.0
@@ -88,7 +91,7 @@ def _ensure_ffmpeg_in_path():
             
     if new_paths:
         os.environ["PATH"] = os.pathsep.join(new_paths + current_entries)
-        print(f"DEBUG: PATH updated to include ffmpeg search locations: {new_paths}")
+        logger.debug("Expanded PATH with ffmpeg search locations: %s", new_paths)
 
 
 # Sofort beim Import versuchen PATH zu fixen
@@ -115,9 +118,9 @@ def run_command(cmd: List[str]) -> subprocess.CompletedProcess:
         check=False,
     )
     if result.returncode != 0:
-        print(f"DEBUG: Command failed with code {result.returncode}")
+        logger.debug("Command failed with code %s", result.returncode)
         if result.stderr:
-            print(f"DEBUG STDEERR: {result.stderr[:200]}")
+            logger.debug("Command stderr: %s", result.stderr[:200])
     return result
 
 
@@ -518,11 +521,32 @@ def export_matched_file(
     processing_mode = "gain"
 
     if use_limiter:
-        # Standard preference for music: Linear Gain + Soft Limiter
-        # This prevents the 'loudness jumps' caused by dynamic compression (loudnorm).
-        limit_linear = db_to_linear(true_peak_ceiling_db)
-        filter_chain += f",alimiter=limit={limit_linear:.6f}:level=1"
-        processing_mode = "soft-limiter"
+        loudnorm_filter = None
+        if target_lufs is not None:
+            measurement = measure_loudnorm_stats(
+                source_path,
+                target_lufs=target_lufs,
+                true_peak_ceiling_db=true_peak_ceiling_db,
+            )
+            if measurement:
+                loudnorm_filter = _build_two_pass_loudnorm_filter(
+                    measurement,
+                    target_lufs=target_lufs,
+                    true_peak_ceiling_db=true_peak_ceiling_db,
+                )
+
+        if loudnorm_filter:
+            filter_chain = loudnorm_filter
+            processing_mode = "loudnorm"
+        else:
+            limit_linear = db_to_linear(true_peak_ceiling_db)
+            filter_chain += f",alimiter=limit={limit_linear:.6f}:level=1"
+            processing_mode = "soft-limiter"
+            if target_lufs is not None:
+                logger.debug(
+                    "Falling back to soft limiter export for %s because two-pass loudnorm stats were unavailable.",
+                    source_path,
+                )
 
     cmd = [
         "ffmpeg",
@@ -619,8 +643,8 @@ def generate_waveform_image(path: str, out_path: str, width: int = 800, height: 
         )
         return result.returncode == 0 and os.path.exists(abs_out)
     except subprocess.TimeoutExpired:
-        print("DEBUG: Waveform generation timed out after 10s")
+        logger.debug("Waveform generation timed out after 10s for %s", abs_in)
         return False
     except Exception as e:
-        print(f"DEBUG: Waveform generation error: {e}")
+        logger.exception("Waveform generation failed for %s: %s", abs_in, e)
         return False

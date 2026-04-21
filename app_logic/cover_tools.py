@@ -1,3 +1,4 @@
+import logging
 import os
 
 try:
@@ -109,18 +110,23 @@ def get_font_by_path_or_name(font_name_or_path, size, bold=False):
     
     # If it's a full path, use it directly
     if os.path.isabs(font_name_or_path) and os.path.exists(font_name_or_path):
-        try: return ImageFont.truetype(font_name_or_path, size=size)
-        except: pass
+        try:
+            return ImageFont.truetype(font_name_or_path, size=size)
+        except Exception as exc:
+            logger.debug("Custom font could not be loaded from %s: %s", font_name_or_path, exc)
         
     # On Mac, search for name in standard locations
     if "/" not in font_name_or_path:
         dirs = ["/System/Library/Fonts", "/Library/Fonts", "/System/Library/Fonts/Supplemental"]
         for d in dirs:
-            if not os.path.exists(d): continue
+            if not os.path.exists(d):
+                continue
             for f in os.listdir(d):
                 if font_name_or_path.lower() in f.lower():
-                    try: return ImageFont.truetype(os.path.join(d, f), size=size)
-                    except: continue
+                    try:
+                        return ImageFont.truetype(os.path.join(d, f), size=size)
+                    except Exception:
+                        continue
 
     return get_release_cover_font(size, bold=bold)
 
@@ -473,3 +479,4 @@ def _build_release_cover_variant_center_band(base_image, title, artist, output_p
         align="center",
     )
     save_release_cover_variant(image, output_path)
+logger = logging.getLogger(__name__)

@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
+import logging
 import os
 from PIL import Image, ImageTk
 import app_ui.ui_patterns as ui_patterns
@@ -1019,8 +1020,7 @@ class CoverTab(AkmPanel):
                 self.app.append_log(drop_state["ignored_message"])
         except Exception as e:
             self.app.append_log(f"Internal DnD Error: {e}")
-            import traceback
-            print(traceback.format_exc())
+            logging.exception("Cover DnD handling failed")
 
     def load_cover(self, path):
         """Simplest path to set the base artwork and start previewing."""

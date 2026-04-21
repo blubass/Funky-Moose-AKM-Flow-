@@ -1,4 +1,5 @@
 import logging
+import sys
 import time
 
 class AkmLogHandler(logging.Handler):
@@ -18,7 +19,7 @@ class AkmLogHandler(logging.Handler):
             if hasattr(self.app, 'after'):
                 self.app.after(0, lambda: self._write_to_ui(ui_msg))
             else:
-                print(ui_msg) # Fallback
+                self._write_to_console(ui_msg)
         except Exception:
             self.handleError(record)
 
@@ -27,7 +28,15 @@ class AkmLogHandler(logging.Handler):
             import tkinter as tk
             self.app.log.insert(tk.END, msg + "\n")
             self.app.log.see(tk.END)
-        print(msg) # Mirror to console
+        self._write_to_console(msg)
+
+    def _write_to_console(self, msg):
+        stream = getattr(sys, "__stderr__", None) or sys.stderr
+        try:
+            stream.write(msg + "\n")
+            stream.flush()
+        except Exception:
+            pass
 
 def setup_logging(app_instance):
     """Configures the root logger with the AKM-specific UI handler."""

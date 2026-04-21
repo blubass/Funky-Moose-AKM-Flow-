@@ -2,6 +2,8 @@ import os
 import threading
 import time
 
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+
 try:
     import pygame
     HAS_PYGAME = True

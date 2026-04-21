@@ -1,5 +1,6 @@
 import os
 import tkinter as tk
+import logging
 import app_ui.ui_patterns as ui_patterns
 from app_ui import detail_view_tools
 from app_ui.ui_patterns import (
@@ -38,8 +39,8 @@ class DetailsTab(AkmPanel):
             from tkinterdnd2 import DND_FILES
             self.drop_target_register(DND_FILES)
             self.dnd_bind('<<Drop>>', self._on_dnd_drop)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.debug("Details DnD setup skipped: %s", exc)
 
     def _on_dnd_drop(self, event):
         data = event.data
@@ -50,7 +51,8 @@ class DetailsTab(AkmPanel):
                 f = files[0]
                 # Trigger the controller's logic with the dropped path
                 self.app.details_ctrl.handle_audio_drop(f)
-        except Exception: pass
+        except Exception as exc:
+            logging.exception("Details DnD drop handling failed: %s", exc)
 
     def build_ui(self):
         self._build_header_section()
