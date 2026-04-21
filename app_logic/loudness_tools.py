@@ -10,7 +10,7 @@ from app_logic import i18n
 
 DEFAULT_TARGET_LUFS = -14.0
 DEFAULT_TRUE_PEAK_CEILING_DB = -1.0
-DEFAULT_LOUDNESS_RANGE_TARGET = 11.0
+DEFAULT_LOUDNESS_RANGE_TARGET = 20.0
 EXPORT_FORMAT_PRESETS = {
     "original": {
         "label_key": "loud_format_original",
@@ -28,6 +28,12 @@ EXPORT_FORMAT_PRESETS = {
         "label_key": "loud_format_wav_480_24",
         "extension": ".wav",
         "sample_rate": 48000,
+        "codec": "pcm_s24le",
+    },
+    "wav_96000_24": {
+        "label_key": "loud_format_wav_960_24",
+        "extension": ".wav",
+        "sample_rate": 96000,
         "codec": "pcm_s24le",
     },
     "wav_96000_32": {
@@ -460,7 +466,8 @@ def _codec_args_for_output(output_path: str, export_format_key: Optional[str]) -
             codec_args += ["-ar", str(preset["sample_rate"])]
         return codec_args
 
-    codec_args = ["-c:a", "pcm_s16le"]
+    # Default selection for high-quality audio masters: 24-bit PCM
+    codec_args = ["-c:a", "pcm_s24le"]
     ext = os.path.splitext(output_path)[1].lower()
 
     if ext == ".flac":
@@ -470,7 +477,9 @@ def _codec_args_for_output(output_path: str, export_format_key: Optional[str]) -
     elif ext in {".m4a", ".aac"}:
         codec_args = ["-c:a", "aac", "-b:a", "320k"]
     elif ext in {".aif", ".aiff"}:
-        codec_args = ["-c:a", "pcm_s16be"]
+        codec_args = ["-c:a", "pcm_s24be"]
+    elif ext == ".wav":
+        codec_args = ["-c:a", "pcm_s24le"]
     return codec_args
 
 
@@ -508,28 +517,12 @@ def export_matched_file(
     filter_chain = f"volume={gain_db}dB"
     processing_mode = "gain"
 
-    if use_limiter and target_lufs is not None:
-        measurement = measure_loudnorm_stats(
-            source_path,
-            target_lufs=target_lufs,
-            true_peak_ceiling_db=true_peak_ceiling_db,
-        )
-        loudnorm_filter = _build_two_pass_loudnorm_filter(
-            measurement or {},
-            target_lufs=target_lufs,
-            true_peak_ceiling_db=true_peak_ceiling_db,
-        )
-        if loudnorm_filter:
-            filter_chain = loudnorm_filter
-            processing_mode = "loudnorm"
-        else:
-            limit_linear = db_to_linear(true_peak_ceiling_db)
-            filter_chain += f",alimiter=limit={limit_linear:.6f}:level=1"
-            processing_mode = "gain+limiter"
-    elif use_limiter:
+    if use_limiter:
+        # Standard preference for music: Linear Gain + Soft Limiter
+        # This prevents the 'loudness jumps' caused by dynamic compression (loudnorm).
         limit_linear = db_to_linear(true_peak_ceiling_db)
         filter_chain += f",alimiter=limit={limit_linear:.6f}:level=1"
-        processing_mode = "gain+limiter"
+        processing_mode = "soft-limiter"
 
     cmd = [
         "ffmpeg",
