@@ -6,6 +6,7 @@ __pycache__/
 .venv_mac/
 dist/
 build/
+release-assets/
 legacy/*.spec
 
 # macOS
