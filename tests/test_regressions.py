@@ -30,6 +30,7 @@ from app_ui import release_view_tools
 from app_ui import ui_patterns
 from app_ui import widgets
 from app_ui.tabs.batch_tab import BatchTab
+from app_ui.tabs.cover_tab import CoverTab
 from app_workflows import loudness_workflows
 from app_workflows import release_workflows
 from app_controllers.batch_controller import BatchController
@@ -1486,6 +1487,43 @@ class CoverPreviewToolsTests(unittest.TestCase):
         self.assertEqual("render_first", render_first["action"])
 
 
+@unittest.skipUnless(cover_tools.have_pillow(), "Pillow not available")
+class CoverTabRenderTests(unittest.TestCase):
+    def test_render_cover_image_uses_state_snapshot_without_reading_tk_vars(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            cover_path = os.path.join(tempdir, "cover.png")
+            cover_tools.Image.new("RGB", (600, 600), color="black").save(cover_path)
+
+            tab = object.__new__(CoverTab)
+            tab.get_state = lambda: (_ for _ in ()).throw(
+                AssertionError("background render must not read Tk variables")
+            )
+
+            rendered = CoverTab._render_cover_image(
+                tab,
+                320,
+                state={
+                    "artwork_path": cover_path,
+                    "zoom": 1.0,
+                    "layout": "bottom",
+                    "title": "Snapshot Title",
+                    "title_case": "normal",
+                    "artist": "Snapshot Artist",
+                    "artist_case": "normal",
+                    "subtitle": "",
+                    "subtitle_case": "normal",
+                    "bg_color": "#101010",
+                    "accent_color": "#ffaa33",
+                    "style": "clean",
+                    "size_mode": "medium",
+                    "overlay": "medium",
+                    "offset": "normal",
+                },
+            )
+
+            self.assertEqual((320, 320), rendered.size)
+
+
 class DetailControllerToolsTests(unittest.TestCase):
     def test_build_detail_text_state_formats_tags_and_status(self):
         state = detail_controller_tools.build_detail_text_state(
@@ -1748,6 +1786,28 @@ class CoverToolsTests(unittest.TestCase):
         resized = cover_tools.resize_cover_canvas(image, 300, 300)
 
         self.assertEqual((300, 300), resized.size)
+
+    def test_build_release_cover_variant_returns_image_for_all_layouts(self):
+        base = cover_tools.Image.new("RGB", (800, 800), color="black")
+        options = {
+            "style": "clean",
+            "size_mode": "medium",
+            "offset": "normal",
+            "overlay": "medium",
+        }
+
+        for layout in ("bottom", "topleft", "center"):
+            rendered = cover_tools.build_release_cover_variant(
+                layout,
+                base,
+                "Test Release",
+                "Test Artist",
+                None,
+                options,
+            )
+
+            self.assertIsNotNone(rendered)
+            self.assertEqual((800, 800), rendered.size)
 
     def test_generate_cover_variants_creates_expected_files(self):
         with tempfile.TemporaryDirectory() as tempdir:

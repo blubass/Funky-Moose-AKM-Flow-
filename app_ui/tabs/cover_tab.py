@@ -92,6 +92,9 @@ class CoverTab(AkmPanel):
         self._init_state_vars()
         self._preview_refresh_after = None
         self._preview_dimensions = None
+        self._preview_request_generation = 0
+        self._active_preview_generation = None
+        self._preview_refresh_pending = False
         
         self.pack(fill="both", expand=True)
         self.build_ui()
@@ -691,10 +694,19 @@ class CoverTab(AkmPanel):
             self.load_cover(path)
 
     def _clear_artwork(self):
+        self._preview_request_generation += 1
+        self._preview_refresh_pending = False
+        if self._preview_refresh_after is not None:
+            try:
+                self.after_cancel(self._preview_refresh_after)
+            except Exception:
+                pass
+            self._preview_refresh_after = None
         self.artwork_path_var.set("")
         self._current_image = None
         self._photo = None
         self._is_rendering = False
+        self._active_preview_generation = None
         self._open_zoom_when_ready = False
         self._last_preview_error = ""
         self._artwork_meta_path = None
@@ -873,15 +885,16 @@ class CoverTab(AkmPanel):
         self._artwork_meta = details
         return details
 
-    def _render_cover_image(self, target_size, output_path=None):
+    def _render_cover_image(self, target_size, output_path=None, state=None):
         from PIL import ImageDraw
         from app_logic import cover_tools
 
         if not cover_tools.have_pillow():
             raise RuntimeError("Pillow is not available for cover rendering.")
 
+        state_snapshot = dict(state) if state is not None else self.get_state()
         payload = cover_preview_tools.build_cover_render_payload(
-            self.get_state(),
+            state_snapshot,
             target_size,
         )
         path = payload["artwork_path"]
@@ -919,6 +932,11 @@ class CoverTab(AkmPanel):
             return image.convert("RGB") if image.mode != "RGB" else image
 
     def _schedule_preview_refresh(self, delay_ms=120):
+        self._preview_request_generation += 1
+        if self._is_rendering:
+            self._preview_refresh_pending = True
+            return
+
         if self._preview_refresh_after is not None:
             try:
                 self.after_cancel(self._preview_refresh_after)
@@ -1044,8 +1062,14 @@ class CoverTab(AkmPanel):
     def refresh_preview(self):
         """Renders the current text onto the cover image for preview."""
         self._preview_refresh_after = None
+        if self._is_rendering:
+            self._preview_refresh_pending = True
+            return
+
+        generation = self._preview_request_generation
+        state_snapshot = self.get_state()
         refresh_state = cover_preview_tools.resolve_preview_refresh_state(
-            self.artwork_path_var.get()
+            state_snapshot.get("artwork_path")
         )
         if not refresh_state["can_render"]:
             self._reset_preview_state()
@@ -1054,22 +1078,45 @@ class CoverTab(AkmPanel):
             return
 
         self._is_rendering = True
+        self._active_preview_generation = generation
+        self._preview_refresh_pending = False
         self._last_preview_error = ""
         self._update_cover_dashboard()
 
         self.app.tasks.run(
-            lambda: self._render_cover_image(1800),
+            lambda state=state_snapshot, request_generation=generation: (
+                request_generation,
+                self._render_cover_image(1800, state=state),
+            ),
             self._on_preview_rendered,
-            self._on_preview_error,
+            lambda error_msg, request_generation=generation: self._on_preview_error(
+                error_msg,
+                generation=request_generation,
+            ),
             busy_text=None,
         )
 
-    def _on_preview_rendered(self, img):
+    def _queue_pending_preview_refresh(self):
+        if self._preview_refresh_pending:
+            self._preview_refresh_pending = False
+            self._schedule_preview_refresh(delay_ms=20)
+
+    def _on_preview_rendered(self, result):
         """Updates the UI with the newly rendered preview image, respecting the UI Zoom."""
-        if not img:
+        generation, img = result if isinstance(result, tuple) else (self._preview_request_generation, result)
+        is_active_render = generation == self._active_preview_generation
+        if is_active_render:
+            self._is_rendering = False
+            self._active_preview_generation = None
+
+        if generation != self._preview_request_generation:
+            self._queue_pending_preview_refresh()
             return
 
-        self._is_rendering = False
+        if not img:
+            self._queue_pending_preview_refresh()
+            return
+
         self._last_preview_error = ""
         self._current_image = img
         self._display_preview_image()
@@ -1078,6 +1125,7 @@ class CoverTab(AkmPanel):
         if self._open_zoom_when_ready:
             self._open_zoom_when_ready = False
             self._open_preview_zoom()
+        self._queue_pending_preview_refresh()
 
     def _handle_zoom_dialog_closed(self):
         self._zoom_dialog = None
@@ -1157,7 +1205,16 @@ class CoverTab(AkmPanel):
         image_label.pack(expand=True)
         image_label.bind("<Double-Button-1>", self._open_preview_zoom, add="+")
 
-    def _on_preview_error(self, error_msg):
+    def _on_preview_error(self, error_msg, generation=None):
+        is_active_render = generation is None or generation == self._active_preview_generation
+        if is_active_render:
+            self._is_rendering = False
+            self._active_preview_generation = None
+
+        if generation is not None and generation != self._preview_request_generation:
+            self._queue_pending_preview_refresh()
+            return
+
         self._reset_preview_state(
             error_message=error_msg,
             clear_zoom_request=True,
@@ -1165,6 +1222,7 @@ class CoverTab(AkmPanel):
         self.app.append_log(f"Preview-Rendering fehlgeschlagen: {error_msg}")
         self._show_placeholders()
         self._update_cover_dashboard()
+        self._queue_pending_preview_refresh()
 
     def _assign_to_release(self):
         """Transfers the current artwork path to the Release tab's metadata."""
@@ -1201,8 +1259,10 @@ class CoverTab(AkmPanel):
         if not out_path:
             return
 
+        state_snapshot = self.get_state()
+
         def _render_full():
-            self._render_cover_image(3000, output_path=out_path)
+            self._render_cover_image(3000, output_path=out_path, state=state_snapshot)
             return out_path
 
         def _done(res):

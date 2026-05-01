@@ -479,4 +479,5 @@ def _build_release_cover_variant_center_band(base_image, title, artist, output_p
         align="center",
     )
     save_release_cover_variant(image, output_path)
+    return image
 logger = logging.getLogger(__name__)
